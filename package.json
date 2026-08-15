@@ -6,7 +6,7 @@
   "description": "个人工作进度看板 —— 面向 Leader 的轻量任务透明化工具",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "agent": "node scripts/agent.js",
     "agent:list": "node scripts/agent.js list",
