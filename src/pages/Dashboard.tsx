@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Task, TaskUpdate } from '../types'
+import { appConfig } from '../config'
 import { getDB } from '../lib/dbFactory'
 import { useTaskService } from '../hooks/useTaskService'
-import { useAuth } from '../context/AuthContext'
 import { TaskCard, SectionTitle } from '../components/TaskCard'
 import { TaskProgress } from '../components/TaskProgress'
 import { StatusBadge } from '../components/StatusBadge'
@@ -15,8 +15,7 @@ const PRIORITY_ORDER = { high: 0, normal: 1, low: 2 } as const
 
 export function Dashboard() {
   const navigate = useNavigate()
-  const { user, isLocalMode } = useAuth()
-  const isAdmin = !!user?.isAdmin
+  const isLocalMode = appConfig.dataMode === 'local'
 
   const db = getDB()
   const service = useTaskService(db)
@@ -99,10 +98,7 @@ export function Dashboard() {
     [tasks],
   )
 
-  const recentUpdates = useMemo(
-    () => allUpdates.slice(0, 12),
-    [allUpdates],
-  )
+  const recentUpdates = useMemo(() => allUpdates.slice(0, 12), [allUpdates])
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -129,7 +125,11 @@ export function Dashboard() {
   }
 
   if (loading && tasks.length === 0) {
-    return <div className="page"><p className="muted">加载中…</p></div>
+    return (
+      <div className="page">
+        <p className="muted">加载中…</p>
+      </div>
+    )
   }
 
   return (
@@ -147,11 +147,9 @@ export function Dashboard() {
           <h1>工作进度看板</h1>
           <span className="muted">{todayText()}</span>
         </div>
-        {isAdmin && (
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            ＋ 新建任务
-          </button>
-        )}
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          ＋ 新建任务
+        </button>
       </div>
 
       {/* 统计条 */}
@@ -186,18 +184,17 @@ export function Dashboard() {
           {heroTask.current_status && <p className="hero-status">最新：{heroTask.current_status}</p>}
           {latestByTask.get(heroTask.id) && (
             <p className="hero-update muted">
-              最近更新（{shortDateTime(latestByTask.get(heroTask.id)!.created_at)}）：{latestByTask.get(heroTask.id)!.content}
+              最近更新（{shortDateTime(latestByTask.get(heroTask.id)!.created_at)}）：
+              {latestByTask.get(heroTask.id)!.content}
             </p>
           )}
           <div className="row-gap">
             <button className="btn btn-ghost" onClick={() => navigate(`/task/${heroTask.id}`)}>
               查看详情
             </button>
-            {isAdmin && (
-              <button className="btn btn-primary" onClick={() => setQuickTask(heroTask)}>
-                快速更新
-              </button>
-            )}
+            <button className="btn btn-primary" onClick={() => setQuickTask(heroTask)}>
+              快速更新
+            </button>
           </div>
         </section>
       ) : (
@@ -213,7 +210,9 @@ export function Dashboard() {
           <SectionTitle
             extra={
               <span className="muted">
-                {activeTasks.length} 个任务 · 共 {activeTasks.reduce((s, t) => s + t.progress, 0) / Math.max(1, activeTasks.length) | 0}% 平均进度
+                {activeTasks.length} 个任务 · 共{' '}
+                {((activeTasks.reduce((s, t) => s + t.progress, 0) / Math.max(1, activeTasks.length)) | 0)}%
+                平均进度
               </span>
             }
           >
@@ -225,9 +224,8 @@ export function Dashboard() {
                 key={t.id}
                 task={t}
                 latestUpdate={latestByTask.get(t.id)}
-                isAdmin={isAdmin}
                 onOpen={(task) => navigate(`/task/${task.id}`)}
-                onQuickUpdate={isAdmin ? setQuickTask : undefined}
+                onQuickUpdate={setQuickTask}
               />
             ))}
           </div>
@@ -248,7 +246,8 @@ export function Dashboard() {
                   <span className="list-title">{t.title}</span>
                 </div>
                 <span className="muted">
-                  {relativeDay(t.actual_end_date ?? t.created_at.slice(0, 10))} · <StatusBadge status={t.status} />
+                  {relativeDay(t.actual_end_date ?? t.created_at.slice(0, 10))} ·{' '}
+                  <StatusBadge status={t.status} />
                 </span>
               </div>
             ))}
@@ -318,12 +317,6 @@ export function Dashboard() {
         </section>
       )}
 
-      {!isAdmin && (
-        <p className="muted center">
-          当前为只读视图。管理员登录后可更新任务。
-        </p>
-      )}
-
       {quickTask && (
         <QuickUpdateModal
           task={quickTask}
@@ -332,13 +325,7 @@ export function Dashboard() {
           onDone={notify}
         />
       )}
-      {showCreate && (
-        <CreateTaskModal
-          service={service}
-          onClose={() => setShowCreate(false)}
-          onDone={notify}
-        />
-      )}
+      {showCreate && <CreateTaskModal service={service} onClose={() => setShowCreate(false)} onDone={notify} />}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

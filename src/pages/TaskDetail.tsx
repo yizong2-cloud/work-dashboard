@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Task, TaskUpdate } from '../types'
 import { getDB } from '../lib/dbFactory'
 import { useTaskService } from '../hooks/useTaskService'
-import { useAuth } from '../context/AuthContext'
 import { StatusBadge } from '../components/StatusBadge'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { TaskProgress } from '../components/TaskProgress'
@@ -14,8 +13,6 @@ import { zhDate, shortDateTime } from '../lib/format'
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const isAdmin = !!user?.isAdmin
 
   const db = getDB()
   const service = useTaskService(db)
@@ -61,12 +58,20 @@ export function TaskDetail() {
     }
   }
 
-  if (loading) return <div className="page"><p className="muted">加载中…</p></div>
+  if (loading) {
+    return (
+      <div className="page">
+        <p className="muted">加载中…</p>
+      </div>
+    )
+  }
   if (error || !task) {
     return (
       <div className="page">
         <p className="banner banner-error">{error || '任务不存在'}</p>
-        <Link className="btn btn-ghost" to="/">返回看板</Link>
+        <Link className="btn btn-ghost" to="/">
+          返回看板
+        </Link>
       </div>
     )
   }
@@ -79,7 +84,9 @@ export function TaskDetail() {
 
   return (
     <div className="page">
-      <Link className="back-link" to="/">← 返回看板</Link>
+      <Link className="back-link" to="/">
+        ← 返回看板
+      </Link>
 
       <div className="detail-head card">
         <div className="detail-title-row">
@@ -102,7 +109,10 @@ export function TaskDetail() {
           </div>
           <div className="info-item">
             <span className="info-label">预计完成</span>
-            <span className={overdue ? 'txt-warn' : ''}>{zhDate(task.expected_end_date)}{overdue && '（已逾期）'}</span>
+            <span className={overdue ? 'txt-warn' : ''}>
+              {zhDate(task.expected_end_date)}
+              {overdue && '（已逾期）'}
+            </span>
           </div>
           <div className="info-item">
             <span className="info-label">实际完成</span>
@@ -131,16 +141,14 @@ export function TaskDetail() {
           </div>
         )}
 
-        {isAdmin && (
-          <div className="row-gap">
-            <button className="btn btn-primary" onClick={() => setQuick(true)}>
-              快速更新
-            </button>
-            <button className="btn btn-danger btn-sm" onClick={() => void remove()}>
-              删除任务
-            </button>
-          </div>
-        )}
+        <div className="row-gap">
+          <button className="btn btn-primary" onClick={() => setQuick(true)}>
+            快速更新
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={() => void remove()}>
+            删除任务
+          </button>
+        </div>
       </div>
 
       <section className="detail-section">

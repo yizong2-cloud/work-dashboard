@@ -36,7 +36,7 @@
 | `type` | `progress` 进展 / `status_change` 状态 / `schedule_change` 排期 / `blocked` 阻塞 / `unblocked` 解除 / `interrupt` 临时插入 / `note` 说明 / `completed` 完成 |
 | `content` | 这条变化说了什么（要写清楚，Leader 靠它理解过程） |
 | `old_expected_end_date` / `new_expected_end_date` | 排期调整时的旧/新日期 |
-| `created_by` | 操作者（默认取 `ADMIN_EMAIL`） |
+| `created_by` | 操作者（Agent 固定写「agent」，网页端写「本人」） |
 
 ## 3. 必须遵守的更新规则（违反 = 看板失真）
 
@@ -57,7 +57,7 @@ npm install        # 首次
 
 - 未配置 `.env` 时，命令读写本地 `data/local.json`（**本地模式**，用于测试）。
 - 配置 `.env` 的 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` 后，命令直接写 **线上 Supabase 库**（正式模式）。
-- 不确定连的是哪：`npm run agent -- list` 输出的第一条提示 `[mode]`（`list` 命令会显示模式）。
+- 不确定连的是哪：`npm run agent -- list` 输出的第一行会显示 `[数据模式] local/supabase`。
 
 ## 5. 命令速查（全部支持 `--dry-run` 预演、`--json` 机器输出）
 
@@ -133,10 +133,10 @@ npm run agent -- batch --file ops.json             # 再执行
 
 ## 8. 安全红线（Agent 必须遵守）
 
-- ❌ **绝不把 `SUPABASE_SERVICE_ROLE_KEY` 写进任何代码、文档、前端或提交到 git**。
-- ❌ 不修改 `supabase/schema.sql` 里的权限策略（那是权限底线；要改先问用户）。
+- ❌ **绝不把 `SUPABASE_SERVICE_ROLE_KEY` 写进任何代码、文档、前端或提交到 git** —— 它有数据库管理员权限，一旦进前端/仓库等于把数据库钥匙公开。
+- ❌ 不修改 `supabase/schema.sql` 里的表结构（改之前先问用户）。
 - ❌ 不执行 `delete` 除非用户明确要求。
-- ✅ 网页端只读数据永远安全；写库只通过上面的 CLI。
+- ✅ 本看板无登录/权限控制：网页只读或写库都通过同一套数据，写库请走 CLI，不要绕过。
 
 ## 9. 更新完成后
 

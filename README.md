@@ -3,9 +3,10 @@
 > 一个用于向 Leader 持续透明展示个人任务、进度、排期及变化原因的轻量级个人工作看板。
 
 - **前端**：React 18 + Vite 5 + TypeScript + React Router
-- **后端 / 数据库**：Supabase（PostgreSQL + Auth + RLS）
+- **后端 / 数据库**：Supabase（PostgreSQL）
 - **托管**：GitHub Pages（免费、0 运维）
-- **维护方式**：本人（网页操作）+ **Agent（自然语言 → CLI 自动更新）**
+- **维护方式**：本人直接操作网页 + **Agent（自然语言 → CLI 自动更新）**
+- **权限**：无登录、无权限控制 —— 仅本人与 Leader 使用，打开即看、即改
 
 ## 快速开始
 
@@ -21,10 +22,9 @@ npm run dev        # 本地开发（默认 local 演示模式，无需任何配�
 ```text
 work-dashboard/
 ├── src/                    # 前端
-│   ├── pages/              # Dashboard / TaskDetail / Login
+│   ├── pages/              # Dashboard / TaskDetail
 │   ├── components/         # TaskCard / TaskTimeline / QuickUpdateModal ...
 │   ├── lib/                # 数据层（local / supabase 双实现）+ taskService
-│   ├── context/            # AuthContext（登录态 / 管理员判断）
 │   ├── hooks/
 │   ├── types.ts            # 数据模型契约
 │   └── styles.css
@@ -32,9 +32,9 @@ work-dashboard/
 │   ├── agent.js            # 主入口：list/get/create/progress/schedule/block/...
 │   ├── seed.json           # 种子演示数据
 │   └── lib/                # 参数解析 / .env 加载 / 存储层
-├── supabase/schema.sql     # 建表 + RLS + 触发器（唯一数据契约）
+├── supabase/schema.sql     # 建表 + 全开放策略（唯一数据契约）
 ├── docs/
-│   ├── SETUP.md            # 部署上线教程（Supabase + GitHub Pages）
+│   ├── SETUP.md            # 部署上线教程（Supabase + GitHub Pages，含新手步骤）
 │   └── AGENT_GUIDE.md      # Agent 维护手册（自然语言 → CLI 命令）
 ├── .github/workflows/deploy.yml  # GitHub Pages 自动部署
 └── .env.example            # 环境变量样例（绝不提交 .env 本身）
@@ -63,8 +63,8 @@ work-dashboard/
 ## 关键约定
 
 - 每次「变化」都会追加一条时间线记录（`task_updates`），绝不只覆盖字段 —— 这是 Leader 能看到「为什么延期/变化」的基础。
-- 前端只使用 Supabase **anon key**；`service_role key` 仅存在于本地 `.env`，**严禁进入前端或提交仓库**。
-- 写权限由数据库 RLS 控制（只有管理员邮箱可写），不依赖前端隐藏按钮。
+- 前端只使用 Supabase **anon key**；`service_role key` 仅存在于本地 `.env`，**严禁进入前端或提交仓库**（它有数据库管理员权限，一旦泄露数据库等于裸奔）。
+- 数据库已按「无权限控制」配置：任何人拿到网页地址都可查看与编辑（仅本人与 Leader 使用，无敏感数据）。
 
 ## 后续可扩展（已预留）
 

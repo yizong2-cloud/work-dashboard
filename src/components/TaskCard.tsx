@@ -8,12 +8,11 @@ import { shortDate } from '../lib/format'
 interface TaskCardProps {
   task: Task
   latestUpdate?: TaskUpdate
-  isAdmin: boolean
   onOpen: (task: Task) => void
   onQuickUpdate?: (task: Task) => void
 }
 
-export function TaskCard({ task, latestUpdate, isAdmin, onOpen, onQuickUpdate }: TaskCardProps) {
+export function TaskCard({ task, latestUpdate, onOpen, onQuickUpdate }: TaskCardProps) {
   const overdue =
     !!task.expected_end_date &&
     task.status !== 'completed' &&
@@ -63,13 +62,12 @@ export function TaskCard({ task, latestUpdate, isAdmin, onOpen, onQuickUpdate }:
         <button className="btn btn-ghost btn-sm" onClick={() => onOpen(task)}>
           详情
         </button>
-        {isAdmin && onQuickUpdate && (
+        {onQuickUpdate && (
           <button className="btn btn-primary btn-sm" onClick={() => onQuickUpdate(task)}>
             更新
           </button>
         )}
       </div>
-
     </article>
   )
 }

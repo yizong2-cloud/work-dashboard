@@ -29,7 +29,6 @@ jobs:
           VITE_DATA_MODE: supabase
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          VITE_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           # GitHub Pages 子路径部署（仓库名）
           VITE_BASE: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3

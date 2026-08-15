@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { Link } from 'react-router-dom'
+import { appConfig } from '../config'
 
+/**
+ * 本看板仅本人与 Leader 使用，无敏感数据，不做登录与权限控制：
+ * 打开网站即可查看，也即可编辑。
+ */
 export function Layout({ children }: { children: ReactNode }) {
-  const { user, isLocalMode, logout } = useAuth()
-  const location = useLocation()
-  const onLoginPage = location.pathname.startsWith('/login')
+  const isLocalMode = appConfig.dataMode === 'local'
 
   return (
     <div className="app">
@@ -17,26 +19,9 @@ export function Layout({ children }: { children: ReactNode }) {
             {isLocalMode && <span className="tag tag-demo">演示</span>}
           </Link>
           <nav className="nav">
-            {!onLoginPage && (
-              <Link to="/" className="nav-link">
-                看板
-              </Link>
-            )}
-            {user ? (
-              <div className="user-box">
-                <span className="user-email">{user.email}</span>
-                {user.isAdmin && <span className="tag tag-admin">管理员</span>}
-                <button className="btn btn-ghost btn-sm" onClick={() => void logout()}>
-                  退出
-                </button>
-              </div>
-            ) : (
-              !isLocalMode && (
-                <Link to="/login" className="btn btn-ghost btn-sm">
-                  登录
-                </Link>
-              )
-            )}
+            <Link to="/" className="nav-link">
+              看板
+            </Link>
           </nav>
         </div>
       </header>

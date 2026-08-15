@@ -1,93 +1,85 @@
 # 部署上线教程（Supabase + GitHub Pages）
 
 > 按顺序操作，总耗时约 20~30 分钟，全程 0 元。
+> 本教程面向没接触过 Supabase 的新手，每一步都写到了「点哪里」。
 
-## 第 1 步：创建 Supabase 项目
+## 第 1 步：注册 / 登录 Supabase（约 3 分钟）
 
-1. 打开 https://supabase.com 注册/登录（可用 GitHub 账号）。
-2. 创建新项目：`New project` → 填项目名（如 `work-dashboard`）、数据库密码 → **区域建议选 Singapore 或 Tokyo**（国内访问更快）。
-3. 创建完成后进入项目 Dashboard。
+1. 打开浏览器，访问 **https://supabase.com**
+2. 点右上角 **Start your project**（或 **Sign in**）
+3. 用 **GitHub 账号**登录（Sign in with GitHub），也可以填邮箱注册。授权页面点允许即可
+4. 登录后进入后台（Dashboard）
 
-## 第 2 步：执行数据库脚本
+## 第 2 步：创建项目（约 5 分钟）
 
-1. 左侧菜单 → **SQL Editor** → `New query`。
-2. 把 `supabase/schema.sql` 全部内容粘贴进去。
-3. **修改脚本中的管理员邮箱**：把 `is_admin()` 里的 `'you@example.com'` 换成你自己的邮箱。
-4. 点 **Run**。看到成功提示即可。
+1. 在 Dashboard 页面点 **New project**（绿色按钮，或左上角「+ New project」）
+2. **Organization**：如果没有组织，点旁边的 **New organization** 随便建一个（名字随意，如 `personal`）；有的话直接选
+3. **Project name**：填 `work-dashboard`
+4. **Database Password**：填一个密码（**一定要记住**，随便编一个长密码，比如 `Wb-2026-xxxx` 之类的，记到备忘录里）。也可以点 **Generate a password** 让系统生成，复制保存
+5. **Region**：选 **Southeast Asia (Singapore)** —— 离国内近，访问快
+6. **Pricing plan**：选 **Free**（免费）
+7. 点 **Create new project**，等它初始化（大概 1~3 分钟，页面会显示进度）
 
-> 脚本是幂等的，以后想改管理员邮箱或调整权限，改完重新执行即可。
+## 第 3 步：找到你的 URL 和 Key（约 2 分钟）
 
-## 第 3 步：创建账号
+1. 项目创建完成后，进入项目控制台。看**左侧栏最底部**的 **Project Settings**（齿轮图标）→ 点进去
+2. 左侧菜单选 **API**
+3. 在这个页面你会看到三样东西，**把前两个复制给我**：
+   - **Project URL**：形如 `https://xxxxxxxx.supabase.co`
+   - **anon public**（也叫 anon key）：一长串以 `eyJhbGciOi...` 开头的字符，复制时点旁边的 **Copy** 按钮，选「anon public」那行
+   - （**service_role** 那行先不用动，等会儿你发我 anon key 后我再告诉你用不用）
 
-1. 左侧菜单 → **Authentication** → **Users** → `Add user` → 创建管理员账号（用你自己的邮箱，设置密码）。
-2. （可选）**Authentication → Providers → Email**：勾选 `Enable Sign up`、`Confirm email`。
-   - 若想用「魔法链接免密码登录」，保持默认开启即可（登录页有对应按钮）。
+> 复制好后直接发给我即可，例如：
+> Project URL: https://abc123.supabase.co
+> anon key: eyJhbGciOiJIUzI1NiIs...
 
-> Leader 是否需要账号？
-> 当前 RLS 配置是「所有人可读、仅管理员可写」，所以 **Leader 无需登录就能看**。
-> 如果想改成「必须登录才能看」，把 schema.sql 里两条 `select using (true)` 改成
-> `select using (auth.role() = 'authenticated')`，再给 Leader 建一个只读账号。
+## 第 4 步：建数据库表（约 3 分钟，复制粘贴即可）
 
-## 第 4 步：配置 GitHub 仓库 + 自动部署
+1. 回到项目控制台，左侧栏点 **SQL Editor**（有个「>_」图标）
+2. 点 **New query**（新建查询）
+3. 把仓库里的 **`supabase/schema.sql`** 文件内容全部复制，粘贴到中间的大编辑框里
+   （不会看文件？用编辑器打开 `work-dashboard/supabase/schema.sql`，全选复制即可）
+4. 点右下角绿色 **Run**（或 **Run** 按钮）
+5. 看到绿色对勾 / "Success. No rows returned" 之类的提示 = 成功
+6. 验证一下：左侧栏点 **Table Editor**，应该能看到 `tasks` 和 `task_updates` 两张表
 
-1. 在 GitHub 新建仓库，例如 `work-dashboard`（**必须是 main 分支**）。
-2. 把本目录推上去：
+> 这个脚本已经配置好：无需登录、任何人打开网页都能查看和编辑（只有你和你 Leader 看，没有敏感信息）。
 
-   ```bash
-   cd work-dashboard
-   git init
-   git add .
-   git commit -m "init: 个人工作进度看板"
-   git branch -M main
-   git remote add origin https://github.com/<你的用户名>/work-dashboard.git
-   git push -u origin main
-   ```
+## 第 5 步：把网站部署到 GitHub Pages（我来做，约 5 分钟）
 
-3. 仓库 Settings → **Pages** → Source 选 **GitHub Actions**（重要，选 Actions 而不是 branch）。
-4. 仓库 Settings → **Secrets and variables → Actions**，添加以下 Secrets：
+你只需要告诉我两件事：
 
-   | Secret 名 | 值 | 从哪拿 |
-   | --- | --- | --- |
-   | `SUPABASE_URL` | `https://xxxx.supabase.co` | Supabase → Project Settings → API |
-   | `SUPABASE_ANON_KEY` | `anon` 开头的 key | 同上（API → anon public key） |
-   | `ADMIN_EMAIL` | 你的管理员邮箱 | 你填的 |
+1. **用哪个 GitHub 账号部署**（你之前问过：GitHub Pages 没有「一个账号只能部署一个网站」的限制，每个仓库都能独立部署一个站点，两个号都行。推荐用你平时常用的 `yizong-boop`，或者你指定的 `yizong2-cloud`）
+2. **仓库名**：建议直接用 `work-dashboard`（部署后网址就是 `https://<用户名>.github.io/work-dashboard/`）
 
-5. push 后 GitHub Actions 会自动构建部署，完成后访问 `https://<你的用户名>.github.io/work-dashboard/`。
+剩下的事我来做：
+- 用你的 `gh` CLI 创建仓库并推送代码
+- 在仓库 Settings 里把 Pages 源设为 GitHub Actions
+- 配置两个 Actions Secrets（`SUPABASE_URL`、`SUPABASE_ANON_KEY`）
+- 触发第一次构建部署，然后给你最终网址
 
-> 部署用 `VITE_BASE=/仓库名/` 自动注入，无需改代码。
+## 第 6 步：本地配置 Agent 写库权限（可选，但强烈推荐）
 
-## 第 5 步：本地配置 Agent 写库权限（可选，推荐）
+之后你想「用自然语言让 Agent 更新网站」，需要让 Agent CLI 能写 Supabase：
 
-Agent CLI 需要 `service_role` key 才能以管理员身份直接写 Supabase：
+1. 在 `work-dashboard` 目录复制一份环境文件：把 `.env.example` 复制为 `.env`（macOS：`cp .env.example .env`）
+2. 用编辑器打开 `.env` 填入：
+   - `VITE_DATA_MODE=supabase`
+   - `VITE_SUPABASE_URL=` 填第 3 步的 Project URL
+   - `VITE_SUPABASE_ANON_KEY=` 填第 3 步的 anon key
+   - `SUPABASE_SERVICE_ROLE_KEY=` 填 Supabase 控制台 Project Settings → API 里的 **service_role**（一长串以 `eyJ...` 开头）
+3. 测试：在终端运行 `npm run agent -- list`，如果输出了任务列表，说明 Agent 已经能读写线上库了
 
-1. 复制 `.env.example` 为 `.env`（**`.env` 已被 gitignore，不会提交**）。
-2. 填入：
-
-   ```dotenv
-   VITE_DATA_MODE=supabase
-   VITE_SUPABASE_URL=https://xxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=<anon key>
-   SUPABASE_SERVICE_ROLE_KEY=<service_role key>   # 仅本地，严禁提交
-   ADMIN_EMAIL=you@example.com
-   ```
-
-3. `service_role` key 位置：Supabase → Project Settings → API → `service_role` secret。
-
-## 第 6 步：上线验证
-
-1. 打开 GitHub Pages 网址 → 应看到看板页面（数据来自 Supabase）。
-2. 点右上角「登录」→ 用管理员账号登录 → 出现「＋新建任务」等编辑按钮。
-3. 用手机浏览器打开同一网址，确认移动端可用。
+> `.env` 已被 git 忽略（不会提交），service_role key 只存在于你本机。
 
 ## 安全注意事项（必读）
 
-- ✅ 前端只用 `anon key`（本来就是公开的）。
-- ❌ **绝不**把 `service_role key` 写进前端代码、`.env.example` 或提交到仓库。
-- ✅ 写权限靠数据库 RLS 把关；就算有人拿到 anon key，也无法增删改。
-- 如果将来想撤销 Agent 写库权限，删除本地 `.env` 里的 `SUPABASE_SERVICE_ROLE_KEY` 即可（不影响网页只读/管理员网页操作）。
+- ✅ 前端只放 `anon key`（本来就是公开的，无所谓）。
+- ❌ **绝不**把 `service_role key` 写进前端代码或提交到仓库 —— 它等于数据库的万能钥匙。
+- 本看板按你的要求**不做任何登录/权限控制**；如果以后有敏感内容了，再找我加。
 
 ## 常见问题
 
-- **登录后没有编辑按钮？** 检查 `.env` 的 `VITE_ADMIN_EMAIL` 是否与 `is_admin()` 中的邮箱一致。
-- **网页数据是空白的？** 先在 SQL Editor 执行 `select * from public.tasks;` 确认有数据；再检查 `VITE_SUPABASE_URL/ANON_KEY` 是否正确（需重新部署或本地 dev 重启）。
-- **想改域名？** 支持自定义域名：仓库 Settings → Pages → Custom domain。
+- **网页打开是空白/报错？** 大概率是 Secrets 里的 URL 或 anon key 复制错了，或 SQL 没执行成功。重新核对第 3、4 步。
+- **Agent CLI 报「任务不存在」？** 确认 `.env` 里 `SUPABASE_SERVICE_ROLE_KEY` 填的是 service_role（不是 anon）。
+- **想改网址（自定义域名）？** 仓库 Settings → Pages → Custom domain。

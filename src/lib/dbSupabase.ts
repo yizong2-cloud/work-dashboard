@@ -1,7 +1,7 @@
 // ============================================================
 // Supabase 数据层
-// 使用前端 anon key + 当前登录用户身份访问，
-// 写权限由数据库 RLS 策略控制（见 supabase/schema.sql）。
+// 使用前端 anon key 访问；数据库已配置「全开放」策略
+// （无登录、无权限控制，见 supabase/schema.sql）。
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'

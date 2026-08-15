@@ -25,7 +25,8 @@ const args = parseArgs(process.argv.slice(2))
 const [command, ...positional] = args._
 const dryRun = !!args['dry-run']
 const jsonOut = !!args['json']
-const who = env.ADMIN_EMAIL || 'agent'
+// 无登录体系：所有 Agent 更新都记为「agent」（网页端记「本人」）
+const who = 'agent'
 
 // ---------------- 常量与校验 ----------------
 
