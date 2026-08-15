@@ -1,0 +1,166 @@
+{
+  "tasks": [
+    {
+      "id": "t-theme",
+      "title": "宁静拼图主题系统",
+      "description": "为主题玩法新增可切换的拼图主题：主题选择页、主题解锁逻辑、主题素材接入。",
+      "status": "in_progress",
+      "priority": "high",
+      "progress": 65,
+      "start_date": "2025-08-15",
+      "expected_end_date": "2025-08-19",
+      "actual_end_date": null,
+      "current_status": "主题选择页面已完成，正在接入主题解锁逻辑。",
+      "block_reason": "",
+      "is_interrupt_task": false,
+      "created_at": "2025-08-15T01:30:00.000Z",
+      "updated_at": "2025-08-17T03:00:00.000Z"
+    },
+    {
+      "id": "t-crash",
+      "title": "线上 Android Crash 修复",
+      "description": "线上反馈 Android 端偶发崩溃，定位崩溃点并发布修复包。",
+      "status": "completed",
+      "priority": "high",
+      "progress": 100,
+      "start_date": "2025-08-16",
+      "expected_end_date": "2025-08-16",
+      "actual_end_date": "2025-08-16",
+      "current_status": "崩溃已定位并修复，修复包已发布。",
+      "block_reason": "",
+      "is_interrupt_task": true,
+      "created_at": "2025-08-16T02:00:00.000Z",
+      "updated_at": "2025-08-16T07:00:00.000Z"
+    },
+    {
+      "id": "t-finish",
+      "title": "拼图完成页面改版",
+      "description": "优化拼图完成页的动效与分享引导，提升完成率与分享率。",
+      "status": "planned",
+      "priority": "normal",
+      "progress": 0,
+      "start_date": "2025-08-19",
+      "expected_end_date": "2025-08-20",
+      "actual_end_date": null,
+      "current_status": "",
+      "block_reason": "",
+      "is_interrupt_task": false,
+      "created_at": "2025-08-14T02:00:00.000Z",
+      "updated_at": "2025-08-14T02:00:00.000Z"
+    },
+    {
+      "id": "t-bgm",
+      "title": "BGM 切换功能",
+      "description": "设置页新增背景音乐开关与曲目切换。",
+      "status": "planned",
+      "priority": "low",
+      "progress": 0,
+      "start_date": "2025-08-20",
+      "expected_end_date": "2025-08-21",
+      "actual_end_date": null,
+      "current_status": "",
+      "block_reason": "",
+      "is_interrupt_task": false,
+      "created_at": "2025-08-14T05:00:00.000Z",
+      "updated_at": "2025-08-14T05:00:00.000Z"
+    },
+    {
+      "id": "t-guide",
+      "title": "新用户引导优化",
+      "description": "优化新手引导流程，缩短首次上手路径。",
+      "status": "planned",
+      "priority": "normal",
+      "progress": 0,
+      "start_date": "2025-08-21",
+      "expected_end_date": "2025-08-22",
+      "actual_end_date": null,
+      "current_status": "",
+      "block_reason": "",
+      "is_interrupt_task": false,
+      "created_at": "2025-08-15T08:00:00.000Z",
+      "updated_at": "2025-08-15T08:00:00.000Z"
+    }
+  ],
+  "updates": [
+    {
+      "id": "u-theme-1",
+      "task_id": "t-theme",
+      "type": "note",
+      "content": "任务创建并开始开发。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-15T01:30:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-theme-2",
+      "task_id": "t-theme",
+      "type": "progress",
+      "content": "完成主题选择页面 UI。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T02:20:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-theme-3",
+      "task_id": "t-theme",
+      "type": "interrupt",
+      "content": "临时收到线上 Crash 修复任务，原任务暂时暂停。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T06:30:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-theme-4",
+      "task_id": "t-theme",
+      "type": "progress",
+      "content": "Crash 修复完成，恢复原任务。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T09:40:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-theme-5",
+      "task_id": "t-theme",
+      "type": "schedule_change",
+      "content": "接口方案发生调整，预计完成时间由 8/18 调整为 8/19。",
+      "old_expected_end_date": "2025-08-18",
+      "new_expected_end_date": "2025-08-19",
+      "created_at": "2025-08-17T03:00:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-crash-1",
+      "task_id": "t-crash",
+      "type": "interrupt",
+      "content": "线上反馈 Android 端偶发崩溃，临时插入处理。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T02:00:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-crash-2",
+      "task_id": "t-crash",
+      "type": "progress",
+      "content": "定位崩溃原因并完成修复。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T06:00:00.000Z",
+      "created_by": "admin"
+    },
+    {
+      "id": "u-crash-3",
+      "task_id": "t-crash",
+      "type": "completed",
+      "content": "修复包已发布，观察无异常。",
+      "old_expected_end_date": null,
+      "new_expected_end_date": null,
+      "created_at": "2025-08-16T07:00:00.000Z",
+      "created_by": "admin"
+    }
+  ]
+}

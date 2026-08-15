@@ -1,0 +1,101 @@
+// ============================================================
+// 数据模型 —— 与 supabase/schema.sql 保持一致
+// 这是「看板」与「Agent 更新接口」之间的唯一契约。
+// ============================================================
+
+export type TaskStatus =
+  | 'planned'      // 待开始
+  | 'in_progress'  // 进行中
+  | 'blocked'      // 阻塞
+  | 'paused'       // 暂停
+  | 'completed'    // 已完成
+  | 'cancelled'    // 已取消
+
+export type TaskPriority = 'high' | 'normal' | 'low'
+
+export type UpdateType =
+  | 'progress'        // 进度更新
+  | 'status_change'   // 状态变更
+  | 'schedule_change' // 排期调整
+  | 'blocked'         // 标记阻塞
+  | 'unblocked'       // 解除阻塞
+  | 'interrupt'       // 临时插入
+  | 'note'            // 普通说明
+  | 'completed'       // 标记完成
+
+export interface Task {
+  id: string
+  title: string
+  description: string
+  status: TaskStatus
+  priority: TaskPriority
+  /** 0-100 整数 */
+  progress: number
+  /** 实际或计划开始日期 YYYY-MM-DD */
+  start_date: string | null
+  /** 预计结束日期 YYYY-MM-DD */
+  expected_end_date: string | null
+  /** 实际完成日期 YYYY-MM-DD */
+  actual_end_date: string | null
+  /** 一句话描述当前最新状态，如「UI 已完成，正在接入后端接口」 */
+  current_status: string
+  /** 阻塞原因（status=blocked 时填写） */
+  block_reason: string
+  /** 是否为临时插入任务 */
+  is_interrupt_task: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskUpdate {
+  id: string
+  task_id: string
+  type: UpdateType
+  content: string
+  old_expected_end_date: string | null
+  new_expected_end_date: string | null
+  created_at: string
+  created_by: string
+}
+
+/** 新建任务入参（Agent 与网页共用同一套字段名） */
+export interface TaskCreateInput {
+  title: string
+  description?: string
+  status?: TaskStatus
+  priority?: TaskPriority
+  progress?: number
+  start_date?: string | null
+  expected_end_date?: string | null
+  is_interrupt_task?: boolean
+  current_status?: string
+  block_reason?: string
+}
+
+/** 更新任务入参：字段可选，只传需要改的 */
+export type TaskUpdateInput = Partial<
+  Pick<
+    Task,
+    | 'title'
+    | 'description'
+    | 'status'
+    | 'priority'
+    | 'progress'
+    | 'start_date'
+    | 'expected_end_date'
+    | 'actual_end_date'
+    | 'current_status'
+    | 'block_reason'
+    | 'is_interrupt_task'
+  >
+>
+
+/** 添加一条任务进展（Timeline） */
+export interface UpdateCreateInput {
+  task_id: string
+  type: UpdateType
+  content: string
+  old_expected_end_date?: string | null
+  new_expected_end_date?: string | null
+  created_by?: string
+}
