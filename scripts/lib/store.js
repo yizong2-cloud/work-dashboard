@@ -16,8 +16,10 @@ const LOCAL_FILE = process.env.LOCAL_DB_FILE || path.join(ROOT, 'data', 'local.j
 const now = () => new Date().toISOString()
 
 export function createStore(env) {
-  if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-    return createSupabaseStore(env)
+  // 兼容两种写法：SUPABASE_URL（专用）或 VITE_SUPABASE_URL（与前端共用一份 .env）
+  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL
+  if (url && env.SUPABASE_SERVICE_ROLE_KEY) {
+    return createSupabaseStore({ ...env, SUPABASE_URL: url })
   }
   return createLocalStore()
 }
