@@ -1862,6 +1862,120 @@ section {
   box-shadow: none;
 }
 
+/* ---------- 统一角色插画 ---------- */
+.focus-card {
+  min-height: 366px;
+  padding-right: 214px;
+}
+
+.focus-card > :not(.focus-mascot-frame) {
+  position: relative;
+  z-index: 3;
+}
+
+.focus-mascot-frame {
+  position: absolute;
+  z-index: 2;
+  width: 205px;
+  height: 305px;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.focus-mascot-frame::before {
+  content: '';
+  position: absolute;
+  width: 175px;
+  height: 175px;
+  right: -35px;
+  bottom: -42px;
+  border-radius: 50%;
+  background: var(--primary-weak);
+}
+
+.focus-mascot-frame img {
+  position: absolute;
+  z-index: 1;
+  width: 315px;
+  max-width: none;
+  height: auto;
+  left: -102px;
+  top: 1px;
+}
+
+.attention-heading-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mini-mascot-frame {
+  position: relative;
+  width: 68px;
+  height: 58px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mini-mascot-frame img {
+  position: absolute;
+  width: 112px;
+  max-width: none;
+  height: auto;
+  left: -18px;
+  top: -3px;
+}
+
+.mini-mascot-completed {
+  margin: -8px -4px -6px 0;
+}
+
+.comment-empty {
+  padding: 2px 0 0;
+}
+
+.comment-empty-art {
+  position: relative;
+  width: 220px;
+  height: 207px;
+  margin: 0 auto;
+}
+
+.comment-empty-art img {
+  display: block;
+  width: 220px;
+  height: auto;
+}
+
+.comment-empty-art span {
+  position: absolute;
+  top: 65px;
+  left: 49px;
+  width: 122px;
+  color: #5e5768;
+  font-size: 0.66rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.skeleton-mascot-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-mascot-panel img {
+  position: absolute;
+  width: 260px;
+  height: auto;
+  left: 50%;
+  bottom: -35px;
+  transform: translateX(-50%);
+  opacity: 0.7;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
@@ -1902,12 +2016,20 @@ section {
   .metric-copy > span { font-size: 0.75rem; }
   .metric-copy small { display: none; }
   .focus-card, .health-card, .attention-panel, .activity-card, .side-card, .timeline-panel, .comment-panel { padding: 18px; }
+  .focus-card { min-height: 0; }
+  .focus-title, .focus-status { padding-right: 66px; }
+  .focus-mascot-frame { z-index: 4; width: 80px; height: 94px; right: 8px; top: 54px; bottom: auto; }
+  .focus-mascot-frame::before { width: 76px; height: 76px; right: -18px; bottom: -24px; }
+  .focus-mascot-frame img { width: 128px; left: -42px; top: -3px; }
   .focus-meta-grid { grid-template-columns: 1fr 1fr; }
   .focus-meta-grid > div:last-child { grid-column: 1 / -1; }
   .health-visual { gap: 20px; }
   .completion-ring { width: 122px; height: 122px; }
   .attention-list { grid-template-columns: 1fr; }
   .section-caption { display: none; }
+  .attention-heading-side { margin: -7px -4px -7px 0; }
+  .mini-mascot-frame { width: 58px; height: 52px; }
+  .mini-mascot-frame img { width: 100px; left: -18px; }
   .work-controls { align-items: stretch; flex-direction: column; }
   .search-box { width: 100%; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
@@ -1929,6 +2051,9 @@ section {
   .detail-sidebar { display: flex; }
   .comment-form-foot { align-items: flex-end; }
   .comment-hint { max-width: 130px; }
+  .comment-empty-art { width: 190px; height: 179px; }
+  .comment-empty-art img { width: 190px; }
+  .comment-empty-art span { top: 56px; left: 43px; width: 104px; font-size: 0.59rem; }
   .footer { padding-inline: 14px; }
 }
 

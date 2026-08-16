@@ -5,6 +5,7 @@ import { commentBody } from '../lib/comments'
 import { shortDateTime } from '../lib/format'
 
 const AUTHOR_KEY = 'work-dashboard:comment-author'
+const COMMENT_MASCOT = `${import.meta.env.BASE_URL}mascots/mascot-comment.png`
 
 interface LeaderCommentPanelProps {
   taskId: string
@@ -101,8 +102,10 @@ export function LeaderCommentPanel({
       <div className="comment-list">
         {sorted.length === 0 ? (
           <div className="comment-empty">
-            <span className="comment-empty-mark">“</span>
-            <p>还没有留言。这里适合记录决策、反馈和需要跟进的问题。</p>
+            <div className="comment-empty-art" aria-hidden="true">
+              <img src={COMMENT_MASCOT} alt="" loading="lazy" decoding="async" />
+              <span>这里适合记录决策、反馈和需要跟进的问题。</span>
+            </div>
           </div>
         ) : (
           sorted.map((comment) => (

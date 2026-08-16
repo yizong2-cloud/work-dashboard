@@ -25,6 +25,7 @@ import { shortDate, shortDateTime, relativeDay, todayISO, zhDate } from '../lib/
 
 const PRIORITY_ORDER = { high: 0, normal: 1, low: 2 } as const
 type WorkFilter = 'all' | 'risk' | 'blocked' | 'unscheduled'
+const mascotAsset = (name: string) => `${import.meta.env.BASE_URL}mascots/mascot-${name}.png`
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -204,6 +205,9 @@ export function Dashboard() {
                 <button className="btn btn-primary" onClick={() => navigate(`/task/${focusTask.id}`)}>查看详情<DashboardIcon name="arrow" /></button>
                 <button className="btn btn-ghost" onClick={() => navigate(`/task/${focusTask.id}?comment=1`)}><DashboardIcon name="comment" />留言</button>
               </div>
+              <div className="focus-mascot-frame" aria-hidden="true">
+                <img src={mascotAsset('hero')} alt="" decoding="async" />
+              </div>
             </>
           ) : (
             <div className="empty-focus"><span className="eyebrow">All clear</span><h2>当前没有活跃任务</h2><p>可以从后续计划中启动下一项工作。</p></div>
@@ -233,7 +237,10 @@ export function Dashboard() {
         <section className="attention-panel card">
           <div className="panel-heading">
             <div><span className="eyebrow">Needs attention</span><h2>需要关注</h2></div>
-            <span className="section-caption">优先展示阻塞、逾期和未排期事项</span>
+            <div className="attention-heading-side">
+              <span className="section-caption">优先展示阻塞、逾期和未排期事项</span>
+              <span className="mini-mascot-frame" aria-hidden="true"><img src={mascotAsset('blocked')} alt="" loading="lazy" decoding="async" /></span>
+            </div>
           </div>
           <div className="attention-list">
             {attentionTasks.map((task) => (
@@ -313,7 +320,10 @@ export function Dashboard() {
           </article>
 
           <article className="side-card card">
-            <div className="panel-heading compact-heading"><div><span className="eyebrow">Recently shipped</span><h2>最近完成</h2></div></div>
+            <div className="panel-heading compact-heading">
+              <div><span className="eyebrow">Recently shipped</span><h2>最近完成</h2></div>
+              <span className="mini-mascot-frame mini-mascot-completed" aria-hidden="true"><img src={mascotAsset('completed')} alt="" loading="lazy" decoding="async" /></span>
+            </div>
             <div className="compact-list compact-list-success">
               {completedTasks.map((task) => (
                 <button key={task.id} onClick={() => navigate(`/task/${task.id}`)}><span className="success-check">✓</span><span>{task.title}</span><time>{relativeDay(task.actual_end_date)}</time></button>
@@ -343,7 +353,7 @@ function HealthBar({ label, value, tone }: { label: string; value: number; tone:
 }
 
 function DashboardSkeleton() {
-  return <div className="page dashboard-page" aria-label="看板加载中"><div className="skeleton skeleton-title" /><div className="metric-grid">{[0, 1, 2, 3].map((item) => <div className="skeleton skeleton-metric" key={item} />)}</div><div className="skeleton skeleton-panel" /></div>
+  return <div className="page dashboard-page" aria-label="看板加载中"><div className="skeleton skeleton-title" /><div className="metric-grid">{[0, 1, 2, 3].map((item) => <div className="skeleton skeleton-metric" key={item} />)}</div><div className="skeleton skeleton-panel skeleton-mascot-panel"><img src={mascotAsset('working')} alt="" aria-hidden="true" decoding="async" /></div></div>
 }
 
 type DashboardIconName = 'pulse' | 'alert' | 'calendar' | 'radar' | 'arrow' | 'chevron' | 'comment' | 'plus' | 'search'
