@@ -23,6 +23,25 @@ const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LABEL}.plist`)
 const LOG_OUT = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.out.log')
 const LOG_ERR = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.err.log')
 
+// 定时计划：工作日（周一=1 … 周五=5），每天 11:00 / 15:30 / 19:30
+const SCHEDULE = [
+  { weekday: 1, hour: 11, minute: 0 },
+  { weekday: 2, hour: 11, minute: 0 },
+  { weekday: 3, hour: 11, minute: 0 },
+  { weekday: 4, hour: 11, minute: 0 },
+  { weekday: 5, hour: 11, minute: 0 },
+  { weekday: 1, hour: 15, minute: 30 },
+  { weekday: 2, hour: 15, minute: 30 },
+  { weekday: 3, hour: 15, minute: 30 },
+  { weekday: 4, hour: 15, minute: 30 },
+  { weekday: 5, hour: 15, minute: 30 },
+  { weekday: 1, hour: 19, minute: 30 },
+  { weekday: 2, hour: 19, minute: 30 },
+  { weekday: 3, hour: 19, minute: 30 },
+  { weekday: 4, hour: 19, minute: 30 },
+  { weekday: 5, hour: 19, minute: 30 },
+]
+
 function sh(cmd, args) {
   try {
     execFileSync(cmd, args, { stdio: 'pipe' })
@@ -33,6 +52,13 @@ function sh(cmd, args) {
 }
 
 function plistXml() {
+  const intervals = SCHEDULE.map(
+    (s) => `    <dict>
+      <key>Weekday</key><integer>${s.weekday}</integer>
+      <key>Hour</key><integer>${s.hour}</integer>
+      <key>Minute</key><integer>${s.minute}</integer>
+    </dict>`,
+  ).join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -44,10 +70,9 @@ function plistXml() {
     <string>${path.join(ROOT, 'workflow', 'prepare.mjs')}</string>
   </array>
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>18</integer>
-    <key>Minute</key><integer>0</integer>
-  </dict>
+  <array>
+${intervals}
+  </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key><string>${HOME}</string>

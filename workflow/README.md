@@ -32,9 +32,9 @@ npm run dashboard:verify                         # ④ 校验
 # 新别名/事实回写 KNOWLEDGE_BASE 并 git commit
 ```
 
-## 定时任务（每天下班前自动准备）
+## 定时任务（工作日每天 3 次自动准备）
 
-- 安装：`npm run dashboard:cron:install`（每天 18:00 自动跑 `prepare`，完成后发 macOS 通知）
+- 安装：`npm run dashboard:cron:install`（**周一至周五** 的 **11:00 / 15:30 / 19:30** 自动跑 `prepare`，完成后发 macOS 通知）
 - 通知内容会提示「活跃任务未排期数量」，提醒你有数据可更新
 - 你看到通知后说「开始更新」→ Agent 走上面的一条龙（分析+写入）
 - 日志：`~/Library/Logs/work-dashboard-prepare.{out,err}.log`

@@ -97,7 +97,7 @@ npm run dashboard:prepare    # ① 拉三数据源+看板+知识库 → workflow
 npm run dashboard:apply -- --dry-run   # ② 预演
 npm run dashboard:apply                # ③ 执行
 npm run dashboard:verify               # ④ 校验
-npm run dashboard:cron:install         # 定时任务：每天 18:00 自动 prepare + 通知
+npm run dashboard:cron:install         # 定时任务：工作日 11:00/15:30/19:30 自动 prepare + 通知
 ```
 
 **定时任务**：macOS launchd，每天 18:00 无人值守执行 `prepare`（机械拉取+打包+通知），
