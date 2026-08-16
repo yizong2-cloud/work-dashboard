@@ -281,6 +281,160 @@ grant execute on function public.create_feedback_thread(uuid, text, text, text) 
 grant execute on function public.add_feedback_reply(uuid, text, text, text) to anon, authenticated;
 grant execute on function public.set_feedback_status(uuid, text, text) to anon, authenticated;
 
+-- ============================================================
+-- 通知投递队列（任务二：飞书通知闭环）
+-- 数据库触发器把「任务时间线 / 反馈事件」写入 outbox（唯一事件源），
+-- Database Webhook 监听 outbox → feishu-notify Edge Function 投递到飞书。
+-- outbox 只由触发器（security definer）与 Edge Function（service_role）读写，
+-- anon 无权限；幂等键 = 源记录 id，投递状态可审计可重试。
+-- ============================================================
+
+create table if not exists public.notification_outbox (
+  id          uuid primary key default gen_random_uuid(),
+  event_type  text not null check (event_type in
+              ('task_update','task_update_progress','feedback_created','feedback_replied','feedback_resolved')),
+  source_key  text not null unique,          -- 幂等键（源记录 id；progress 聚合行用首条 id）
+  payload     jsonb not null default '{}',
+  status      text not null default 'pending' check (status in ('pending','sending','sent','failed','skipped')),
+  attempts    int not null default 0,
+  last_error  text not null default '',
+  sent_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists notification_outbox_status_idx on public.notification_outbox (status, created_at);
+
+alter table public.notification_outbox enable row level security;
+-- 无 anon/authenticated 策略：只有 service_role / 触发器（security definer）可访问
+drop policy if exists outbox_no_public_access on public.notification_outbox;
+
+-- ---- 触发器：task_updates → outbox（progress 事件 30 分钟内聚合，防批量刷屏）----
+create or replace function public.notify_task_update()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare v_existing uuid;
+begin
+  if new.type = 'progress' then
+    select id into v_existing
+      from public.notification_outbox
+     where event_type = 'task_update_progress'
+       and status = 'pending'
+       and (payload->>'task_id') = new.task_id::text
+       and created_at > now() - interval '30 minutes'
+     order by created_at desc
+     limit 1;
+    if v_existing is not null then
+      update public.notification_outbox
+         set payload = jsonb_set(
+               jsonb_set(payload, '{count}', to_jsonb(coalesce((payload->>'count')::int, 1) + 1)),
+               '{latest}', to_jsonb(new.content)),
+             updated_at = now()
+       where id = v_existing;
+      return new;
+    end if;
+  end if;
+  insert into public.notification_outbox (event_type, source_key, payload)
+  values (
+    case when new.type = 'progress' then 'task_update_progress' else 'task_update' end,
+    new.id::text,
+    jsonb_build_object(
+      'task_id', new.task_id::text,
+      'type', new.type,
+      'content', new.content,
+      'created_by', new.created_by,
+      'created_at', new.created_at
+    )
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_task_update_trigger on public.task_updates;
+create trigger notify_task_update_trigger
+  after insert on public.task_updates
+  for each row execute function public.notify_task_update();
+
+-- ---- 触发器：反馈消息 → outbox（首条=feedback_created，其余=feedback_replied）----
+create or replace function public.notify_feedback_message()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare v_count int;
+begin
+  select count(*) into v_count from public.task_feedback_messages where thread_id = new.thread_id;
+  insert into public.notification_outbox (event_type, source_key, payload)
+  values (
+    case when v_count <= 1 then 'feedback_created' else 'feedback_replied' end,
+    new.id::text,
+    jsonb_build_object(
+      'thread_id', new.thread_id::text,
+      'body', new.body,
+      'author_name', new.author_name,
+      'author_role', new.author_role,
+      'created_at', new.created_at
+    )
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_feedback_message_trigger on public.task_feedback_messages;
+create trigger notify_feedback_message_trigger
+  after insert on public.task_feedback_messages
+  for each row execute function public.notify_feedback_message();
+
+-- ---- 触发器：反馈线程状态变化 → outbox（feedback_resolved / 重新打开）----
+create or replace function public.notify_feedback_status()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  if old.status is distinct from new.status then
+    insert into public.notification_outbox (event_type, source_key, payload)
+    values (
+      'feedback_resolved',
+      new.id::text || ':' || old.status || '->' || new.status,
+      jsonb_build_object(
+        'thread_id', new.id::text,
+        'old_status', old.status,
+        'new_status', new.status,
+        'resolved_by', new.resolved_by,
+        'updated_at', new.updated_at
+      )
+    );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_feedback_status_trigger on public.task_feedback_threads;
+create trigger notify_feedback_status_trigger
+  after update on public.task_feedback_threads
+  for each row execute function public.notify_feedback_status();
+
+-- ---- 失败重试：把 failed（且未超次数）的行重新置为 pending（webhook 监听 UPDATE 会重新投递）----
+create or replace function public.retry_failed_notifications(max_attempts int default 5)
+returns int
+language plpgsql
+security definer
+as $$
+declare v_updated int;
+begin
+  update public.notification_outbox
+     set status = 'pending', updated_at = now()
+   where status = 'failed' and attempts < max_attempts;
+  get diagnostics v_updated = ROW_COUNT;
+  return v_updated;
+end;
+$$;
+
+grant execute on function public.retry_failed_notifications(int) to service_role;
+
 -- ---------------- 权限：全开放（无登录、无权限控制） ----------------
 -- 仅本人与 Leader 使用，无敏感数据；打开网页即可查看与编辑。
 -- 若未来需要加权限，可在此收紧策略。

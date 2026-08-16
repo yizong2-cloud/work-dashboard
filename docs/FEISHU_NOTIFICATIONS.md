@@ -1,84 +1,91 @@
-# 飞书任务简报接入
+# 飞书通知（任务二：留言通知与网站回复的端到端闭环）
 
-## 推荐架构
+## 一句话定位
+
+- **飞书 = 提醒入口**：Leader/你收到「有反馈要处理」的即时提醒（卡片）。
+- **Workboard（看板网站）= 讨论与留档入口**：真正的回复、跟进、解决都在网站内完成。
+- **自定义机器人只负责「推」**，不支持双向对话；请勿在飞书里直接回复并期待同步到网站。
+
+## 数据流（谁 → 谁 → 谁）
 
 ```text
-Agent / 网页 / Leader 留言
-          ↓
-task_updates INSERT（唯一事件源）
-          ↓ Supabase Database Webhook
-feishu-notify Edge Function
-          ↓
-飞书任务简报卡片 → 查看详情 → Workboard 任务页
+网页发起反馈 / 回复 / 标记解决      或      Agent CLI 更新任务时间线
+        │                                        │
+        ▼                                        ▼
+task_feedback_messages / threads        task_updates
+        │ 数据库触发器（after insert/update）        │ 触发器（progress 30 分钟内聚合）
+        ▼                                        ▼
+              notification_outbox（唯一事件源；幂等键 = 源记录 id）
+        │
+        ▼ Database Webhook（监听 INSERT + UPDATE，带 x-dashboard-secret）
+        │
+        ▼ feishu-notify Edge Function
+        │   验签 → 幂等 claim（pending→sending）→ 加载任务/原反馈 → 建卡 → 发飞书
+        │   成功 → outbox=sent；失败 → outbox=failed（可重试）
+        ▼
+        飞书私有工作群（卡片，按钮深链接回网站对应线程）
 ```
 
-仓库规定任何有意义的任务变化都必须新增 `task_updates`，所以通知只监听这一张表的 `INSERT`。这样不会因为 `tasks UPDATE` 与时间线写入而重复推送，网页留言也自动进入相同链路。
+## 通知规则
 
-## 选择哪种飞书机器人
+| 事件 | 触发 | 卡片 | 噪音 |
+| --- | --- | --- | --- |
+| `feedback_created` | Leader 在网站发起反馈（线程首条消息） | 「💬 发起了新反馈」+ 任务名 + 正文；按钮**查看反馈并回复** → `#/task/:id?thread=:thread` | 即时 |
+| `feedback_replied` | 负责人在线程下回复 | 回复摘要 + **原反馈摘要**（上下文完整）；按钮同上 | 即时 |
+| `feedback_resolved` | 线程被标记解决 / 重新打开 | 低噪音状态卡（绿/橙） | 低频 |
+| `task_update`（blocked/unblocked/completed/schedule_change/interrupt） | 任务关键变化 | 现有任务简报卡；按钮**查看任务详情** | 即时 |
+| `task_update_progress`（普通进度） | 任意 progress 时间线 | **聚合摘要**「任务进度更新（N 条）」（数据库触发器把 30 分钟内同一任务的 progress 合并为一条，防止 Agent 批量更新刷屏） | 聚合 |
 
-### A. 群自定义机器人（建议先用）
+## 已部署内容（2026-08-16）
 
-- 上线最快，不需要企业管理员审批。
-- 只能推送到机器人所在的指定群。
-- 卡片支持「查看详情」链接，但不支持把表单结果回传给服务端。
+1. **数据库**（`supabase/schema.sql`，已执行）：
+   - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）
+   - 三个触发器：`notify_task_update_trigger`（progress 聚合）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
+   - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
+2. **Edge Function**（`supabase/functions/feishu-notify/`，已部署，卡片构建抽到 `cards.ts` 纯函数可单测）：
+   - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
+3. **本地测试**：`npm test`（含 `scripts/notify-cards.test.js`：事件分类、深链接、原反馈摘要、聚合卡、不泄露密钥）
 
-适合先创建一个只有本人、Leader 和机器人的「工作进度」群，验证提醒频率和卡片内容。
+## 需要你在控制台完成：Database Webhook（约 3 分钟）
 
-### B. 企业自建应用机器人
+> Management API 无 webhook CRUD 端点，需在控制台操作一次。
 
-- 可以给 Leader 的 `open_id` 直接发送单聊卡片。
-- 需要创建企业自建应用、开启机器人能力并申请 `im:message:send_as_bot` 等消息权限。
-- 凭证和接收者 ID 均放在 Supabase Edge Function Secrets，不能进入前端或 Git 仓库。
+1. 打开 https://supabase.com/dashboard/project/htrihsrxzcohxzzvwebz → 左侧 **Database** → **Webhooks** → **Create a new hook**（若提示启用该功能，点启用）
+2. 填写：
+   - **Name**: `feishu-notify-outbox`
+   - **Table**: `notification_outbox`
+   - **Events**: 勾选 `INSERT` 和 `UPDATE`（UPDATE 用于失败重试重新投递）
+   - **URL**: `https://htrihsrxzcohxzzvwebz.supabase.co/functions/v1/feishu-notify`
+   - **Headers**: `x-dashboard-secret` = 与 Supabase Secret `DASHBOARD_WEBHOOK_SECRET` 相同的值
+3. 保存。
 
-Edge Function 已同时支持两种方式：配置 `FEISHU_BOT_WEBHOOK_URL` 时优先走自定义机器人；否则走应用机器人。
+> 旧配置（如监听 `task_updates` 的 hook）可保留（函数会跳过非 outbox 事件）或删除。
 
-## 部署
+## 端到端验证清单
 
-前置条件：本机安装并登录 Supabase CLI，项目已 link。
-
-```bash
-supabase functions deploy feishu-notify --no-verify-jwt
-supabase secrets set DASHBOARD_WEBHOOK_SECRET='<随机密钥>'
-supabase secrets set DASHBOARD_BASE_URL='https://yizong-boop.github.io/work-dashboard/'
+```text
+网站创建测试反馈 → 数据库 feedback 记录成功 → outbox 出现 feedback_created（pending）
+→ webhook 调 Edge Function → 飞书群收到「[Workboard 测试]」卡片 → 点击按钮进入 #/task/:id?thread=:thread
+→ 网站回复 → outbox feedback_replied → 飞书群收到带原反馈摘要的回复卡
+→ 标记解决 → 飞书群收到低噪音状态卡
 ```
 
-自定义机器人再设置（推荐在飞书机器人安全设置里开启「签名校验」）：
+- 测试消息会明确标注测试来源；验收后清理数据库测试数据（outbox/反馈/临时任务）。
+- 已发送的飞书测试消息无法自动撤回，验收后手动删除群消息或忽略。
 
-```bash
-supabase secrets set FEISHU_BOT_WEBHOOK_URL='<飞书群机器人 webhook>'
-supabase secrets set FEISHU_BOT_SIGNING_SECRET='<飞书机器人签名密钥>'
-```
+## 故障排查
 
-企业应用机器人改为设置：
-
-```bash
-supabase secrets set FEISHU_APP_ID='<app id>'
-supabase secrets set FEISHU_APP_SECRET='<app secret>'
-supabase secrets set FEISHU_RECEIVER_ID='<Leader open_id>'
-supabase secrets set FEISHU_RECEIVER_ID_TYPE='open_id'
-```
-
-## 创建 Database Webhook
-
-在 Supabase Dashboard → Database → Webhooks 新建：
-
-- Table：`public.task_updates`
-- Event：只选 `INSERT`
-- URL：`https://<project-ref>.supabase.co/functions/v1/feishu-notify`
-- Header：`x-dashboard-secret: <与 DASHBOARD_WEBHOOK_SECRET 相同的值>`
-
-保存后用网页提交一条测试留言。飞书应收到「任务简报」卡片，按钮会跳转到对应任务的留言区。
-
-## 频率建议
-
-当前实现是每条时间线推送一张卡片。刚开始建议先运行一周观察噪音：
-
-- 阻塞、完成、排期变化、Leader 留言：即时推送。
-- 如果 Agent 一次批量更新会产生过多卡片，下一阶段可增加 `notification_outbox`，将 1–2 分钟内的普通进展聚合成一张摘要；不要在前端做防抖，因为更新也可能来自 CLI。
+| 现象 | 排查 |
+| --- | --- |
+| 飞书没收到卡片 | ① 查 `notification_outbox` 是否有 pending/failed 行（没行 = 触发器/webhook 未触发）；② 查 Edge Function 日志（Dashboard → Edge Functions → feishu-notify → Logs）；③ 检查 webhook Header 与 Secret 是否一致 |
+| outbox 有 failed | 看 `last_error`；修复后执行 `select public.retry_failed_notifications();`（webhook 监听 UPDATE 会重新投递） |
+| 重复收到卡片 | 函数有幂等 claim，同一 outbox 行只会发一次；确认 webhook 没配成重复 |
+| Agent 批量更新刷屏 | 触发器会把 30 分钟内同一任务的 progress 聚合成一条（`task_update_progress`）；关键事件仍即时 |
+| 签名校验失败 | 确认 webhook Header `x-dashboard-secret` 与 Secret `DASHBOARD_WEBHOOK_SECRET` 一致 |
 
 ## 安全红线
 
-- 飞书 webhook、App Secret、Leader Open ID 不进入 `VITE_*`、前端代码或 Git。
-- 自定义机器人应开启签名校验，签名密钥与 webhook 一样只放在 Supabase Secrets。
-- Edge Function 必须校验 `x-dashboard-secret`。
-- 如 webhook 泄露，立刻在飞书重新生成并更新 Supabase Secret。
+- 飞书 webhook、签名密钥、App Secret、Service Role Key **绝不**进入 `VITE_*`、前端 bundle、测试快照或 Git。
+- 自定义机器人建议开启「签名校验」；签名密钥只放 Supabase Secrets。
+- Edge Function 必须校验 `x-dashboard-secret`（已实现）。
+- 如 webhook 泄露：飞书重新生成 → 更新 Supabase Secret → 更新 webhook Header。
