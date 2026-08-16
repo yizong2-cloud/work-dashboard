@@ -78,7 +78,7 @@ work-dashboard/
 ## 后续可扩展（已预留）
 
 - Supabase Realtime 自动刷新
-- 基于 `task_updates` 的日报/周报生成
-- 排期时间轴 / 统计
+- 历史日报 / 周报归档
+- 排期与工作量统计
 
 详细部署步骤见 [docs/SETUP.md](docs/SETUP.md)。

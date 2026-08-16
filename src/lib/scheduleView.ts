@@ -1,0 +1,129 @@
+import type { PlanBlock, Task } from '../types'
+
+export interface ScheduleEntry {
+  id: string
+  task: Task
+  source: 'task_schedule' | 'plan_block'
+  startDate: string
+  endDate: string
+  label: string
+  block?: PlanBlock
+}
+
+export interface MonthCalendar {
+  rangeStart: string
+  rangeEnd: string
+  weeks: string[][]
+}
+
+function dateParts(iso: string) {
+  const [year, month, day] = iso.split('-').map(Number)
+  return { year, month, day }
+}
+
+function isoFromUTC(date: Date): string {
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${date.getUTCFullYear()}-${month}-${day}`
+}
+
+function addDays(iso: string, amount: number): string {
+  const { year, month, day } = dateParts(iso)
+  return isoFromUTC(new Date(Date.UTC(year, month - 1, day + amount)))
+}
+
+function addMonths(monthStart: string, amount: number): string {
+  const { year, month } = dateParts(monthStart)
+  return isoFromUTC(new Date(Date.UTC(year, month - 1 + amount, 1)))
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = dateParts(from)
+  const b = dateParts(to)
+  return Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86400000)
+}
+
+function mondayIndex(iso: string): number {
+  const { year, month, day } = dateParts(iso)
+  return (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
+}
+
+/** 自然月日历：周一开头，按该月实际需要返回 5 行或 6 行。 */
+export function buildMonthCalendar(monthStart: string): MonthCalendar {
+  const monthEnd = addDays(addMonths(monthStart, 1), -1)
+  const rangeStart = addDays(monthStart, -mondayIndex(monthStart))
+  const rangeEnd = addDays(monthEnd, 6 - mondayIndex(monthEnd))
+  const days = Array.from(
+    { length: daysBetween(rangeStart, rangeEnd) + 1 },
+    (_, index) => addDays(rangeStart, index),
+  )
+  const weeks = Array.from(
+    { length: days.length / 7 },
+    (_, index) => days.slice(index * 7, index * 7 + 7),
+  )
+  return { rangeStart, rangeEnd, weeks }
+}
+
+function overlaps(startDate: string, endDate: string, rangeStart: string, rangeEnd: string) {
+  return startDate <= rangeEnd && endDate >= rangeStart
+}
+
+/**
+ * 统一月日程中的两种真实排期：
+ * 1. 任务本身的开始日 ~ 预计完成日；
+ * 2. 更具体的日计划块。
+ * 同一任务在当前区间有计划块时，以计划块为准，避免重复展示两套横条。
+ */
+export function buildScheduleEntries(
+  tasks: Task[],
+  blocks: PlanBlock[],
+  rangeStart: string,
+  rangeEnd: string,
+): ScheduleEntry[] {
+  const taskById = new Map(tasks.map((task) => [task.id, task]))
+  const visibleBlocks = blocks.filter((block) =>
+    overlaps(block.start_date, block.end_date, rangeStart, rangeEnd),
+  )
+  const tasksWithBlocks = new Set(visibleBlocks.map((block) => block.task_id))
+
+  const taskScheduleEntries = tasks
+    .filter((task) =>
+      task.status !== 'cancelled' &&
+      !tasksWithBlocks.has(task.id) &&
+      Boolean(task.start_date) &&
+      Boolean(task.expected_end_date) &&
+      overlaps(task.start_date!, task.expected_end_date!, rangeStart, rangeEnd),
+    )
+    .map((task): ScheduleEntry => ({
+      id: `task:${task.id}`,
+      task,
+      source: 'task_schedule',
+      startDate: task.start_date!,
+      endDate: task.expected_end_date!,
+      label: task.title,
+    }))
+
+  const blockEntries = visibleBlocks
+    .map((block): ScheduleEntry | null => {
+      const task = taskById.get(block.task_id)
+      if (!task) return null
+      return {
+        id: block.id,
+        task,
+        source: 'plan_block',
+        startDate: block.start_date,
+        endDate: block.end_date,
+        label: block.summary || task.title,
+        block,
+      }
+    })
+    .filter((entry): entry is ScheduleEntry => entry !== null)
+
+  return [...taskScheduleEntries, ...blockEntries].sort((a, b) => {
+    const byStart = a.startDate.localeCompare(b.startDate)
+    if (byStart !== 0) return byStart
+    const byEnd = b.endDate.localeCompare(a.endDate)
+    if (byEnd !== 0) return byEnd
+    return a.task.title.localeCompare(b.task.title, 'zh-CN')
+  })
+}

@@ -52,7 +52,7 @@
 | 数据库脚本 | `supabase/schema.sql` | 建表 + RLS 全开放 + updated_at 触发器 |
 | 任务知识库 | `docs/KNOWLEDGE_BASE.md` | 任务别名映射 / 已确认事实 / 依赖关系 / 目录映射 |
 | 反馈线程 | `src/lib/feedbackService.ts` + `src/components/FeedbackPanel.tsx` | Leader 反馈可回复/跟进/标记解决（任务一） |
-| 日计划 | `src/pages/Schedule.tsx` + `src/lib/planRules.ts` | 按天的线性工作计划视图（任务三），CLI `plan-*` 命令 |
+| 月历与今日动态 | `src/pages/Schedule.tsx` + `src/lib/scheduleView.ts` + `src/lib/dailyReport.ts` | 自然月排期日历 + 当天任务时间线日报，CLI `plan-*` 命令 |
 | 部署 | `.github/workflows/deploy.yml` | push main 自动构建发布 GitHub Pages |
 
 ## 4. 数据模型（唯一契约）
@@ -67,8 +67,9 @@
 **task_plan_blocks（日粒度计划，任务三）**：id、task_id、start_date、end_date、summary、status(planned/active/done/changed)、created_at/by、updated_at
 **task_plan_block_changes（计划调整历史）**：id、block_id、old/new 日期与状态、note、changed_at/by
 
-> 计划块表示「具体哪几天计划投入」，与任务整体生命周期（start_date/expected_end_date）互不覆盖；
-> 调整计划块必须记录原因（plan-move 自动写入历史）；未安排计划的活跃任务在日程页有提示。
+> 计划块表示「具体哪几天计划投入」，与任务整体生命周期（start_date/expected_end_date）在数据层互不覆盖；
+> 月历会统一展示两种明确排期，同一任务在当前月份有计划块时优先显示计划块，避免重复横条；完全没有日期的任务不会进入月历。
+> 「今日动态」按上海自然日汇总 `task_updates`，旧版 `💬` 留言不计入工作日报。
 
 > 反馈是**独立结构化数据**（不再用 `💬` 前缀模拟）；旧版本 `💬` 前缀留言通过**兼容读取**（`feedbackService.listThreads` 的 legacyComments）继续可见，数据不动不丢失。免登录：身份仅展示，不做校验（UI 已标注）。原子写：创建线程/回复（含已解决自动重开）/状态迁移均走数据库 RPC。
 
@@ -182,7 +183,7 @@ npm run dashboard:cron:install         # 定时任务：工作日 11:00/15:30/19
 6. **schema 无版本迁移机制**：改表结构需手动执行 SQL（脚本幂等可重复执行）。
 7. **未接 Supabase Realtime**：Leader 页面需手动刷新（第一版明确不做，见 PROJECT_PLAN §27.1）。
 
-**可扩展方向**（PROJECT_PLAN 已预留）：Realtime 自动刷新、日报/周报自动生成、排期时间轴/Gantt、数据统计、定时自动更新流水线。
+**可扩展方向**（PROJECT_PLAN 已预留）：Realtime 自动刷新、历史日报/周报、数据统计、定时自动更新流水线。
 
 ## 11. 文件索引
 
