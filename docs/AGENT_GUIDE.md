@@ -76,9 +76,13 @@ npm run agent -- create --title "任务名" \
   --description "描述" --priority high --start 2025-08-20 --end 2025-08-22 \
   [--status in_progress] [--progress 30] [--interrupt] [--note "创建说明"]
 
-# 更新进度 / 状态
+# 更新进度 / 状态 / 通用字段
 npm run agent -- progress <id> --to 75 --note "完成 XX 模块，正在联调"
 npm run agent -- status <id> --to paused --note "等待设计稿，暂时挂起"
+npm run agent -- update <id> --description "新描述" --current_status "一句话现状" \
+  [--title 新标题] [--priority high] [--start_date YYYY-MM-DD] [--status planned] \
+  [--progress 50] [--actual_end_date YYYY-MM-DD] [--note "说明"]
+  # update 改字段不自动写时间线；带 --note 才追加一条说明
 
 # 排期
 npm run agent -- schedule <id> --end 2025-08-23 --note "接口方案调整，预计顺延一天"
@@ -87,15 +91,26 @@ npm run agent -- schedule <id> --end 2025-08-23 --note "接口方案调整，预
 npm run agent -- block <id> --reason "等待美术资源，预计 8/22 到位"
 npm run agent -- unblock <id> --note "素材已到位，恢复开发"
 
-# 完成 / 追加说明
+# 完成 / 追加说明（--at 可回填历史时间，如 --at "2026-08-14T18:00:00"）
 npm run agent -- complete <id> --note "已发布上线，观察无异常"
-npm run agent -- note <id> --type interrupt --content "临时插入线上问题排查，占用约2小时"
+npm run agent -- note <id> --type interrupt --content "临时插入线上问题排查，占用约2小时" [--at "时间"]
 
 # 删除（谨慎） / 批量 / 种子
 npm run agent -- delete <id>
 npm run agent -- batch --file ops.json
 npm run agent -- seed --force     # 仅本地演示模式（local）可用；连线上库时请用网页或 create 命令添加真实任务
 ```
+
+## 5.1 工作记录摘要器（一条龙流程的数据源）
+
+```bash
+npm run update:codex   # 读 Codex 会话摘要（~/.codex/sessions，实际开发记录）
+npm run update:dsh     # 读 DSH 会话摘要（~/.dsh/sessions，DSH 处理的问题记录，需本机 zstd）
+```
+
+- 输出含会话时间、工作目录（cwd）、用户原始请求。
+- 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把 cwd 对应到看板任务。
+- 完整流程见 `docs/UPDATE_WORKFLOW.md`。
 
 ## 6. 自然语言 → 命令 的翻译示例（照着做）
 

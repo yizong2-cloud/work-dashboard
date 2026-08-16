@@ -1,6 +1,9 @@
 # 个人工作进度看板（work-dashboard）
 
 > 一个用于向 Leader 持续透明展示个人任务、进度、排期及变化原因的轻量级个人工作看板。
+> **维护方式**：用自然语言告诉 Agent，Agent 自动更新网站（飞书 + Codex + DSH 三数据源）。
+
+**系统全景**：先读 **[docs/WORKFLOW_OVERVIEW.md](docs/WORKFLOW_OVERVIEW.md)**（完整工作流程与组件说明）。
 
 - **前端**：React 18 + Vite 5 + TypeScript + React Router
 - **后端 / 数据库**：Supabase（PostgreSQL）
