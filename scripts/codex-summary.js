@@ -29,6 +29,8 @@ function parseArgs(argv) {
     const a = argv[i]
     if (a === '--days') args.days = Number(argv[++i]) || 2
     else if (a === '--since') args.since = argv[++i]
+    else if (a === '--since-time') args.sinceTime = argv[++i]
+    else if (a === '--detail') args.detail = true
     else if (a === '--json') args.json = true
     else if (a === '--all') args.all = true
   }
@@ -138,7 +140,7 @@ function summarizeSession(file) {
         for (const c of p.content || []) {
           if (c.type === 'input_text' && role === 'user') {
             const text = stripSystemText(c.text || '')
-            if (text) userReqs.push(text.slice(0, 400))
+            if (text) userReqs.push(text.slice(0, 6000))
           }
         }
       } else if (p.type === 'function_call' || p.type === 'custom_tool_call') {
@@ -224,10 +226,16 @@ function renderMarkdown(sessions, home) {
     lines.push(`## ${t}（约 ${dur}）@ ${shortPath(s.cwd, home)}`, '')
     if (s.originator) lines.push(`> 来源: ${s.originator}`)
     if (s.userReqs.length > 0) {
-      lines.push(`用户: ${s.userReqs[0].slice(0, 300).replace(/\n/g, ' ')}`, '')
-      if (s.userReqs.length > 1) {
-        const last = s.userReqs[s.userReqs.length - 1].slice(0, 220).replace(/\n/g, ' ')
-        lines.push(`最新进展: ${last}`, '')
+      if (args.detail) {
+        for (const r of s.userReqs) {
+          lines.push(`用户: ${r.slice(0, 5000).replace(/\n/g, '\n       ')}`, '')
+        }
+      } else {
+        lines.push(`用户: ${s.userReqs[0].slice(0, 300).replace(/\n/g, ' ')}`, '')
+        if (s.userReqs.length > 1) {
+          const last = s.userReqs[s.userReqs.length - 1].slice(0, 220).replace(/\n/g, ' ')
+          lines.push(`最新进展: ${last}`, '')
+        }
       }
     } else {
       lines.push('用户: （无文本请求，可能为工具调试会话）', '')
@@ -252,16 +260,25 @@ function renderMarkdown(sessions, home) {
 
 const args = parseArgs(process.argv.slice(2))
 const home = os.homedir()
-// --all 扫描全部历史；--since 从指定日期起；否则最近 N 天
-const since = args.all ? '0000-01-01' : args.since ? `${args.since}T00:00:00` : dayStamp(args.days)
+// --all 扫描全部历史；--since 从指定日期起；--since-time 精确时间点（增量）；否则最近 N 天
+const since = args.all ? '0000-01-01' : args.sinceTime ? args.sinceTime.slice(0, 10) : args.since ? `${args.since}T00:00:00` : dayStamp(args.days)
+const sinceMs = args.sinceTime ? new Date(args.sinceTime).getTime() : 0
 console.error(`[codex-summary] 扫描 ${since.slice(0, 10)} 之后的 Codex 会话…`)
 
 const files = collectSessionFiles(since.slice(0, 10))
-const sessions = files
+let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
+  // 增量模式：只保留开始时间晚于 sinceTime 的新会话
+  .filter((s) => !sinceMs || (s.startUtc && new Date(s.startUtc).getTime() > sinceMs))
   .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
-  .slice(0, 20)
+
+if (args.detail) {
+  // 详细模式：每会话完整用户请求（放宽截断），最多 5 个最近会话
+  sessions = sessions.slice(0, 5)
+} else {
+  sessions = sessions.slice(0, 20)
+}
 
 if (args.json) {
   console.log(JSON.stringify(sessions, null, 2))

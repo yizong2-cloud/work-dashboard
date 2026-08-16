@@ -21,6 +21,17 @@ const FEISHU_BIN = path.join(HOME, 'feishu_export', 'bin', 'feishu-export')
 const DAILY_DIR = path.join(HOME, 'feishu_export', 'daily')
 const DAYS = 3
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
+
+// 增量窗口：上次 context 的生成时间（UTC）；无则退化为最近 3 天
+function lastGeneratedAt() {
+  try {
+    const old = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'))
+    return old.generated_at || null
+  } catch {
+    return null
+  }
+}
+const LAST_AT = lastGeneratedAt()
 const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
 
 function run(cmd, args, timeoutMs = 120000) {
@@ -80,8 +91,10 @@ function main() {
     file: feishuFile,
   })
 
-  // ---- 2. Codex 摘要 ----
-  const codexRes = run('node', [path.join(ROOT, 'scripts', 'codex-summary.js'), '--days', String(DAYS), '--json'], 180000)
+  // ---- 2. Codex 摘要（增量窗口 + 详情，分析无需再翻原始文件）----
+  const codexArgs = [path.join(ROOT, 'scripts', 'codex-summary.js'), '--days', String(DAYS), '--json']
+  if (LAST_AT) codexArgs.push('--since-time', LAST_AT)
+  const codexRes = run('node', codexArgs, 240000)
   let codex = []
   if (codexRes.ok) {
     try {
@@ -96,8 +109,10 @@ function main() {
     steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个会话` })
   }
 
-  // ---- 3. DSH 摘要 ----
-  const dshRes = run('node', [path.join(ROOT, 'scripts', 'dsh-summary.js'), '--days', String(DAYS), '--json'], 180000)
+  // ---- 3. DSH 摘要（增量窗口 + 详情）----
+  const dshArgs = [path.join(ROOT, 'scripts', 'dsh-summary.js'), '--days', String(DAYS), '--json']
+  if (LAST_AT) dshArgs.push('--since-time', LAST_AT)
+  const dshRes = run('node', dshArgs, 240000)
   let dsh = []
   if (dshRes.ok) {
     try {
@@ -132,14 +147,26 @@ function main() {
     knowledgeBase = '（知识库读取失败）'
   }
 
+  // ---- 详情：增量窗口内会话的完整对话内容（分析者第一步就能看到具体说了什么）----
+  const detailArgs = (extra) => [path.join(ROOT, 'scripts', extra), '--days', String(DAYS), '--detail', '--json']
+  const codexDetailRes = run('node', detailArgs('codex-summary.js'), 240000)
+  const dshDetailRes = run('node', detailArgs('dsh-summary.js'), 240000)
+  let codexDetail = []
+  let dshDetail = []
+  try { codexDetail = JSON.parse(codexDetailRes.stdout) } catch { codexDetail = [] }
+  try { dshDetail = JSON.parse(dshDetailRes.stdout) } catch { dshDetail = [] }
+
   // ---- 打包 context ----
   const ctx = {
     generated_at: new Date().toISOString(),
     source_range_days: DAYS,
+    incremental_since: LAST_AT,
     steps,
     feishu: { latest_file: feishuFile, content: feishuText },
     codex,
     dsh,
+    codex_detail: codexDetail,
+    dsh_detail: dshDetail,
     board,
     knowledge_base: knowledgeBase.slice(0, 40000),
   }

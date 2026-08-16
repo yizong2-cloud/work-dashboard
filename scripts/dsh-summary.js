@@ -30,6 +30,8 @@ function parseArgs(argv) {
     const a = argv[i]
     if (a === '--days') args.days = Number(argv[++i]) || 2
     else if (a === '--since') args.since = argv[++i]
+    else if (a === '--since-time') args.sinceTime = argv[++i]
+    else if (a === '--detail') args.detail = true
     else if (a === '--json') args.json = true
     else if (a === '--all') args.all = true
   }
@@ -108,7 +110,7 @@ function summarizeSession(file) {
         if (c.type !== 'text') continue
         const text = c.text || ''
         if (!isSystemText(text)) {
-          userMsgs.push(text.trim().slice(0, 500))
+          userMsgs.push(text.trim().slice(0, 4000))
           break
         }
       }
@@ -140,7 +142,11 @@ function renderMarkdown(sessions, home) {
     const t = s.start ? s.start.slice(0, 16).replace('T', ' ') : '?'
     lines.push(`## ${t} @ ${shortPath(s.cwd, home)}`, '')
     if (s.userMsgs.length > 0) {
-      lines.push(`用户: ${s.userMsgs[0].slice(0, 300).replace(/\n/g, ' ')}`, '')
+      if (args.detail) {
+        for (const r of s.userMsgs) lines.push(`用户: ${r.slice(0, 3000).replace(/\n/g, '\n       ')}`, '')
+      } else {
+        lines.push(`用户: ${s.userMsgs[0].slice(0, 300).replace(/\n/g, ' ')}`, '')
+      }
     } else {
       lines.push('用户: （无文本请求 / 工具调试会话）', '')
     }
@@ -152,16 +158,24 @@ function renderMarkdown(sessions, home) {
 const args = parseArgs(process.argv.slice(2))
 const home = os.homedir()
 // --all 扫描全部；--since 从指定日期起；否则最近 N 天
-const since = args.all ? '0000-01-01' : args.since ? args.since : dayStamp(args.days)
+const since = args.all ? '0000-01-01' : args.sinceTime ? args.sinceTime.slice(0, 10) : args.since ? args.since : dayStamp(args.days)
+const sinceMs = args.sinceTime ? new Date(args.sinceTime).getTime() : 0
 console.error(`[dsh-summary] 扫描 ${since} 之后的 DSH 会话…`)
 
 const files = collectFiles()
-const sessions = files
+let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
   .filter((s) => !since || (s.start && s.start.slice(0, 10) >= since))
+  // 增量模式：只保留开始时间晚于 sinceTime（start 已是北京时间，需换算回比较）
+  .filter((s) => !sinceMs || (new Date(s.start).getTime() - 8 * 3600 * 1000) > sinceMs)
   .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
-  .slice(0, 20)
+
+if (args.detail) {
+  sessions = sessions.slice(0, 5)
+} else {
+  sessions = sessions.slice(0, 20)
+}
 
 if (args.json) {
   console.log(JSON.stringify(sessions, null, 2))
