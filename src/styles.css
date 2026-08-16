@@ -261,6 +261,10 @@ section {
   background: var(--primary-weak);
   color: var(--primary);
 }
+.tag-noschedule {
+  background: var(--danger-weak);
+  color: var(--danger);
+}
 
 /* ---------- 进度条 ---------- */
 .progress {

@@ -79,10 +79,11 @@ npm run agent -- create --title "任务名" \
 # 更新进度 / 状态 / 通用字段
 npm run agent -- progress <id> --to 75 --note "完成 XX 模块，正在联调"
 npm run agent -- status <id> --to paused --note "等待设计稿，暂时挂起"
+  # ⚠️ status 只允许 planned/in_progress/paused/cancelled；
+  #    blocked 用 block（需 --reason），completed 用 complete
 npm run agent -- update <id> --description "新描述" --current_status "一句话现状" \
-  [--title 新标题] [--priority high] [--start_date YYYY-MM-DD] [--status planned] \
-  [--progress 50] [--actual_end_date YYYY-MM-DD] [--note "说明"]
-  # update 改字段不自动写时间线；带 --note 才追加一条说明
+  [--title 新标题] [--priority high] [--start_date YYYY-MM-DD] [--interrupt] [--note "说明"]
+  # update 只允许「非状态类」字段；任何变更都会自动生成时间线（原子写入）
 
 # 排期
 npm run agent -- schedule <id> --end 2025-08-23 --note "接口方案调整，预计顺延一天"

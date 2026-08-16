@@ -28,6 +28,7 @@ export function Dashboard() {
   const [quickTask, setQuickTask] = useState<Task | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [toast, setToast] = useState('')
+  const [showAllUpdates, setShowAllUpdates] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -98,25 +99,30 @@ export function Dashboard() {
     [tasks],
   )
 
-  const recentUpdates = useMemo(() => allUpdates.slice(0, 12), [allUpdates])
+  const recentUpdates = useMemo(
+    () => allUpdates.slice(0, showAllUpdates ? 20 : 5),
+    [allUpdates, showAllUpdates],
+  )
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
+    const ws = weekStartISO()
+    const we = new Date(ws + 'T00:00:00')
+    we.setDate(we.getDate() + 6)
+    const weISO = `${we.getFullYear()}-${String(we.getMonth() + 1).padStart(2, '0')}-${String(we.getDate()).padStart(2, '0')}`
+    const unfinished = (t: Task) => t.status !== 'completed' && t.status !== 'cancelled'
     return {
       active: activeTasks.length,
-      interrupt: interruptTasks.length,
-      doneThisWeek: tasks.filter(
-        (t) => t.status === 'completed' && !!t.actual_end_date && t.actual_end_date >= weekStartISO(),
+      blocked: tasks.filter((t) => t.status === 'blocked').length,
+      dueThisWeek: tasks.filter(
+        (t) => unfinished(t) && !!t.expected_end_date && t.expected_end_date >= ws && t.expected_end_date <= weISO,
       ).length,
-      overdue: tasks.filter(
-        (t) =>
-          t.status !== 'completed' &&
-          t.status !== 'cancelled' &&
-          !!t.expected_end_date &&
-          t.expected_end_date < today,
+      // Leader 最关心：逾期 或 活跃任务没排期（无法回答"什么时候完成"）
+      overdueOrUnscheduled: tasks.filter(
+        (t) => unfinished(t) && (!t.expected_end_date || t.expected_end_date < today),
       ).length,
     }
-  }, [tasks, activeTasks.length, interruptTasks.length])
+  }, [tasks, activeTasks.length])
 
   function notify(msg: string) {
     setToast(msg)
@@ -152,12 +158,12 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* 统计条 */}
+      {/* 统计条：Leader 决策视角 */}
       <div className="stats">
         <div className="stat"><b>{stats.active}</b><span>进行中</span></div>
-        <div className="stat"><b>{stats.doneThisWeek}</b><span>本周完成</span></div>
-        <div className="stat"><b>{stats.interrupt}</b><span>临时任务</span></div>
-        <div className="stat warn-stat"><b>{stats.overdue}</b><span>已逾期</span></div>
+        <div className="stat warn-stat"><b>{stats.blocked}</b><span>已阻塞</span></div>
+        <div className="stat"><b>{stats.dueThisWeek}</b><span>本周到期</span></div>
+        <div className="stat warn-stat"><b>{stats.overdueOrUnscheduled}</b><span>逾期/未排期</span></div>
       </div>
 
       {/* 第一优先级：我现在正在干什么 */}
@@ -273,10 +279,18 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* 第三优先级：最近发生了什么 */}
+      {/* 第三优先级：最近发生了什么（默认 5 条，可展开） */}
       {recentUpdates.length > 0 && (
         <section>
-          <SectionTitle>最近更新</SectionTitle>
+          <SectionTitle
+            extra={
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAllUpdates((v) => !v)}>
+                {showAllUpdates ? '收起' : '查看全部'}
+              </button>
+            }
+          >
+            最近更新
+          </SectionTitle>
           <div className="feed">
             {recentUpdates.map((u) => {
               const task = byId.get(u.task_id)

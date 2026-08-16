@@ -13,17 +13,19 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, latestUpdate, onOpen, onQuickUpdate }: TaskCardProps) {
+  const unfinished = task.status !== 'completed' && task.status !== 'cancelled'
   const overdue =
     !!task.expected_end_date &&
-    task.status !== 'completed' &&
-    task.status !== 'cancelled' &&
+    unfinished &&
     task.expected_end_date < new Date().toISOString().slice(0, 10)
+  const noSchedule = unfinished && !task.expected_end_date
 
   return (
     <article className={`card task-card ${task.status === 'blocked' ? 'card-blocked' : ''}`}>
       <div className="task-card-head">
         <h3 className="task-card-title" onClick={() => onOpen(task)}>
           {task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}
+          {noSchedule && <span className="tag tag-noschedule">未排期</span>}
           {task.title}
         </h3>
         <div className="task-card-badges">

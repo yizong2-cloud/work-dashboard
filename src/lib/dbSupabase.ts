@@ -91,5 +91,16 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       const { error } = await client.from(TASKS).delete().eq('id', id)
       if (error) throw new Error(error.message)
     },
+
+    async applyCreate(input, note, createdBy) {
+      const { data, error } = await client.rpc('create_task_with_note', {
+        p_title: input.title,
+        p_patch: input as unknown as Record<string, unknown>,
+        p_content: note ?? '任务创建。',
+        p_created_by: createdBy ?? 'admin',
+      })
+      if (error) throw new Error(error.message)
+      return data as Task
+    },
   }
 }

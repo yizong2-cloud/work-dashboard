@@ -134,5 +134,38 @@ export function createLocalDB(): DB {
       store.updates = store.updates.filter((u) => u.task_id !== id)
       save(store)
     },
+
+    async applyCreate(input, note, createdBy) {
+      const store = load()
+      const task: Task = {
+        id: newId(),
+        title: input.title,
+        description: input.description ?? '',
+        status: input.status ?? 'planned',
+        priority: input.priority ?? 'normal',
+        progress: input.progress ?? 0,
+        start_date: input.start_date ?? null,
+        expected_end_date: input.expected_end_date ?? null,
+        actual_end_date: null,
+        current_status: input.current_status ?? '',
+        block_reason: input.block_reason ?? '',
+        is_interrupt_task: input.is_interrupt_task ?? false,
+        created_at: now(),
+        updated_at: now(),
+      }
+      store.tasks.push(task)
+      store.updates.push({
+        id: newId('u'),
+        task_id: task.id,
+        type: 'note',
+        content: note ?? '任务创建。',
+        old_expected_end_date: null,
+        new_expected_end_date: null,
+        created_at: now(),
+        created_by: createdBy ?? 'admin',
+      })
+      save(store)
+      return task
+    },
   }
 }

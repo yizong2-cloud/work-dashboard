@@ -21,6 +21,10 @@ export interface DB {
   addUpdate(input: UpdateCreateInput): Promise<TaskUpdate>
   deleteTask(id: string): Promise<void>
   /**
+   * 原子创建：任务 + 初始时间线 一次完成（supabase 走 RPC 事务 / local 单次写盘）。
+   */
+  applyCreate(input: TaskCreateInput, note?: string, createdBy?: string): Promise<Task>
+  /**
    * 原子更新：任务字段修改 + 时间线追加 一次完成（supabase 走 RPC 事务 / local 单次写盘）。
    * 状态类更新（进度/状态/排期/阻塞/完成）必须走这里，保证不出现"改了字段没记时间线"。
    */

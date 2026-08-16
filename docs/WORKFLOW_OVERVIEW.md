@@ -73,8 +73,9 @@ npm run agent -- list [--status X] [--interrupt] [--json]     # 看任务
 npm run agent -- get <id>                                     # 任务详情+时间线
 npm run agent -- create --title ".." [--description] [--priority] [--start] [--end] [--interrupt] [--note]
 npm run agent -- progress <id> --to 70 [--note ".."]           # 改进度（自动记时间线）
-npm run agent -- status <id> --to in_progress [--note]         # 改状态
-npm run agent -- update <id> --title/--description/--current_status/--priority/--start_date/--status/--progress/--actual_end_date [--note]
+npm run agent -- status <id> --to in_progress [--note]         # 改状态（仅普通状态；blocked/completed 用专用命令）
+npm run agent -- update <id> --title/--description/--current_status/--priority/--start_date/--interrupt [--note]
+                                                               # 仅非状态字段；变更自动生成时间线（原子）
 npm run agent -- schedule <id> --end YYYY-MM-DD [--note]       # 调排期（记录 old/new）
 npm run agent -- block <id> --reason ".." / unblock <id>       # 阻塞/解除
 npm run agent -- complete <id> [--note]                        # 完成
@@ -126,14 +127,24 @@ npm run agent -- seed --force                                  # 仅本地演示
 ## 10. 已知边界与改进空间（供审查 Agent 参考）
 
 **已通过审查整改修复的问题（2026-08-16）**：
-1. ~~`update` 命令可改状态字段但不写时间线~~ → **已修复**：`update` 只允许非状态字段；状态/进度/排期/阻塞/完成强制走专用命令，且通过数据库 RPC（`apply_task_update`）**原子写入**（字段+时间线同事务），local 模式单次写盘。
-2. ~~数据不变量可绕过~~ → **已修复**：数据库 CHECK 约束强制 `completed→progress=100`、`blocked→有阻塞原因`（`tasks_completed_progress_ck` / `tasks_blocked_reason_ck`），并已修复线上违规数据。
-3. ~~摘要器静默漏数据（--all 只扫当天 / Codex input 解析失败 / 只读会话头部 / 失败不报警）~~ → **已修复**：`--all` 扫全部；Codex 参数兼容 JSON 与 JS 文本（正则提取）；输出"最新进展"（会话尾部消息）；截断/解压失败在 stderr 明确报警。
-4. ~~CLI 契约不一致（裸 --interrupt 不生效 / complete 用 UTC 日期 / 孤儿时间线 / 非法日期 / requireOp 把命令名当参数）~~ → **已修复**：裸 `--interrupt` 生效；`complete` 用本地时区日期；local 模式拒绝孤儿时间线；`--at` 校验格式；`requireOp` 不再回退到位置参数。
-5. ~~schema 非幂等~~ → **已修复**：策略 drop-if-exists + create；约束用 DO block 幂等添加；RPC 用 create or replace。
-6. ~~KNOWLEDGE_BASE 重复/无审核态~~ → **已修复**：别名表去重；新增「待确认区」——新事实先记录待用户确认，禁止直接固化推测。
-7. ~~UPDATE_WORKFLOW 遗漏 Codex/DSH 输入~~ → **已修复**：分析输入明确为「飞书 + Codex + DSH + 知识库 + 当前看板」；飞书无消息仍需分析另外两个来源。
-8. **新增最小测试集**：`npm test`（9 个用例，node:test，本地隔离，绝不触碰线上库）覆盖创建/进度原子性/阻塞校验/完成不变量/update 限制/--interrupt/孤儿拒绝/排期记录。
+- **第一轮**：
+  1. ~~`update` 命令可改状态字段但不写时间线~~ → 已修复：`update` 只允许非状态字段；状态类变更强制走专用命令（status/progress/schedule/block/unblock/complete），且通过数据库 RPC **原子写入**（字段+时间线同事务），local 模式单次写盘。
+  2. ~~数据不变量可绕过~~ → 已修复：数据库 CHECK 约束强制 `completed→progress=100`、`blocked→有阻塞原因`，并修复线上违规数据。
+  3. ~~摘要器静默漏数据~~ → 已修复：`--all` 扫全部；Codex 参数兼容 JSON/JS 文本；输出"最新进展"；截断/解压失败报警。
+  4. ~~CLI 契约不一致（裸 --interrupt / UTC 日期 / 孤儿时间线 / 非法日期 / requireOp）~~ → 已修复。
+  5. ~~schema 非幂等~~ → 已修复（drop-if-exists + DO block + create or replace）。
+  6. ~~KNOWLEDGE_BASE 重复/无审核态~~ → 已修复（去重 + 待确认区）。
+  7. ~~UPDATE_WORKFLOW 遗漏 Codex/DSH 输入~~ → 已修复。
+  8. 新增最小测试集 `npm test`。
+- **第二轮**：
+  9. ~~GitHub Pages 子路径详情页刷新 404（P0）~~ → 已修复：改用 `HashRouter`（URL 形如 `/work-dashboard/#/task/:id`，刷新永不 404）。
+  10. ~~`update` 普通字段（标题/现状等）不写时间线~~ → 已修复：任何变更自动生成变更摘要时间线（原子），无需 `--note`。
+  11. ~~`status` 可直接切到 blocked/completed 绕过领域命令~~ → 已修复：CLI 与网页 `setStatus` 均禁止；blocked/completed 强制走 block/complete；数据库补约束 `completed→actual_end_date 非空`、`blocked→block_reason trim 后非空`。
+  12. ~~创建任务+时间线非原子~~ → 已修复：RPC `create_task_with_note` 原子创建（local 单次写盘）。
+  13. ~~摘要器不识别 `exec_command({cmd})` 格式~~ → 已修复：兼容 `command`/`cmd`/`command_string`。
+  14. ~~KNOWLEDGE_BASE 去重误删已确认事实~~ → 已从 git 恢复完整数据（15 条事实），改为精确手工去重；维护规则明确"新事实先入待确认区"。
+  15. ~~非法日期 `2026-99-99` 可通过格式校验~~ → 已修复：`assertDate`/`--at` 增加真实日期校验。
+  16. 测试扩充至 **12 个用例**（新增：update 自动时间线、status 限制、非法日期）。
 
 **仍存在的边界/风险**：
 1. **分析依赖 LLM 判断**：飞书/Codex/DSH 的原始数据是自然语言，任务提炼与合并靠 Agent 语义理解，可能误判。缓解：KNOWLEDGE_BASE 持续累积纠正 + 待确认区。

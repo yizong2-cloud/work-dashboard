@@ -137,6 +137,41 @@ function createLocalStore() {
       db.updates = db.updates.filter((u) => u.task_id !== id)
       saveLocal(db)
     },
+    /**
+     * 原子创建：任务 + 初始时间线 一次完成。
+     */
+    async applyCreate(input, note, createdBy = 'agent') {
+      const db = loadLocal()
+      const task = {
+        id: crypto.randomUUID(),
+        title: input.title,
+        description: input.description ?? '',
+        status: input.status ?? 'planned',
+        priority: input.priority ?? 'normal',
+        progress: input.progress ?? 0,
+        start_date: input.start_date ?? null,
+        expected_end_date: input.expected_end_date ?? null,
+        actual_end_date: null,
+        current_status: input.current_status ?? '',
+        block_reason: input.block_reason ?? '',
+        is_interrupt_task: input.is_interrupt_task ?? false,
+        created_at: now(),
+        updated_at: now(),
+      }
+      db.tasks.push(task)
+      db.updates.push({
+        id: crypto.randomUUID(),
+        task_id: task.id,
+        type: 'note',
+        content: note ?? '任务创建。',
+        old_expected_end_date: null,
+        new_expected_end_date: null,
+        created_at: now(),
+        created_by: createdBy,
+      })
+      saveLocal(db)
+      return task
+    },
     async seed(tasks, updates, force) {
       const db = loadLocal()
       if (db.tasks.length > 0 && !force) {
@@ -233,6 +268,19 @@ function createSupabaseStore(env) {
     async deleteTask(id) {
       const { error } = await client.from('tasks').delete().eq('id', id)
       if (error) throw new Error(error.message)
+    },
+    /**
+     * 原子创建：通过 RPC create_task_with_note（任务 + 初始时间线 同事务）。
+     */
+    async applyCreate(input, note, createdBy = 'agent') {
+      const { data, error } = await client.rpc('create_task_with_note', {
+        p_title: input.title,
+        p_patch: input,
+        p_content: note ?? '任务创建。',
+        p_created_by: createdBy,
+      })
+      if (error) throw new Error(error.message)
+      return data
     },
     async seed(tasks, updates, force) {
       const { count } = await client.from('tasks').select('*', { count: 'exact', head: true })

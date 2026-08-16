@@ -142,3 +142,33 @@ test('schedule 记录 old/new 日期', () => {
   assert.match(g.stdout, /排期:2026-08-20 → 2026-08-25/)
   assert.match(g.stdout, /预计完成:2026-08-25/)
 })
+
+test('update 普通字段变更自动生成时间线（无需 --note）', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '测试任务H')
+  const id = extractId(c.stdout)
+  const u = run('update', id, '--current_status', '自动记时间线验证')
+  assert.ok(u.ok, u.stderr)
+  const g = run('get', id)
+  assert.match(g.stdout, /自动记时间线验证/)
+  assert.match(g.stdout, /更新字段：current_status/)
+})
+
+test('status 禁止直接切换到 blocked/completed', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '测试任务I')
+  const id = extractId(c.stdout)
+  const b = run('status', id, '--to', 'blocked')
+  assert.ok(!b.ok, 'status 到 blocked 应被拒绝')
+  assert.match(b.stderr, /block 命令/)
+  const co = run('status', id, '--to', 'completed')
+  assert.ok(!co.ok, 'status 到 completed 应被拒绝')
+  assert.match(co.stderr, /complete 命令/)
+})
+
+test('非法日期被拒绝（2026-99-99）', () => {
+  const run = makeRunner()
+  const r = run('create', '--title', '非法日期任务', '--end', '2026-99-99')
+  assert.ok(!r.ok, '非法日期应失败')
+  assert.match(r.stderr, /非法/)
+})

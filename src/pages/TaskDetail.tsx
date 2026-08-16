@@ -124,7 +124,13 @@ export function TaskDetail() {
           </div>
           <div className="info-item">
             <span className="info-label">最后更新</span>
-            <span>{shortDateTime(task.updated_at)}</span>
+            <span>
+              {shortDateTime(
+                updates.length > 0
+                  ? updates[updates.length - 1].created_at // 最新时间线时间（真实活动）
+                  : task.updated_at,
+              )}
+            </span>
           </div>
         </div>
 

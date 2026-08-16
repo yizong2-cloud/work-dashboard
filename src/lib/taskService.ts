@@ -63,9 +63,7 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
     },
 
     async createTask(input) {
-      const task = await db.createTask(input)
-      await db.addUpdate({ task_id: task.id, type: 'note', content: '任务创建。', created_by: who() })
-      return task
+      return db.applyCreate(input, '任务创建。', who())
     },
 
     async deleteTask(id) {
@@ -82,6 +80,9 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
     },
 
     async setStatus(id, status, content) {
+      // 领域规则：blocked/completed 是特殊状态，必须走 setBlocked/completeTask
+      if (status === 'blocked') throw new Error('标记阻塞请用 setBlocked（需提供原因）')
+      if (status === 'completed') throw new Error('标记完成请用 completeTask（会自动置 100% 与实际完成日期）')
       return db.applyTaskUpdate(id, { status }, {
         type: 'status_change',
         content: content?.trim() || `状态变更为 ${status}。`,

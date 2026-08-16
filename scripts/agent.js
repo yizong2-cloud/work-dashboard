@@ -74,7 +74,15 @@ function assertProgress(v) {
 
 function assertDate(v, label = '日期') {
   if (v !== undefined && v !== null && v !== '' && !DATE_RE.test(v)) fail(`非法${label}: ${v}，格式 YYYY-MM-DD`)
+  if (v && !isValidDate(v)) fail(`非法${label}: ${v}，不是真实存在的日期`)
   return v ?? null
+}
+
+/** 校验 YYYY-MM-DD 是否为真实日期（拒绝 2026-99-99 这类） */
+function isValidDate(s) {
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d
 }
 
 // ---------------- 输出 ----------------
@@ -157,8 +165,7 @@ async function opCreate(op) {
     human(`[dry-run] 将创建任务: ${input.title}`)
     return null
   }
-  const task = await store.createTask(input)
-  await store.addUpdate({ task_id: task.id, type: 'note', content: op.note ?? '任务创建。', created_by: who })
+  const task = await store.applyCreate(input, op.note ?? '任务创建。', who)
   human(`✅ 已创建任务 id=${task.id}`)
   human(renderTask(task))
   return task
@@ -185,6 +192,10 @@ async function opProgress(op) {
 async function opStatus(op) {
   const id = requireOp(op, 'id', '任务 id')
   const to = assertStatus(op.to ?? op.status)
+  // 领域规则：blocked/completed 是特殊状态，必须走专用命令
+  // （block 会校验原因并记录阻塞说明；complete 会置 progress=100 + 实际完成日）
+  if (to === 'blocked') fail('请用 block 命令标记阻塞（需提供 --reason）')
+  if (to === 'completed') fail('请用 complete 命令标记完成（会自动置 100% 与实际完成日期）')
   const note = op.note ?? op.content ?? `状态变更为 ${to}。`
   if (dryRun) {
     human(`[dry-run] 任务 ${id} 状态 → ${to}`)
@@ -229,10 +240,10 @@ async function opSchedule(op) {
 }
 
 async function opUpdate(op) {
-  // 注意：update 只能改「非状态类」字段（标题/描述/现状/优先级/开始日期/临时标记）。
+  // update 只能改「非状态类」字段（标题/描述/现状/优先级/开始日期/临时标记）。
   // 状态、进度、排期、完成日期、阻塞原因的修改必须走专用命令
-  // （status / progress / schedule / block / unblock / complete），
-  // 那些命令保证「字段变更 + 时间线」原子写入，避免看板失真。
+  // （status / progress / schedule / block / unblock / complete）。
+  // 与文档约定一致：任何变化都会自动生成时间线（原子写入），无需 --note 才记录。
   const id = requireOp(op, 'id', '任务 id')
   const patch = {}
   if (op.title !== undefined) patch.title = String(op.title)
@@ -257,11 +268,11 @@ async function opUpdate(op) {
     human(`[dry-run] 更新任务 ${id}: ${JSON.stringify(patch)}`)
     return null
   }
-  const task = await store.updateTask(id, patch)
-  if (op.note) {
-    await store.addUpdate({ task_id: id, type: 'note', content: String(op.note), created_by: who })
-  }
-  human(`✅ 任务 ${id} 已更新${op.note ? '（并记录说明）' : ''}`)
+  // 原子写入：字段变更 + 变更摘要时间线（一次完成）
+  const changed = Object.keys(patch).join('、')
+  const content = op.note ? `${op.note}（变更字段：${changed}）` : `更新字段：${changed}`
+  const task = await store.applyTaskUpdate(id, patch, { type: 'note', content, created_by: who })
+  human(`✅ 任务 ${id} 已更新（字段: ${changed}）`)
   human(renderTask(task))
   return task
 }
@@ -326,6 +337,9 @@ async function opNote(op) {
   let at = op.at ? String(op.at) : undefined
   if (at !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(at)) {
     fail(`非法 --at 时间: ${at}，格式如 2026-08-14 或 2026-08-14T18:00:00`)
+  }
+  if (at !== undefined && !isValidDate(at.slice(0, 10))) {
+    fail(`非法 --at 时间: ${at}，不是真实存在的日期`)
   }
   if (at !== undefined && at.length === 10) at = `${at}T12:00:00`
   if (dryRun) {

@@ -159,12 +159,14 @@ function summarizeSession(file) {
           }
         }
         let detail = ''
-        if (name.includes('shell') || args.command) {
-          detail = `shell: ${String(args.command || '').slice(0, 140)}`
+        // 兼容多种工具调用格式：shell/{command}、exec_command({cmd})、write({file_path})
+        const cmd = args.command || args.cmd || (typeof args.command_string === 'string' ? args.command_string : '')
+        if (name.includes('shell') || name.includes('exec_command') || cmd) {
+          detail = `shell: ${String(cmd || '').slice(0, 140)}`
         } else if (name.includes('write') || args.file_path) {
           detail = `write: ${String(args.file_path || '').slice(0, 120)}`
         } else if (name.includes('git')) {
-          detail = `git: ${String(args.command || args.description || '').slice(0, 140)}`
+          detail = `git: ${String(cmd || args.description || '').slice(0, 140)}`
         } else {
           detail = `${name}: ${JSON.stringify(args).slice(0, 120)}`
         }

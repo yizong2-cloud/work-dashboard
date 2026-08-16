@@ -26,22 +26,24 @@ create table if not exists public.tasks (
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
   -- 状态不变量（数据库强制，代码绕不过）：
-  --   已完成的任务进度必须为 100；被阻塞的任务必须有阻塞原因。
+  --   已完成的任务进度必须为 100 且必须有实际完成日期；
+  --   被阻塞的任务必须有阻塞原因（trim 后非空）。
   constraint tasks_completed_progress_ck check (status <> 'completed' or progress = 100),
-  constraint tasks_blocked_reason_ck     check (status <> 'blocked' or block_reason <> '')
+  constraint tasks_completed_actual_ck   check (status <> 'completed' or actual_end_date is not null),
+  constraint tasks_blocked_reason_ck     check (status <> 'blocked' or btrim(block_reason) <> '')
 );
 
 -- ---------------- 状态不变量（数据库强制，代码绕不过） ----------------
 -- 注意：对已存在的表，create table if not exists 不会追加约束，
--- 因此这里用 DO block 幂等添加（新库则由建表语句自带约束）。
+-- 因此这里用 DO block 幂等重建（新库则由建表语句自带约束）。
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'tasks_completed_progress_ck') then
-    alter table public.tasks add constraint tasks_completed_progress_ck check (status <> 'completed' or progress = 100);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'tasks_blocked_reason_ck') then
-    alter table public.tasks add constraint tasks_blocked_reason_ck check (status <> 'blocked' or block_reason <> '');
-  end if;
+  alter table public.tasks drop constraint if exists tasks_completed_progress_ck;
+  alter table public.tasks add constraint tasks_completed_progress_ck check (status <> 'completed' or progress = 100);
+  alter table public.tasks drop constraint if exists tasks_completed_actual_ck;
+  alter table public.tasks add constraint tasks_completed_actual_ck check (status <> 'completed' or actual_end_date is not null);
+  alter table public.tasks drop constraint if exists tasks_blocked_reason_ck;
+  alter table public.tasks add constraint tasks_blocked_reason_ck check (status <> 'blocked' or btrim(block_reason) <> '');
 end $$;
 
 -- ---------------- task_updates 表（时间线，保留完整历史） ----------------
@@ -122,6 +124,41 @@ end;
 $$;
 
 grant execute on function public.apply_task_update(uuid, jsonb, text, text, date, date, text) to anon, authenticated;
+
+-- ---------------- 原子创建 RPC（创建任务 + 初始时间线 一次事务） ----------------
+create or replace function public.create_task_with_note(
+  p_title text,
+  p_patch jsonb default '{}'::jsonb,
+  p_content text default '任务创建。',
+  p_created_by text default 'agent'
+) returns public.tasks
+language plpgsql
+security definer
+as $$
+declare v_task public.tasks;
+begin
+  insert into public.tasks (title, description, status, priority, progress, start_date, expected_end_date, is_interrupt_task, current_status)
+  values (
+    p_title,
+    coalesce(p_patch->>'description', ''),
+    coalesce(p_patch->>'status', 'planned'),
+    coalesce(p_patch->>'priority', 'normal'),
+    coalesce((p_patch->>'progress')::int, 0),
+    (p_patch->>'start_date')::date,
+    (p_patch->>'expected_end_date')::date,
+    coalesce((p_patch->>'is_interrupt_task')::boolean, false),
+    coalesce(p_patch->>'current_status', '')
+  )
+  returning * into v_task;
+
+  insert into public.task_updates (task_id, type, content, created_by)
+  values (v_task.id, 'note', p_content, p_created_by);
+
+  return v_task;
+end;
+$$;
+
+grant execute on function public.create_task_with_note(text, jsonb, text, text) to anon, authenticated;
 
 -- ---------------- 权限：全开放（无登录、无权限控制） ----------------
 -- 仅本人与 Leader 使用，无敏感数据；打开网页即可查看与编辑。
