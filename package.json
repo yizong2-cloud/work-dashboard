@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "agent": "node scripts/agent.js",
     "agent:list": "node scripts/agent.js list",
-    "agent:seed": "node scripts/agent.js seed --file scripts/seed.json"
+    "agent:seed": "node scripts/agent.js seed --file scripts/seed.json",
+    "update:export": "~/feishu_export/bin/feishu-export --incremental --markdown"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
