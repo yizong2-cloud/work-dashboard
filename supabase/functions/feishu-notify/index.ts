@@ -115,10 +115,17 @@ function buildTaskCard(task: TaskSummary, update: TaskUpdateRecord) {
 async function sendFeishu(card: Record<string, unknown>): Promise<'custom_bot' | 'app_bot'> {
   const webhookUrl = Deno.env.get('FEISHU_BOT_WEBHOOK_URL')
   if (webhookUrl) {
+    const payload: Record<string, unknown> = { msg_type: 'interactive', card }
+    const signingSecret = Deno.env.get('FEISHU_BOT_SIGNING_SECRET')
+    if (signingSecret) {
+      const timestamp = Math.floor(Date.now() / 1000).toString()
+      payload.timestamp = timestamp
+      payload.sign = await createBotSignature(timestamp, signingSecret)
+    }
     const result = await fetch(webhookUrl, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ msg_type: 'interactive', card }),
+      body: JSON.stringify(payload),
     })
     const body = await result.text()
     if (!result.ok) throw new Error(`Feishu custom bot failed: ${result.status} ${body}`)
@@ -153,6 +160,20 @@ async function sendFeishu(card: Record<string, unknown>): Promise<'custom_bot' |
   const body = await result.json() as { code: number; msg: string }
   if (!result.ok || body.code !== 0) throw new Error(`Feishu app bot failed: ${body.msg || result.status}`)
   return 'app_bot'
+}
+
+async function createBotSignature(timestamp: string, secret: string): Promise<string> {
+  // 飞书签名算法：以 `${timestamp}\n${secret}` 作为 HMAC-SHA256 key，对空字节串签名，再 Base64。
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(`${timestamp}\n${secret}`),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, new Uint8Array()))
+  return btoa(String.fromCharCode(...signature))
 }
 
 function eventTitle(type: string): string {

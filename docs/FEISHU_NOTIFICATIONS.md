@@ -42,10 +42,11 @@ supabase secrets set DASHBOARD_WEBHOOK_SECRET='<随机密钥>'
 supabase secrets set DASHBOARD_BASE_URL='https://yizong-boop.github.io/work-dashboard/'
 ```
 
-自定义机器人再设置：
+自定义机器人再设置（推荐在飞书机器人安全设置里开启「签名校验」）：
 
 ```bash
 supabase secrets set FEISHU_BOT_WEBHOOK_URL='<飞书群机器人 webhook>'
+supabase secrets set FEISHU_BOT_SIGNING_SECRET='<飞书机器人签名密钥>'
 ```
 
 企业应用机器人改为设置：
@@ -78,5 +79,6 @@ supabase secrets set FEISHU_RECEIVER_ID_TYPE='open_id'
 ## 安全红线
 
 - 飞书 webhook、App Secret、Leader Open ID 不进入 `VITE_*`、前端代码或 Git。
+- 自定义机器人应开启签名校验，签名密钥与 webhook 一样只放在 Supabase Secrets。
 - Edge Function 必须校验 `x-dashboard-secret`。
 - 如 webhook 泄露，立刻在飞书重新生成并更新 Supabase Secret。
