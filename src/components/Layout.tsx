@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { appConfig } from '../config'
 
 /**
@@ -28,8 +28,8 @@ export function Layout({ children }: { children: ReactNode }) {
           </Link>
           <nav className="nav">
             <span className="nav-sync"><i /> 数据持续更新</span>
-            <Link to="/" className="nav-link">总览</Link>
-            <Link to="/schedule" className="nav-link">日程</Link>
+            <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>总览</NavLink>
+            <NavLink to="/schedule" className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>日程</NavLink>
           </nav>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { PlanBlock, Task } from '../types'
 import { getDB } from '../lib/dbFactory'
@@ -7,6 +7,7 @@ import { validatePlanDates } from '../lib/planRules'
 import { shortDate, todayISO } from '../lib/format'
 
 const RANGE_DAYS_MIN = 7
+const WORKING_MASCOT = `${import.meta.env.BASE_URL}mascots/mascot-working.png`
 
 function addDays(iso: string, n: number): string {
   const d = new Date(iso + 'T00:00:00')
@@ -41,7 +42,11 @@ export function Schedule() {
   const [adjNote, setAdjNote] = useState('')
 
   const rangeEnd = addDays(rangeStart, rangeDays - 1)
-  const planMinWidth = 190 + rangeDays * 84
+  const dayWidth = rangeDays === 30 ? 42 : 84
+  const planMinWidth = 190 + rangeDays * dayWidth
+  const timelineStyle = {
+    '--plan-day-width': `${dayWidth}px`,
+  } as CSSProperties
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -186,14 +191,17 @@ export function Schedule() {
   }
 
   return (
-    <div className="page">
+    <div className="page schedule-page">
       {error && <div className="banner banner-error">{error}</div>}
 
-      <header className="dashboard-intro">
+      <header className="dashboard-intro schedule-intro">
         <div>
           <span className="eyebrow">Plan · 日粒度计划</span>
           <h1>工作计划</h1>
           <p>看每天安排什么：计划块（具体哪几天投入）与任务生命周期（开始/预计完成）相互独立。</p>
+        </div>
+        <div className="schedule-mascot-frame" aria-hidden="true">
+          <img src={WORKING_MASCOT} alt="" decoding="async" />
         </div>
         <div className="intro-actions">
           <button className="btn btn-ghost" onClick={() => setRangeStart(addDays(rangeStart, -rangeDays))}>← 前 {rangeDays} 天</button>
@@ -249,13 +257,18 @@ export function Schedule() {
       </details>
 
       {/* 时间轴 */}
-      <section className="plan-timeline card">
+      <section className="plan-timeline card" style={timelineStyle}>
+        <div className="plan-board-title">
+          <div><span className="eyebrow">Calendar strip</span><h2>{rangeDays} 日工作带</h2></div>
+          <span>按天阅读计划，不拆分小时</span>
+        </div>
         <div className="plan-head" style={{ minWidth: planMinWidth }}>
           <span className="plan-head-task">任务</span>
-          <div className="plan-head-days">
+          <div className="plan-head-days" style={{ gridTemplateColumns: `repeat(${rangeDays}, minmax(${dayWidth}px, 1fr))` }}>
             {days.map((d) => (
-              <span key={d} className={d === today ? 'plan-day-today' : ''}>
-                {d === today ? '今天' : shortDate(d)}
+              <span key={d} className={`plan-day-label ${d === today ? 'plan-day-today' : ''}`}>
+                <strong>{d === today ? '今天' : shortDate(d)}</strong>
+                <small>{weekdayLabel(d)}</small>
               </span>
             ))}
           </div>
@@ -352,4 +365,9 @@ function isOverdueSchedule(task: Task): boolean {
     task.status !== 'cancelled' &&
     task.expected_end_date < todayISO()
   )
+}
+
+function weekdayLabel(iso: string): string {
+  return new Intl.DateTimeFormat('zh-CN', { weekday: 'short', timeZone: 'Asia/Shanghai' })
+    .format(new Date(`${iso}T00:00:00+08:00`))
 }
