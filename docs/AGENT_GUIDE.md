@@ -90,7 +90,7 @@ npm run agent -- note <id> --type interrupt --content "临时插入线上问题�
 # 删除（谨慎） / 批量 / 种子
 npm run agent -- delete <id>
 npm run agent -- batch --file ops.json
-npm run agent -- seed --force     # 导入演示数据（本地模式直接覆盖本地文件）
+npm run agent -- seed --force     # 仅本地演示模式（local）可用；连线上库时请用网页或 create 命令添加真实任务
 ```
 
 ## 6. 自然语言 → 命令 的翻译示例（照着做）
