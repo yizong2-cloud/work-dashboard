@@ -21,17 +21,17 @@ npm run update:export
 - 若提示 cookie 过期：让用户重新从浏览器导出飞书 cookies 覆盖 `~/feishu_export/cookies.json`。
 - 导出结果可能提示「没有新消息」——那本次只需检查确认，无需分析。
 
-### 第 1.5 步：读取 Codex 工作摘要（真实工作进度第二来源）
+### 第 1.5 步：读取 Agent 工作摘要（真实工作进度第二/三来源）
 
 ```bash
-npm run update:codex
-# 等价于: node scripts/codex-summary.js --days 3
+npm run update:codex   # 读取 Codex 会话摘要（~/.codex/sessions）
+npm run update:dsh     # 读取 DSH 会话摘要（~/.dsh/sessions，需本机 zstd）
 ```
 
-- 读取 `~/.codex/sessions/` 最近 N 天的 Codex 会话（用户实际开发主要在这里）。
 - 输出每个会话：时间、工作目录（cwd）、用户请求、git commit 等。
-- **飞书是沟通记录，Codex 是实际干活记录**——两者都要看，互相印证。
-- 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把 Codex 会话关联到看板任务。
+- **飞书是沟通记录，Codex/DSH 是实际干活记录**——都要看，互相印证。
+- 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把会话关联到看板任务。
+- DSH 会话包含用户用 DSH 处理的问题（如 BI 平台排查），是重要的进度来源。
 
 ### 第 2 步：读取三份上下文（并行）
 
