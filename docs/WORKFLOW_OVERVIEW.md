@@ -51,6 +51,7 @@
 | **DSH 摘要器** | `scripts/dsh-summary.js` | 读 `~/.dsh/sessions` 提炼会话摘要（zstd 解压） |
 | 数据库脚本 | `supabase/schema.sql` | 建表 + RLS 全开放 + updated_at 触发器 |
 | 任务知识库 | `docs/KNOWLEDGE_BASE.md` | 任务别名映射 / 已确认事实 / 依赖关系 / 目录映射 |
+| 反馈线程 | `src/lib/feedbackService.ts` + `src/components/FeedbackPanel.tsx` | Leader 反馈可回复/跟进/标记解决（任务一） |
 | 部署 | `.github/workflows/deploy.yml` | push main 自动构建发布 GitHub Pages |
 
 ## 4. 数据模型（唯一契约）
@@ -58,6 +59,11 @@
 **tasks**：id(uuid)、title、description、status(planned/in_progress/blocked/paused/completed/cancelled)、priority(high/normal/low)、progress(0-100)、start_date、expected_end_date、actual_end_date、current_status（一句话现状）、block_reason、is_interrupt_task（临时插入）、created_at、updated_at
 
 **task_updates（时间线）**：id、task_id、type(progress/status_change/schedule_change/blocked/unblocked/interrupt/note/completed)、content、old_expected_end_date、new_expected_end_date、created_at、created_by
+
+**task_feedback_threads（反馈线程，任务一）**：id、task_id、status(open/in_progress/resolved)、created_at/by、resolved_at/by、updated_at
+**task_feedback_messages（线程消息）**：id、thread_id、body、author_name、author_role(leader/owner)、created_at
+
+> 反馈是**独立结构化数据**（不再用 `💬` 前缀模拟）；旧版本 `💬` 前缀留言通过**兼容读取**（`feedbackService.listThreads` 的 legacyComments）继续可见，数据不动不丢失。免登录：身份仅展示，不做校验（UI 已标注）。原子写：创建线程/回复（含已解决自动重开）/状态迁移均走数据库 RPC。
 
 **核心规则（违反 = 看板失真）**：
 1. 任何变化都追加时间线，绝不只覆盖字段
