@@ -64,3 +64,22 @@
 - 任务 `created_by`：网页端记「本人」，Agent CLI 记「agent」，批量导入记「分析导入」。
 - 时间线（`task_updates`）是 Leader 理解进度的核心：每次更新都要带说明，排期调整要带原因。
 - 看板数据直接写 Supabase（本地 `.env` 已配 service_role key），**无需重新部署**，刷新页面即生效。
+
+## 六、项目目录 ↔ 看板任务映射（Codex 会话关联用）
+
+> 用户实际开发主要在 Codex 里进行。`npm run update:codex`（scripts/codex-summary.js）读取
+> `~/.codex/sessions/` 的会话记录（含 cwd 工作目录与用户请求），本表用于把 Codex 活动
+> 对应到看板任务：看到某个 cwd 的会话，就知道用户实际在推进哪个任务。
+
+| 项目目录（Codex cwd） | 对应看板任务 |
+| --- | --- |
+| `~/jigsolitaire-cms`、`~/jigsaw-cms` | Jigslide（宁静华容道）CMS 与 API 联调支持、华容道正式服图库填充 |
+| `~/StudioProjects/jigsaw-android` | Jigsaw Puzzle 客户端（试玩广告、平板/折叠屏适配、BI 埋点） |
+| `~/Downloads/FunColor-Applovin试玩替换` | Jigsaw 试玩广告（AppLovin 渠道适配） |
+| `~/Downloads/Fantasy Jigsaw-适配moloco试玩` | Jigsaw 试玩广告（Moloco 渠道适配） |
+| `~/Downloads/试完广告修改需求` | Jigsaw 试玩广告（竞改迭代） |
+| `~/jigsaw-h5-ad`、`~/jigsaw-card-solitaire*` | Jigsaw 广告/试玩相关（映射待进一步确认） |
+| `~/StudioProjects/classic-jigsaw-android` | 经典拼图客户端（映射待确认） |
+| `~/Documents/Codex/*`（随机目录名） | 多为 Codex 测试/临时会话，非工作任务，忽略 |
+
+> 规则：新目录出现时，若无法确定对应任务，在分析结果中标注「待确认」并问用户。
