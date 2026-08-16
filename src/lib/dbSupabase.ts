@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DB } from './db'
-import type { Task, TaskUpdate } from '../types'
+import type { FeedbackMessage, FeedbackThread, Task, TaskUpdate } from '../types'
 
 const TASKS = 'tasks'
 const UPDATES = 'task_updates'
@@ -101,6 +101,73 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       })
       if (error) throw new Error(error.message)
       return data as Task
+    },
+
+    // ---- 反馈线程（任务一） ----
+
+    async listFeedbackThreads(taskId) {
+      const { data, error } = await client
+        .from('task_feedback_threads')
+        .select('*, task_feedback_messages(count)')
+        .eq('task_id', taskId)
+        .order('updated_at', { ascending: false })
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((t) => ({
+        ...t,
+        message_count: t.task_feedback_messages?.[0]?.count ?? 0,
+      })) as FeedbackThread[]
+    },
+
+    async listAllFeedbackThreads() {
+      const { data, error } = await client
+        .from('task_feedback_threads')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(200)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as FeedbackThread[]
+    },
+
+    async listFeedbackMessages(threadId) {
+      const { data, error } = await client
+        .from('task_feedback_messages')
+        .select('*')
+        .eq('thread_id', threadId)
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data ?? []) as FeedbackMessage[]
+    },
+
+    async createFeedbackThread(taskId, body, authorName, authorRole) {
+      const { data, error } = await client.rpc('create_feedback_thread', {
+        p_task_id: taskId,
+        p_body: body,
+        p_author_name: authorName,
+        p_author_role: authorRole,
+      })
+      if (error) throw new Error(error.message)
+      return data as FeedbackThread
+    },
+
+    async addFeedbackMessage(threadId, body, authorName, authorRole) {
+      const { data, error } = await client.rpc('add_feedback_reply', {
+        p_thread_id: threadId,
+        p_body: body,
+        p_author_name: authorName,
+        p_author_role: authorRole,
+      })
+      if (error) throw new Error(error.message)
+      return data as FeedbackMessage
+    },
+
+    async setFeedbackStatus(threadId, status, byName) {
+      const { data, error } = await client.rpc('set_feedback_status', {
+        p_thread_id: threadId,
+        p_status: status,
+        p_by_name: byName,
+      })
+      if (error) throw new Error(error.message)
+      return data as FeedbackThread
     },
   }
 }

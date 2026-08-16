@@ -99,3 +99,38 @@ export interface UpdateCreateInput {
   new_expected_end_date?: string | null
   created_by?: string
 }
+
+// ============================================================
+// 反馈线程（任务一：Leader 留言升级为可回复/可跟进的线程）
+// 免登录：author_name/author_role 仅用于展示，不做身份校验
+// ============================================================
+
+export type FeedbackRole = 'leader' | 'owner'
+
+export type FeedbackStatus = 'open' | 'in_progress' | 'resolved'
+
+export interface FeedbackThread {
+  id: string
+  task_id: string
+  status: FeedbackStatus
+  created_at: string
+  created_by: string
+  resolved_at: string | null
+  resolved_by: string
+  updated_at: string
+  /** 消息数（列表查询时填充） */
+  message_count?: number
+  /** 最新一条消息摘要（列表查询时填充，供 Dashboard 展示） */
+  latest_message?: string
+  latest_message_at?: string
+  latest_author?: string
+}
+
+export interface FeedbackMessage {
+  id: string
+  thread_id: string
+  body: string
+  author_name: string
+  author_role: FeedbackRole
+  created_at: string
+}

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import type { Task, TaskUpdate } from '../types'
+import type { FeedbackThread, Task, TaskUpdate } from '../types'
 import { getDB } from '../lib/dbFactory'
 import { useTaskService } from '../hooks/useTaskService'
+import { useFeedbackService } from '../hooks/useFeedbackService'
+import type { LegacyComment } from '../lib/feedbackService'
 import { StatusBadge } from '../components/StatusBadge'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { TaskProgress } from '../components/TaskProgress'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { QuickUpdateModal } from '../components/QuickUpdateModal'
-import { LeaderCommentPanel } from '../components/LeaderCommentPanel'
+import { FeedbackPanel } from '../components/FeedbackPanel'
 import { isComment } from '../lib/comments'
 import { todayISO, zhDate, shortDateTime } from '../lib/format'
 
@@ -18,37 +20,48 @@ export function TaskDetail() {
   const [searchParams] = useSearchParams()
   const db = getDB()
   const service = useTaskService(db)
+  const feedback = useFeedbackService(db)
 
   const [task, setTask] = useState<Task | null>(null)
   const [updates, setUpdates] = useState<TaskUpdate[]>([])
+  const [threads, setThreads] = useState<FeedbackThread[]>([])
+  const [legacyComments, setLegacyComments] = useState<LegacyComment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [quick, setQuick] = useState(false)
   const [toast, setToast] = useState('')
+
+  const focusThreadId = searchParams.get('thread')
+  const focusFeedback = searchParams.get('comment') === '1' || !!focusThreadId
 
   const refresh = useCallback(async () => {
     if (!id) return
     setLoading(true)
     setError('')
     try {
-      const [nextTask, nextUpdates] = await Promise.all([service.getTask(id), service.listUpdates(id)])
+      const [nextTask, nextUpdates, feedbackData] = await Promise.all([
+        service.getTask(id),
+        service.listUpdates(id),
+        feedback.listThreads(id),
+      ])
       if (!nextTask) setError('任务不存在或已被删除')
       else {
         setTask(nextTask)
         setUpdates(nextUpdates)
+        setThreads(feedbackData.threads)
+        setLegacyComments(feedbackData.legacyComments)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [id, service])
+  }, [id, service, feedback])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  const comments = useMemo(() => updates.filter(isComment), [updates])
   const timelineUpdates = useMemo(() => updates.filter((update) => !isComment(update)), [updates])
 
   function notify(message: string) {
@@ -140,12 +153,15 @@ export function TaskDetail() {
         </section>
 
         <aside className="detail-sidebar">
-          <LeaderCommentPanel
+          <FeedbackPanel
             taskId={task.id}
-            comments={comments}
-            service={service}
-            autoFocus={searchParams.get('comment') === '1'}
-            onDone={notify}
+            service={feedback}
+            threads={threads}
+            legacyComments={legacyComments}
+            autoFocus={focusFeedback}
+            initialThreadId={focusThreadId}
+            onChanged={() => void refresh()}
+            onNotify={notify}
           />
           <details className="danger-zone">
             <summary>任务管理</summary>

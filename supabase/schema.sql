@@ -160,6 +160,127 @@ $$;
 
 grant execute on function public.create_task_with_note(text, jsonb, text, text) to anon, authenticated;
 
+-- ============================================================
+-- 反馈线程（任务一：Leader 留言升级为可回复/可跟进的线程）
+-- 免登录：author_name/author_role 仅用于展示（UI 已标注"署名未做身份校验"）
+-- ============================================================
+
+create table if not exists public.task_feedback_threads (
+  id          uuid primary key default gen_random_uuid(),
+  task_id     uuid not null references public.tasks(id) on delete cascade,
+  status      text not null default 'open' check (status in ('open','in_progress','resolved')),
+  created_at  timestamptz not null default now(),
+  created_by  text not null default '',
+  resolved_at timestamptz,
+  resolved_by text not null default '',
+  updated_at  timestamptz not null default now()
+);
+
+create table if not exists public.task_feedback_messages (
+  id          uuid primary key default gen_random_uuid(),
+  thread_id   uuid not null references public.task_feedback_threads(id) on delete cascade,
+  body        text not null,
+  author_name text not null default '',
+  author_role text not null default 'leader' check (author_role in ('leader','owner')),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists task_feedback_threads_task_idx on public.task_feedback_threads (task_id);
+create index if not exists task_feedback_messages_thread_idx on public.task_feedback_messages (thread_id);
+
+drop trigger if exists task_feedback_threads_set_updated_at on public.task_feedback_threads;
+create trigger task_feedback_threads_set_updated_at
+  before update on public.task_feedback_threads
+  for each row execute function public.set_updated_at();
+
+-- 原子创建线程（线程 + 首条消息 同事务）
+create or replace function public.create_feedback_thread(
+  p_task_id uuid,
+  p_body text,
+  p_author_name text default '',
+  p_author_role text default 'leader'
+) returns public.task_feedback_threads
+language plpgsql
+security definer
+as $$
+declare v_thread public.task_feedback_threads;
+begin
+  if p_body is null or btrim(p_body) = '' then
+    raise exception '反馈内容不能为空';
+  end if;
+  insert into public.task_feedback_threads (task_id, status, created_by)
+  values (p_task_id, 'open', p_author_name)
+  returning * into v_thread;
+  insert into public.task_feedback_messages (thread_id, body, author_name, author_role)
+  values (v_thread.id, p_body, p_author_name, p_author_role);
+  return v_thread;
+end;
+$$;
+
+-- 原子回复（插入消息；若线程已解决则自动重新打开）
+create or replace function public.add_feedback_reply(
+  p_thread_id uuid,
+  p_body text,
+  p_author_name text default '',
+  p_author_role text default 'owner'
+) returns public.task_feedback_messages
+language plpgsql
+security definer
+as $$
+declare v_msg public.task_feedback_messages;
+declare v_thread public.task_feedback_threads;
+begin
+  if p_body is null or btrim(p_body) = '' then
+    raise exception '回复内容不能为空';
+  end if;
+  select * into v_thread from public.task_feedback_threads where id = p_thread_id;
+  if v_thread is null then
+    raise exception '反馈线程不存在: %', p_thread_id;
+  end if;
+  insert into public.task_feedback_messages (thread_id, body, author_name, author_role)
+  values (p_thread_id, p_body, p_author_name, p_author_role)
+  returning * into v_msg;
+  -- 已解决的线程被再次回复 → 重新打开
+  if v_thread.status = 'resolved' then
+    update public.task_feedback_threads
+       set status = 'open', resolved_at = null, resolved_by = ''
+     where id = p_thread_id;
+  end if;
+  return v_msg;
+end;
+$$;
+
+-- 状态迁移（resolved 记录解决者与时间）
+create or replace function public.set_feedback_status(
+  p_thread_id uuid,
+  p_status text,
+  p_by_name text default ''
+) returns public.task_feedback_threads
+language plpgsql
+security definer
+as $$
+declare v_thread public.task_feedback_threads;
+begin
+  if p_status not in ('open','in_progress','resolved') then
+    raise exception '非法状态: %', p_status;
+  end if;
+  update public.task_feedback_threads
+     set status = p_status,
+         resolved_at = case when p_status = 'resolved' then now() else null end,
+         resolved_by = case when p_status = 'resolved' then p_by_name else '' end
+   where id = p_thread_id
+  returning * into v_thread;
+  if v_thread is null then
+    raise exception '反馈线程不存在: %', p_thread_id;
+  end if;
+  return v_thread;
+end;
+$$;
+
+grant execute on function public.create_feedback_thread(uuid, text, text, text) to anon, authenticated;
+grant execute on function public.add_feedback_reply(uuid, text, text, text) to anon, authenticated;
+grant execute on function public.set_feedback_status(uuid, text, text) to anon, authenticated;
+
 -- ---------------- 权限：全开放（无登录、无权限控制） ----------------
 -- 仅本人与 Leader 使用，无敏感数据；打开网页即可查看与编辑。
 -- 若未来需要加权限，可在此收紧策略。
@@ -168,10 +289,16 @@ alter table public.task_updates enable row level security;
 
 drop policy if exists allow_all_tasks        on public.tasks;
 drop policy if exists allow_all_task_updates on public.task_updates;
+drop policy if exists allow_all_feedback_threads  on public.task_feedback_threads;
+drop policy if exists allow_all_feedback_messages on public.task_feedback_messages;
 create policy allow_all_tasks        on public.tasks        for all using (true) with check (true);
 create policy allow_all_task_updates on public.task_updates for all using (true) with check (true);
+create policy allow_all_feedback_threads  on public.task_feedback_threads  for all using (true) with check (true);
+create policy allow_all_feedback_messages on public.task_feedback_messages for all using (true) with check (true);
 
 -- anon（前端网页使用的匿名 key）与 authenticated 角色均授予全权限
 grant all on public.tasks        to anon, authenticated;
 grant all on public.task_updates to anon, authenticated;
+grant all on public.task_feedback_threads  to anon, authenticated;
+grant all on public.task_feedback_messages to anon, authenticated;
 grant usage on schema public to anon, authenticated;

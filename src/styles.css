@@ -2066,3 +2066,42 @@ section {
   .focus-actions .btn { flex: 1; }
   .detail-facts { gap: 7px; }
 }
+
+/* ============================================================
+   反馈线程（任务一）
+   ============================================================ */
+.feedback-role-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.feedback-role-label { font-size: 0.8rem; color: var(--muted); margin-right: 2px; }
+
+.feedback-legacy { margin-top: 14px; }
+.feedback-legacy summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); padding: 6px 0; }
+.comment-item-legacy { opacity: 0.75; }
+
+.thread-item { border-bottom: 1px solid #edf1f6; }
+.thread-item:last-child { border-bottom: 0; }
+.thread-head { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; width: 100%; text-align: left; background: transparent; border: 0; padding: 12px 2px; cursor: pointer; }
+.thread-head:hover { background: #f7f9fd; }
+.thread-summary { font-size: 0.85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-meta { font-size: 0.72rem; white-space: nowrap; }
+
+.thread-status { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.st-open { background: #fff7e8; color: #c47f17; }
+.st-in_progress { background: #e8f1ff; color: #2563eb; }
+.st-resolved { background: #e8f7ee; color: #1e8e4e; }
+
+.thread-body { padding: 4px 2px 12px; }
+.thread-msg { padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; background: #f2f6fd; }
+.thread-msg p { margin: 5px 0 0; font-size: 0.85rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-leader { background: #f2f6fd; border-left: 3px solid #2563eb; }
+.msg-owner { background: #f5f8f4; border-left: 3px solid #1e8e4e; }
+.thread-role-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+.role-leader { background: #e8f1ff; color: #2563eb; }
+.role-owner { background: #e8f7ee; color: #1e8e4e; }
+.thread-resolved-note { font-size: 0.78rem; margin: 6px 2px; }
+
+.thread-reply { margin-top: 10px; }
+.thread-reply textarea { width: 100%; border: 1px solid #e1e7f0; border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; font-family: inherit; resize: vertical; background: var(--card); color: var(--text); }
+.thread-reply-foot { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+
+.comment-count-open { background: #fff7e8; color: #c47f17; }
+.comment-shortcut-open { color: #c47f17; background: #fff7e8; }

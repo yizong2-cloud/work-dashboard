@@ -12,10 +12,11 @@ import {
   Target,
   type LucideIcon,
 } from 'lucide-react'
-import type { Task, TaskUpdate } from '../types'
+import type { FeedbackThread, Task, TaskUpdate } from '../types'
 import { appConfig } from '../config'
 import { getDB } from '../lib/dbFactory'
 import { useTaskService } from '../hooks/useTaskService'
+import { useFeedbackService } from '../hooks/useFeedbackService'
 import { TaskProgress } from '../components/TaskProgress'
 import { StatusBadge } from '../components/StatusBadge'
 import { QuickUpdateModal } from '../components/QuickUpdateModal'
@@ -32,9 +33,11 @@ export function Dashboard() {
   const isLocalMode = appConfig.dataMode === 'local'
   const db = getDB()
   const service = useTaskService(db)
+  const feedback = useFeedbackService(db)
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [allUpdates, setAllUpdates] = useState<TaskUpdate[]>([])
+  const [allThreads, setAllThreads] = useState<FeedbackThread[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [quickTask, setQuickTask] = useState<Task | null>(null)
@@ -48,15 +51,20 @@ export function Dashboard() {
     setLoading(true)
     setError('')
     try {
-      const [ts, us] = await Promise.all([service.listTasks(), db.listAllUpdates()])
+      const [ts, us, th] = await Promise.all([
+        service.listTasks(),
+        db.listAllUpdates(),
+        feedback.listAllThreads(),
+      ])
       setTasks(ts)
       setAllUpdates(us)
+      setAllThreads(th)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [service, db])
+  }, [service, db, feedback])
 
   useEffect(() => {
     void refresh()
@@ -75,6 +83,20 @@ export function Dashboard() {
     }
     return map
   }, [allUpdates])
+
+  // 反馈线程（任务一）：未解决统计 + 每任务未解决数 + 最近反馈
+  const unresolvedThreads = useMemo(
+    () =>
+      allThreads
+        .filter((t) => t.status !== 'resolved')
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [allThreads],
+  )
+  const unresolvedByTask = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of unresolvedThreads) map.set(t.task_id, (map.get(t.task_id) ?? 0) + 1)
+    return map
+  }, [unresolvedThreads])
 
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const activeTasks = useMemo(
@@ -182,6 +204,17 @@ export function Dashboard() {
         <MetricCard icon="alert" tone="red" value={metrics.blocked.length} label="已阻塞" hint={metrics.blocked.length ? '需要协调处理' : '当前无阻塞'} onClick={() => applyMetricFilter('blocked')} />
         <MetricCard icon="calendar" tone="violet" value={metrics.dueThisWeek.length} label="本周到期" hint="按预计完成日统计" onClick={() => applyMetricFilter('risk')} />
         <MetricCard icon="radar" tone="amber" value={metrics.overdue.length + metrics.unscheduled.length} label="交付风险" hint={`${metrics.overdue.length} 逾期 · ${metrics.unscheduled.length} 未排期`} onClick={() => applyMetricFilter('risk')} />
+        <MetricCard
+          icon="message"
+          tone="blue"
+          value={unresolvedThreads.length}
+          label="待回应反馈"
+          hint={unresolvedThreads.length ? 'Leader 留言待跟进' : '当前无未解决反馈'}
+          onClick={() => {
+            const t = unresolvedThreads[0]
+            if (t) navigate(`/task/${t.task_id}?thread=${t.id}`)
+          }}
+        />
       </section>
 
       <section className="overview-grid">
@@ -280,7 +313,18 @@ export function Dashboard() {
               <div className="work-progress"><TaskProgress progress={task.progress} overdue={isOverdue(task)} size="sm" /></div>
               <div className="work-due"><span>预计完成</span><strong className={isOverdue(task) || !task.expected_end_date ? 'txt-warn' : ''}>{task.expected_end_date ? shortDate(task.expected_end_date) : '未排期'}</strong></div>
               <StatusBadge status={task.status} />
-              <button className="comment-shortcut" onClick={() => navigate(`/task/${task.id}?comment=1`)} title="查看或添加留言" aria-label={`${task.title}的留言`}><DashboardIcon name="comment" /><span>{commentsByTask.get(task.id) ?? 0}</span></button>
+              <button
+                className={`comment-shortcut ${unresolvedByTask.get(task.id) ? 'comment-shortcut-open' : ''}`}
+                onClick={() => {
+                  const t = unresolvedThreads.find((x) => x.task_id === task.id)
+                  navigate(t ? `/task/${task.id}?thread=${t.id}` : `/task/${task.id}?comment=1`)
+                }}
+                title="未解决反馈或留言"
+                aria-label={`${task.title}的反馈与留言`}
+              >
+                <DashboardIcon name="comment" />
+                <span>{unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id) ?? 0}</span>
+              </button>
             </article>
           ))}
         </div>
@@ -356,10 +400,11 @@ function DashboardSkeleton() {
   return <div className="page dashboard-page" aria-label="看板加载中"><div className="skeleton skeleton-title" /><div className="metric-grid">{[0, 1, 2, 3].map((item) => <div className="skeleton skeleton-metric" key={item} />)}</div><div className="skeleton skeleton-panel skeleton-mascot-panel"><img src={mascotAsset('working')} alt="" aria-hidden="true" decoding="async" /></div></div>
 }
 
-type DashboardIconName = 'pulse' | 'alert' | 'calendar' | 'radar' | 'arrow' | 'chevron' | 'comment' | 'plus' | 'search'
+type DashboardIconName = 'pulse' | 'alert' | 'calendar' | 'radar' | 'arrow' | 'chevron' | 'comment' | 'message' | 'plus' | 'search'
 
 function DashboardIcon({ name }: { name: DashboardIconName }) {
   const icons: Record<DashboardIconName, LucideIcon> = {
+    message: MessageSquare,
     pulse: Activity,
     alert: AlertTriangle,
     calendar: CalendarDays,
