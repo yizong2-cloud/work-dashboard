@@ -1,0 +1,381 @@
+{
+  "generated_at": "2026-08-16",
+  "source_range": "2026-08-01 ~ 2026-08-16",
+  "summary": "宗意8月上旬的核心工作是推进新项目 Jigslide（宁静华容道/Jigsaw Solitaire）：完成华容道 CMS 功能开发与 jscms-cli 命令行工具，8/12 正式服上线并开始向正式服填充图库数据、排布前250关；同时输出客户端测试服/正式服 API 联调文档，跟进李林跃客户端接入。fantasy 侧承接留存向需求：积分制+完成页激励文案 8/13 输出 PM 决策单进入前期准备，8/14 与黄思杰排定优先级（成就→farm→fantasy）并接手杨柯迪未完成的成就系统收尾（预计3天、下周三前）。广告/试玩方向持续迭代 fantasy/legacy 可玩广告并新增 AppLovin、Moloco 渠道适配，开发本地拼图广告生成器给运营自助使用，成就徽章 AI 批量生成已交付。期间穿插大量线上问题排查（fantasy 推荐开局数下降、fantasy API 测试服部署故障、小米正式服动图加载失败、Jigsaw 平板/折叠屏适配与拼图块遮挡）均已解决；Peace 印度版广告 SDK 与 jigsaw-cy 全功能 SDK 接入处于等待 SDK 侧处理状态；8/13 周报自动化被领导叫停取消。",
+  "tasks": [
+    {
+      "title": "Jigslide（宁静华容道）CMS 与 API 联调支持",
+      "description": "负责华容道（Jigsaw Solitaire）CMS 后端开发与修复：图片批量上传问题修复、关卡编辑页优化（动图角标弹框、已上线图片不重复上图、已下线标记等）、jscms-cli 命令行工具（8/5 出 0.4.0 及 fantasy 版 CLI 1.1.2）、CMS 关卡方案/参数方案使用说明文档、客户端测试服 API 联调文档维护；8/12 华容道正式服上线；并合并邹叶的 CMS/API 代码到 master（8/5）。",
+      "status": "in_progress",
+      "priority": "high",
+      "progress": 85,
+      "start_date": "2026-08-03",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "正式服已上线（8/12），客户端正式服/测试服接入由李林跃于 8/15 完成，宗意侧基本收尾",
+      "updates": [
+        {"date": "2026-08-03", "type": "progress", "content": "修复华容道 CMS 图片上传问题（\"应该修好了你试试\"），并交付收集物/奖杯素材脚本拆分结果给胡贺伟"},
+        {"date": "2026-08-04", "type": "progress", "content": "提供 jscms-cli-0.1.1 让高琦可直接操控华容道 CMS；修复图片上传；黄思杰提出 CMS 关卡编辑页三个需求（动图角标弹框、左侧已上图不重复出现、已上线图片拖入右侧加已下线标记），宗意基于 master 开始做"},
+        {"date": "2026-08-05", "type": "progress", "content": "交付 jscms-cli-0.4.0 与 jigsaw-cms-cli-1.1.2（fantasy 版）及《宁静华容道-CMS关卡方案使用说明》《宁静华容道-CMS参数方案使用说明》；修完关卡编辑页等功能并提 API PR #121/#122、CMS PR #75/#77，含叶子新需求冲突解决"},
+        {"date": "2026-08-06", "type": "progress", "content": "更新《宁静华容道-客户端测试服API联调文档》新版本，要求李林跃客户端接口清单对齐、缺接口反馈"},
+        {"date": "2026-08-07", "type": "blocked", "content": "向高琦抱怨李林跃未在客户端测试跑通，导致无法推正式服（\"李林悦老拖延 他不在客户端上测试 跑通 我也没法推到正式服\"）"},
+        {"date": "2026-08-11", "type": "progress", "content": "确认测试服 API 连接正常、格式符合客户端需求，\"没啥需要新增的了吧？没有之后就上线正式服了\""},
+        {"date": "2026-08-12", "type": "progress", "content": "华容道正式服上线，通知高琦可以传图片；处理 cms 登录异常与小米正式服动图加载失败问题（见独立任务）"},
+        {"date": "2026-08-15", "type": "progress", "content": "催促客户端接入正式服/测试服，李林跃当天接好"}
+      ]
+    },
+    {
+      "title": "华容道正式服图库数据填充与关卡排布",
+      "description": "将华容道正式服图库的静态图/动图上传（静图与动图同名自动匹配），核对上传数量、重复与缺动图清单，并按《前250关排布.csv》把前250张图按关卡顺序排布、避免与后两千关重复。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 50,
+      "start_date": "2026-08-14",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "8/14 起持续上传静图/动图（已传 51 个），8/15 按前250关排布规则排图，上传核对进行中",
+      "updates": [
+        {"date": "2026-08-13", "type": "note", "content": "高琦确认待办清单：自动化周报、积分制、试玩，以及\"正式服华容道到时候传图我再看一下\""},
+        {"date": "2026-08-14", "type": "progress", "content": "接收高琦发来的华容道动图.zip、daily.zip（daily 无动图、命名=分类+细分分类），宗意开始上传；21:24 \"还在上传中\"，22:09 已传 51 个静图/动图"},
+        {"date": "2026-08-15", "type": "progress", "content": "高琦发《前250关排布.csv》要求按文件名与关卡顺序排布图片，已排布的图不重复出现在后两千关；宗意按此排布，并处理\"哪7张没有动图、53组图片重复\"的核对问题；高琦还要求加模块筛选直接筛出 daily 的图"}
+      ]
+    },
+    {
+      "title": "Fantasy 积分制与完成页激励文案开发",
+      "description": "fantasy 拼图留存功能（积分制+完成页激励文案/激励动画，参考竞品 jigsawscape），需求文档为拼图留存功能方案；8/13 产出《拼图留存功能-PM待拍板决策单》让高琦、商雯祺拍板（连击奖励公式、清零条件等），随后进入前期准备阶段。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 15,
+      "start_date": "2026-08-10",
+      "expected_end_date": "2026-08-20",
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "刚进入\"整理前期准备工作\"阶段（8/14），PM 决策收集中，预计还需约一周（宗意 8/14 估计）",
+      "updates": [
+        {"date": "2026-08-10", "type": "note", "content": "胡贺伟在积分制群同步：设计预计今天全部完成、明天可开发"},
+        {"date": "2026-08-12", "type": "schedule_change", "content": "高琦问\"你那个积分制和完成页文案还来得及做吗\"，宗意表示应该能做完；晚些时候高琦再次确认，宗意\"就算走 我也能给你做完吧\""},
+        {"date": "2026-08-13", "type": "progress", "content": "宗意发《拼图留存功能-PM待拍板决策单.md》给高琦和商雯祺做选择题；说明需求照抄竞品、竞品里的表已逆向扒出；商雯祺反馈 3/6/7/10 无法拍板，其余按推荐方案"},
+        {"date": "2026-08-14", "type": "progress", "content": "与高琦对齐连击奖励公式（Combo 10=+10、Combo 20=+40，不采用竞品 +13/+44）、连击清零条件（宗意验证竞品：托盘区滑动/移出再放回不清零、松手清零、点提示积分正常加但连击清零选 b）；积分制群中宗意回复\"刚开始整理前期准备工作的阶段\""},
+        {"date": "2026-08-14", "type": "schedule_change", "content": "与黄思杰排优先级：成就→farm→fantasy；宗意估计\"积分制+激励文案也得一周\"（约 8/20 后交付）"}
+      ]
+    },
+    {
+      "title": "Fantasy 成就系统收尾（接手杨柯迪）",
+      "description": "杨柯迪开发的 fantasy 成就系统未写完（测试端曾用不了、进度停滞），宗意接手收尾：向高琦索取成就系统需求文档参考，8/14 与黄思杰确认\"成就收尾至少 3 天\"，预计下周三（8/19）前完成，随后高琦排下周测试。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 20,
+      "start_date": "2026-08-14",
+      "expected_end_date": "2026-08-19",
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "8/14 确定由宗意收尾（杨柯迪交接中），预计约3天、下周三（8/19）前完成",
+      "updates": [
+        {"date": "2026-08-12", "type": "note", "content": "宗意向高琦索取 fantasy 成就系统需求文档（\"我有个需求没完事呢\"\"我就直接照抄了\"）；杨柯迪向高琦/思杰承诺周四中午前完成"},
+        {"date": "2026-08-14", "type": "schedule_change", "content": "高琦问宗意\"你如果接手的话 成就下周能开发完吗\"；宗意\"成就得3天左右 我刚才和思杰说的预期 也就是下周三之前吧\"；高琦在成就群要求杨柯迪下班前交接、做好过渡"},
+        {"date": "2026-08-14", "type": "progress", "content": "与黄思杰确认优先级（成就→farm→fantasy），\"成就我觉得收尾至少是3天\""}
+      ]
+    },
+    {
+      "title": "成就徽章 AI 批量生成",
+      "description": "按胡贺伟提供的提示词（轻复古珐琅材质、1024*1024 透明 PNG、无文字）用 AI 批量生成成就徽章素材：8/7 试跑 5 张并迭代去金色边框/调质感，8/8 凌晨开始批量跑并交付 badge_batch_raw.zip，承诺大面积返工可重跑。",
+      "status": "completed",
+      "priority": "normal",
+      "progress": 100,
+      "start_date": "2026-08-07",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-08",
+      "is_interrupt_task": true,
+      "current_status": "8/8 交付原始批量包，胡贺伟 8/10 周末整理后确认\"没问题可以用了\"",
+      "updates": [
+        {"date": "2026-08-07", "type": "progress", "content": "胡贺伟提供参考图+表格+提示词，宗意试跑 5 张效果接近；按反馈去掉金色边框、保持珐琅质感；高琦要求下班前给出批量指令"},
+        {"date": "2026-08-08", "type": "progress", "content": "凌晨迭代质感（金属变塑料→调整），胡贺伟确认\"我觉得可以\"后\"已经开跑了\"；用一日账号批量生成并计算成本；02:23 交付 badge_batch_raw.zip，\"如果大面积返工的情况可以反馈给我 我可以再批量重跑\"；个别有文字的将二次修整"},
+        {"date": "2026-08-10", "type": "completed", "content": "胡贺伟周末重新生成整理了一版成就徽章.zip（5倍图，\"线上应该没问题\"），高琦看过\"可以，ai牛逼\"；高琦还提议用同样方法批量跑收集物建筑（未落实）"}
+      ]
+    },
+    {
+      "title": "Jigsaw 试玩（可玩广告）制作与多渠道适配",
+      "description": "为投放制作 fantasy/legacy 等产品的可玩广告（试玩）：替换图/碎片/logo、文案与按钮样式竞改（Choose Your Favorite Jigsaw! / Choose Next Puzzle!），并适配 AppLovin（fun_color 等）与 Moloco 新渠道；交付包多次迭代（8/4~8/5 多版 Jigsaw_多产品试玩_最终交付包、8/14 Moloco交付包）。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 70,
+      "start_date": "2026-08-01",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "fantasy/legacy 竞改仍在迭代（8/13 还在做）；AppLovin、Moloco 渠道适配已交付并验收通过",
+      "updates": [
+        {"date": "2026-08-01", "type": "progress", "content": "高琦给两个竞品试玩要求（替换图/碎片、产品名 Fantasy Jigsaw），宗意提供 fantasy/legacy 的 Android Package ID；另向陈凯悦提供 pinterest 4K 图包（pinterest-4k-23 / pinterest-4k-vertical）"},
+        {"date": "2026-08-04", "type": "progress", "content": "交付 Fantasy_Jigsaw_最终交付包_2026-08-03（去掉斑驳痕迹）与 Jigsaw_多产品试玩_最终交付包（含 legacy 一套）；修复中文文案改英文等"},
+        {"date": "2026-08-05", "type": "progress", "content": "多轮迭代：版式白边、动图/图片缩略图、Choose Next Puzzle! 文案、边角差异等，多次重新打包交付"},
+        {"date": "2026-08-11", "type": "progress", "content": "张震威要求竞改一批试玩适配 AppLovin 新渠道（周四下班前交付），宗意承接"},
+        {"date": "2026-08-12", "type": "progress", "content": "高琦要求 fantasy/legacy 试玩竞改按钮和文字样式（顶部标题描边渐变、PLAY NOW 按钮样式，后续支持自主替换图片）；王昊楠提供 logo/bgm/点击音效素材；23:49 交付 applovin_fun_color.zip"},
+        {"date": "2026-08-13", "type": "progress", "content": "修复 AppLovin 包 07/09/10 的问题（打不开、无图片、icon 消失），21:04 交付 10_fun_color_playable.html 验收通过；高琦问试玩进度，宗意\"堆着呢 马上\""},
+        {"date": "2026-08-14", "type": "completed", "content": "张震威要求把 google/unity 的 fantasy 试玩适配 moloco（当天下班前），宗意 01:32 交付 Moloco交付包.zip 并验收通过"}
+      ]
+    },
+    {
+      "title": "本地拼图广告生成器（Puzzle-Ad-Generator）开发",
+      "description": "开发本地拼图广告生成工具给运营王昊楠自助制作试玩广告：内置 logo、BGM、点击音效，支持替换底图/动图、调整演示步数、文案样式与结尾转场；8/12 出 Mac 版 v11，之后适配 Windows 环境迭代 v12~v17（含乱码/依赖/导出失败提示修复）。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 70,
+      "start_date": "2026-08-12",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "Windows v17 已交付（8/13），支持导出失败原因提示；王昊楠反馈的功能点部分完成，仍有迭代空间",
+      "updates": [
+        {"date": "2026-08-12", "type": "progress", "content": "给王昊楠看样品并内置其提供的 logo、bgm（花日/小步舞曲）、点击音效；交付 本地拼图广告生成器-v11（Mac）；适配 Windows 出 v12（乱码问题、需 codex 环境）"},
+        {"date": "2026-08-13", "type": "progress", "content": "迭代 Windows 版 v13/v14（npm 依赖安装失败修复）；王昊楠反馈：支持动图、底图可换（含动态）、演示步数更多、文案样式、结尾转场动画且结尾页可选；19:09 交付 v16（\"我mac上没法测试，有问题反馈\"），22:12 交付 v17（导出失败会提示原因）"}
+      ]
+    },
+    {
+      "title": "Peace 印度版广告 SDK（ADX/双 banner）接入验证",
+      "description": "Peace（Jigsaw Breeze）印度版本接入广告方提供的方案：在 createBanner 处增加 createBannerBackup 双 banner 调用，验证 banner_admob 与 adx 填充、dualBanner 日志与展开收起行为；8/7 在 breeze/xiaomi-india-adx 分支广告正常填充，输出 full-ad-sdk-feedback-20260807.md 反馈文档与 xiaomi 官方包。",
+      "status": "blocked",
+      "priority": "normal",
+      "progress": 75,
+      "start_date": "2026-08-04",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "接入与验证已做，等待 SDK 侧/刘桐序下周处理（SDK 冲突、回调精简、banner 生命周期等问题需 SDK 方修复）",
+      "updates": [
+        {"date": "2026-08-04", "type": "progress", "content": "按黄思杰转达的方案接入 createBannerBackup(\"banner_admob\")，实测 dualBanner 日志链路；admob 展开/收起为 SDK 内部行为无法控制；\"还剩四种广告没通\""},
+        {"date": "2026-08-06", "type": "progress", "content": "banner_admob 可以，adx 无填充；黄思杰确认 adx 基本没填充；流量控制改到 100% 后再测"},
+        {"date": "2026-08-07", "type": "progress", "content": "breeze/xiaomi-india-adx 分支广告正常填充（sdk 内部填充有间隔空白期）；反馈三大问题：新老 SDK 类名冲突、回调从7个精简为3个、banner 为悬浮非占位且生命周期从 Fragment 变为 Activity 导致完成页无法销毁；23:47 交付 JigsawBreeze-v1.13.19-official-xiaomi.apks 与 full-ad-sdk-feedback-20260807.md，\"剩下的需要帮我反馈下\""},
+        {"date": "2026-08-14", "type": "blocked", "content": "黄思杰：\"peace的sdk等那个群里桐序说话，他说下周\"；宗意估计\"peace sdk之后改完得两天\""}
+      ]
+    },
+    {
+      "title": "Peace（Jigsaw Breeze）优化版本 1.13.19 发版",
+      "description": "Peace 优化版本发布：内容为新用户广告优化 + 完成页卡顿修复（异步堵塞问题，7/30 已修），7/31 提审，8/1 确认无问题，8/6 输出 JigsawBreeze-v1.13.19-r11319-official.apks 正式包。",
+      "status": "completed",
+      "priority": "normal",
+      "progress": 100,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-01",
+      "is_interrupt_task": false,
+      "current_status": "1.13.19 已提审过审、叶子确认无问题（8/1），8/6 打好正式 apks",
+      "updates": [
+        {"date": "2026-08-01", "type": "completed", "content": "叶子回复\"没什么问题\"；此前黄思杰已提审 1.13.19，过审放 100%"},
+        {"date": "2026-08-06", "type": "progress", "content": "宗意产出 JigsawBreeze-v1.13.19-r11319-official.apks 正式包"}
+      ]
+    },
+    {
+      "title": "Countryside 推荐图功能后端上线与客户端修改",
+      "description": "Countryside 推荐图（个性化推荐）功能：完成客户端修改与后端 PR，8/4 修复 AI 反馈的两个问题并提 PR，后端正式服部署（黄思杰合 PR 后补点上线），随后打新包。",
+      "status": "completed",
+      "priority": "normal",
+      "progress": 100,
+      "start_date": "2026-08-01",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-04",
+      "is_interrupt_task": false,
+      "current_status": "8/4 后端正式服部署完成，客户端新包已出",
+      "updates": [
+        {"date": "2026-08-01", "type": "progress", "content": "黄思杰询问 countryside 客户端修改进度；宗意确认测试服推荐图需手动传、正式服会自动下发，\"我再测测吧 我测过之后我后端提个pr\""},
+        {"date": "2026-08-04", "type": "progress", "content": "AI 反馈两个问题，黄思杰指示\"修了吧\"；宗意 01:25 \"pr修完了\"；黄思杰合 PR 后补点上线（正式服部署）；确认纯新增功能、用新接口、对旧版本客户端无影响；02:07 宗意准备放新包"}
+      ]
+    },
+    {
+      "title": "Countryside 动图功能修复与小米测试跟进",
+      "description": "Countryside 动图（gif 拼图）功能收尾：7/31 后处于自测阶段（部分偶发 bug 未查明），8/3 新包上传，配合叶子对完新功能；8/12 小米测试计划改为自测（原验收人离职），宗意自测后需在群里艾特张慧；8/14 与叶子确认测试范围（基本功能+上次修复问题，埋点/性能张慧看能否插队）。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 70,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "自测阶段，等待与叶子对完新功能及张慧安排埋点/性能测试（8/14 仍在对进度）",
+      "updates": [
+        {"date": "2026-08-04", "type": "progress", "content": "宗意：\"8.3日新包已上传到文档里\"；叶子问\"这周咱们能不能对完应用新的功能\""},
+        {"date": "2026-08-06", "type": "note", "content": "叶子再次询问进度（\"老师，现在进度怎么样啦\"），文件内未见宗意后续回复"},
+        {"date": "2026-08-10", "type": "note", "content": "与高琦讨论动图低端机优化：已做静态图兜底，判断低端机标准（邹叶统计约 14.28% 设备/用户受影响），优化暂为讨论未定"},
+        {"date": "2026-08-12", "type": "schedule_change", "content": "叶子：小米那边计划有变，改成自测（验收人离职一直没被发现）；宗意需自测没问题后在群里艾特张慧"},
+        {"date": "2026-08-14", "type": "progress", "content": "叶子追问进度；宗意\"都得自己测吗\"；叶子：主要测基本功能和上次修复的问题，埋点和性能张慧问能否插队"}
+      ]
+    },
+    {
+      "title": "fantasy 推荐开局数下降排查",
+      "description": "8/7 黄思杰发现 fantasy 推荐开局数明显下降（leader 要求\"先把手上事情停一停看看这个\"），宗意参与排查并指出\"现在好像拉不到推荐图了\"；最终定位根因是训练 crontab 未执行导致每日训练没跑，田力手动执行恢复。",
+      "status": "completed",
+      "priority": "high",
+      "progress": 100,
+      "start_date": "2026-08-07",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-07",
+      "is_interrupt_task": true,
+      "current_status": "根因定位（训练定时任务未执行），已手动执行恢复；作为反转实验观察指标变化",
+      "updates": [
+        {"date": "2026-08-07", "type": "interrupt", "content": "黄思杰发图指出 fantasy 推荐开局数下降并要求暂停手头事排查；高琦补充大盘开局数上升、7留/活跃7留下滑；宗意指出推荐图拉不到，田力确认 crontab 未执行并手动执行训练"}
+      ]
+    },
+    {
+      "title": "Jigsaw Puzzle 平板/折叠屏适配与拼图块拖拽遮挡修复",
+      "description": "处理玩家反馈与高琦实测的 Jigsaw Puzzle 问题：平板端拼图块布局 bug、三星折叠屏适配、拼图块拖拽时被下方拼图列表/白边遮挡的问题；8/12 完成平板布局适配与折叠屏切换坐标映射修复并上线，当晚完成拖拽遮挡最小修复（y=100px 固定值改为按实际纵向位置计算）。",
+      "status": "completed",
+      "priority": "high",
+      "progress": 100,
+      "start_date": "2026-08-10",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-12",
+      "is_interrupt_task": true,
+      "current_status": "平板/折叠屏适配 8/12 上线反馈没问题，拖拽遮挡修复 8/12 晚可合入",
+      "updates": [
+        {"date": "2026-08-10", "type": "interrupt", "content": "陈凯悦整理玩家反馈（平板拼图块 bug、三星折叠屏底部看不了等）；黄思杰\"看看平板的问题，比较重要，看能不能今天修复\"，宗意接单；高琦补充折叠屏适配排查"},
+        {"date": "2026-08-11", "type": "progress", "content": "高琦实测拼图块拖到下方白边内被遮挡，宗意定位：该问题修复在一个一直没合并的重构层级分支上，\"那我先试试最小修复吧\"；先做平板/折叠屏适配，再单独开分支修遮挡"},
+        {"date": "2026-08-12", "type": "completed", "content": "\"主要是修复了类似于平板布局的适配 和 折叠屏切换形态时 拼图坐标的映射转换问题\"，模拟器测试通过，上线后黄思杰\"反馈没问题\"；当晚完成遮挡修复（忽略松手纵向位置、按 sx 查找拼块），23:38 可合，黄思杰并入新版本"}
+      ]
+    },
+    {
+      "title": "fantasy CMS/API 测试服部署故障修复",
+      "description": "8/13 发现 fantasy cms 后端仓库测试服自动部署异常（jigsaw-api 测试服挂掉，最近一次 17 小时前的提交部署失败），宗意回退部署失败后的全部代码仍无法部署，压缩 git 历史便于运维排查；8/14 04:15 部署成功，测试服恢复。",
+      "status": "completed",
+      "priority": "high",
+      "progress": 100,
+      "start_date": "2026-08-13",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-14",
+      "is_interrupt_task": true,
+      "current_status": "8/14 部署成功，测试服恢复（\"通了\"）",
+      "updates": [
+        {"date": "2026-08-13", "type": "interrupt", "content": "宗意发现 fantasy cms 后端测试服不再自动部署；黄思杰确认 api 测试服挂（43 分钟前的提交有问题）；宗意回退所有失败提交只留测试代码仍无法部署，并压缩 git 提交历史方便运维排查（告知杨柯迪\"重写历史了，拉取时以远端为准\"）"},
+        {"date": "2026-08-14", "type": "completed", "content": "04:15 部署成功；黄思杰\"那就都通了对吧\"，宗意\"通了\""}
+      ]
+    },
+    {
+      "title": "小米正式服动图加载失败排查",
+      "description": "8/12 黄思杰反馈 jigsaw 小米正式服后台最新上传的动图全部加载失败（上传接口 200 但 CDN 无图），宗意排查定位为存储桶变更问题（计划改变导致桶改变），提 PR 让小米桶撤回并提供误写对象清单；最终确认是黄思杰配置问题（男哥改过未同步），修复并同步数据。",
+      "status": "completed",
+      "priority": "high",
+      "progress": 100,
+      "start_date": "2026-08-12",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-12",
+      "is_interrupt_task": true,
+      "current_status": "根因确认为桶配置问题，数据已同步修复，PR 不合（保持读 product）",
+      "updates": [
+        {"date": "2026-08-12", "type": "interrupt", "content": "黄思杰：js 正式服后台最新上传动图全部加载失败；宗意排查\"好像是桶有问题 我再继续排查\"，\"应该是桶改变的问题\"，提 PR 让小米桶撤回，并交付《小米正式服-2026-08-11误写对象清单.txt》"},
+        {"date": "2026-08-12", "type": "completed", "content": "黄思杰确认是其配置问题（之前被男哥改过一次、信息没同步），已改好并同步数据修复，PR 不合；宗意随后为黄思杰补齐 CMS 访问权限"}
+      ]
+    },
+    {
+      "title": "BI 开局数指标重复计数问题定位与修复",
+      "description": "8/15 宗意抓接口统计定位 BI 开局数指标重复计数问题：原因1为客户端上报埋点中首页进入与分类 tab 进入的埋点格式相同、BI 无法区分；原因2为 BI 配置 source 与 source_remote 被重复计数；输出《BI开局数指标修复方案.md》，客户端埋点由宗意顺手修，平台配置反馈高琦改。",
+      "status": "in_progress",
+      "priority": "normal",
+      "progress": 60,
+      "start_date": "2026-08-15",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": true,
+      "current_status": "原因已定位、修复方案文档已交付（8/15 两版），客户端埋点修复进行中，BI 平台侧由高琦处理",
+      "updates": [
+        {"date": "2026-08-15", "type": "progress", "content": "\"算清楚原因了 抓接口统计了下数据 主要就是重复计数的问题\"；列出两个原因（客户端埋点格式相同、BI source/source_remote 重复计数）；交付 BI开局数指标修复方案.md（先\"我再看看 你先不用改\"，后\"按这个改\"）"},
+        {"date": "2026-08-15", "type": "note", "content": "黄思杰：\"那客户端的你顺手改了吧，第二个反馈给高琦她来改平台\""}
+      ]
+    },
+    {
+      "title": "Farm 项目 CMS 接入与研发排期",
+      "description": "Farm 项目：8/5 在 CMS 添加 Farm 产品（包名 com.rabigame.crave.farm.jigsaw.puzzle.classical）并上线正式服，与叶子配合上图；8/14 黄思杰确认设计完成\"可以开始投入研发了\"并要求\"排个时间\"（矩阵 Farm），商店已创建、差 ASO 配置；宗意估计纯换皮约一周。",
+      "status": "planned",
+      "priority": "normal",
+      "progress": 10,
+      "start_date": "2026-08-05",
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "CMS 接入完成（8/5），8/14 研发被点名启动并需排期，尚未正式开工",
+      "updates": [
+        {"date": "2026-08-05", "type": "progress", "content": "向黄思杰确认 Farm 包名并在 CMS 添加 Farm 产品、正式服上线（\"然后就可以给叶子上图了\"，与叶子配合上传，logo 等贺伟下周出）；顺带修复叶子反馈的批量上传图片失败问题"},
+        {"date": "2026-08-14", "type": "schedule_change", "content": "黄思杰在 Farm 群\"那可以开始投入研发了不，把 也拉进来吧？\"、\"排个时间呢 矩阵Farm\"、\"商店我创建好了 应该就还差aso需要你配置了\"；胡贺伟交付替换使用资源与三个动效；宗意对黄思杰估计\"farm得一周（纯换皮）\"，优先级排在成就之后"}
+      ]
+    },
+    {
+      "title": "周报自动化工具",
+      "description": "为高琦开发自动化周报工具（把 BI 折线图同步进周报、看板周报换行/图片放大等）：周报临时挂载在 CMS 上，需要调用 BI API 获取折线图数据（宗意半自动输入 BI token）；8/13 因\"领导觉得没必要\"被叫停取消。",
+      "status": "cancelled",
+      "priority": "normal",
+      "progress": 40,
+      "start_date": "2026-08-07",
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-13",
+      "is_interrupt_task": false,
+      "current_status": "8/13 被取消（领导觉得没必要），已停止开发",
+      "updates": [
+        {"date": "2026-08-07", "type": "note", "content": "高琦：\"周报那个事不急，等着下周五前能用就行，因为周报一周一做\""},
+        {"date": "2026-08-10", "type": "progress", "content": "宗意做看板周报并请高琦确认（\"这个看板周报不是你的需求吗 你看看那个地方不对我再改\"）；8/11 修复换行、图片放大等"},
+        {"date": "2026-08-13", "type": "note", "content": "向黄思杰解释需求是同步 BI 折线图到周报（无合法权限，半自动输入 BI token 绕一圈取图），黄思杰吐槽\"神了，为什么要那个折线图\""},
+        {"date": "2026-08-13", "type": "cancelled", "content": "高琦：\"周报自动化不用整了 领导觉得没必要 搞别的吧\"；宗意\"ok\"（\"我没干啥活\"）"}
+      ]
+    },
+    {
+      "title": "Mahjong 竞品逆向与关卡导入支持",
+      "description": "为 Mahjong 项目提供竞品逆向支持：应李林跃/胡贺伟请求测量素材角度数据并交付（8/10）；交付竞品完成拼图到结算的流程逆向文档 completion-settlement-flow-20260812.md 与动画代码剖析 animation-code-dissection-20260812.md（8/12），动画细节可按需再扒。",
+      "status": "in_progress",
+      "priority": "low",
+      "progress": 60,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "8/12 已交付完成流程/动画逆向文档，李林跃丢给 AI 分析中，动画可再细扒",
+      "updates": [
+        {"date": "2026-08-10", "type": "progress", "content": "李林跃（代胡贺伟）请求逆向某角度数据，宗意\"我扒了 那个难度有点大，但是这个不需要扒\"，用工具实测角度并交付数据"},
+        {"date": "2026-08-12", "type": "progress", "content": "李林跃请求扒\"从完成拼图到结算完成的过程\"，宗意交付 completion-settlement-flow-20260812.md；李林跃要求细扒动画，宗意交付 animation-code-dissection-20260812.md（\"代码上有痕迹，有自己写的逻辑\"）"}
+      ]
+    },
+    {
+      "title": "华容道排行榜功能（九月初预定）",
+      "description": "8/1 黄思杰在 Jigslide 群\"提前预定九月初华容道排行榜的功能\"，宗意压力表情回应；宗意 7 月中旬曾做 scape 排行榜逆向（\"之后排行榜就主要参考这个了\"），该功能预计为其后续工作。",
+      "status": "planned",
+      "priority": "normal",
+      "progress": 0,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "已预定为九月初功能，8 月内尚未开工（不确定最终负责人，推测为宗意，因排行榜逆向此前由宗意负责）",
+      "updates": [
+        {"date": "2026-08-01", "type": "note", "content": "黄思杰\"提前预定九月初华容道排行榜的功能\"，宗意与李林跃均以压力表情回应"}
+      ]
+    },
+    {
+      "title": "jigsaw-cy 全功能广告 SDK 接入问题跟进",
+      "description": "jigsaw-cy（传音包）全功能广告 SDK 接入后续：8/3 黄思杰约谈平台配置事项；8/11 宗意整理接入问题清单发群（SDK 依赖/回调/广告位配置/验收细节），田力回应改用 admob 聚合、统一回调命名、SDK 应下发广告位配置并提供 debug 面板等，等待 SDK 侧（马婷婷/田力）交付处理。",
+      "status": "blocked",
+      "priority": "normal",
+      "progress": 75,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": null,
+      "is_interrupt_task": false,
+      "current_status": "问题清单已整理发出（8/11），等待 SDK 侧修复与下发配置（7/31 曾决定先上线、后续再接变现）",
+      "updates": [
+        {"date": "2026-08-03", "type": "note", "content": "黄思杰：\"一会有空对下这个嘛，上周男哥和我说这个接入还需要做一些平台配置，我想了解下这个具体的工作\"，马婷婷周会后沟通"},
+        {"date": "2026-08-11", "type": "progress", "content": "黄思杰让宗意把问题整理发群；宗意发问题清单；田力逐条回应：此版本不用 max 聚合用 admob 聚合、新 sdk 回调写法统一改（on 开头）、sdk 内部应下发 adx 配置与广告位、像 max 一样提供 debug 面板（展示 h5/adx/admob）；宗意强调验收需能区分\"SDK/服务端未下发配置\"与\"客户端接入未命中\"两类问题"}
+      ]
+    },
+    {
+      "title": "Dramify 广告欺诈分析",
+      "description": "8/1 应刘桐序请求分析 Dramify 广告欺诈问题，交付 dramify-ad-fraud-report.md（含粘性随机分桶、向 Adjust 低报广告收入、服务端远程重配广告位与中介比例操纵归因收入等分析结论）。",
+      "status": "completed",
+      "priority": "low",
+      "progress": 100,
+      "start_date": null,
+      "expected_end_date": null,
+      "actual_end_date": "2026-08-01",
+      "is_interrupt_task": false,
+      "current_status": "8/1 报告交付，刘桐序认可（\"牛逼！\"）",
+      "updates": [
+        {"date": "2026-08-01", "type": "completed", "content": "刘桐序询问进度，宗意\"弄呢 到最后阶段了\"，交付 dramify-ad-fraud-report.md"}
+      ]
+    }
+  ]
+}
