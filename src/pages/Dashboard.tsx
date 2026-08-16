@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CalendarDays,
+  ChevronRight,
+  MessageSquare,
+  Plus,
+  Search,
+  Target,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Task, TaskUpdate } from '../types'
 import { appConfig } from '../config'
 import { getDB } from '../lib/dbFactory'
@@ -148,11 +160,10 @@ export function Dashboard() {
       {error && <div className="banner banner-error">{error}</div>}
 
       <header className="dashboard-intro">
-        <div className="intro-copy">
+        <div>
           <span className="eyebrow">Delivery overview · {todayText()}</span>
           <h1>工作进度总览</h1>
           <p>聚焦正在推进的事项、交付风险与需要决策的问题。</p>
-          <span className="intro-ribbon"><span aria-hidden="true">✦</span> 给 Leader 的今日工作简报 <span aria-hidden="true">✦</span></span>
         </div>
         <div className="intro-actions">
           <div className="sync-state" title="依据最新一条时间线记录">
@@ -182,10 +193,7 @@ export function Dashboard() {
               </div>
               <button className="focus-title" onClick={() => navigate(`/task/${focusTask.id}`)}>{focusTask.title}</button>
               <p className="focus-status">{focusTask.current_status || '尚未填写当前情况'}</p>
-              <div className="focus-progress-wrap">
-                <TaskProgress progress={focusTask.progress} overdue={isOverdue(focusTask)} />
-                <FocusMascot />
-              </div>
+              <TaskProgress progress={focusTask.progress} overdue={isOverdue(focusTask)} />
               <div className="focus-meta-grid">
                 <div><span>开始日期</span><strong>{zhDate(focusTask.start_date)}</strong></div>
                 <div><span>预计完成</span><strong className={isOverdue(focusTask) ? 'txt-warn' : ''}>{zhDate(focusTask.expected_end_date)}</strong></div>
@@ -341,35 +349,19 @@ function DashboardSkeleton() {
 type DashboardIconName = 'pulse' | 'alert' | 'calendar' | 'radar' | 'arrow' | 'chevron' | 'comment' | 'plus' | 'search'
 
 function DashboardIcon({ name }: { name: DashboardIconName }) {
-  const paths: Record<DashboardIconName, ReactNode> = {
-    pulse: <path d="M3 12h4l2-5 4 10 2-5h6" />,
-    alert: <><path d="M12 3 2.8 19h18.4L12 3Z" /><path d="M12 9v4M12 16.5v.1" /></>,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
-    radar: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><path d="m12 12 6-6" /></>,
-    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
-    chevron: <path d="m9 6 6 6-6 6" />,
-    comment: <path d="M20 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4v8Z" />,
-    plus: <path d="M12 5v14M5 12h14" />,
-    search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+  const icons: Record<DashboardIconName, LucideIcon> = {
+    pulse: Activity,
+    alert: AlertTriangle,
+    calendar: CalendarDays,
+    radar: Target,
+    arrow: ArrowRight,
+    chevron: ChevronRight,
+    comment: MessageSquare,
+    plus: Plus,
+    search: Search,
   }
-  return <svg className="dashboard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
-}
-
-function FocusMascot() {
-  return (
-    <svg className="focus-mascot" viewBox="0 0 92 62" aria-hidden="true">
-      <path d="M20 25 27 9l12 12M72 25 65 9 53 21" fill="#fffaf6" stroke="#695883" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M24 29c0-14 10-23 22-23s22 9 22 23v7c0 13-10 21-22 21s-22-8-22-21v-7Z" fill="#fffaf6" stroke="#695883" strokeWidth="3" />
-      <path d="M31 17 27 10l9 9M61 17l4-7-9 9" fill="#f6b8ca" opacity=".72" />
-      <ellipse cx="37" cy="33" rx="2.5" ry="3.5" fill="#514260" />
-      <ellipse cx="55" cy="33" rx="2.5" ry="3.5" fill="#514260" />
-      <path d="M43 39c2 2 4 2 6 0M46 36v3" fill="none" stroke="#514260" strokeWidth="2" strokeLinecap="round" />
-      <ellipse cx="31" cy="39" rx="5" ry="2.6" fill="#f7b4c6" opacity=".55" />
-      <ellipse cx="61" cy="39" rx="5" ry="2.6" fill="#f7b4c6" opacity=".55" />
-      <path d="M8 57h76" stroke="#8c75d8" strokeWidth="5" strokeLinecap="round" />
-      <path d="M21 55c5-6 8-8 13-8M71 55c-5-6-8-8-13-8" fill="none" stroke="#695883" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  )
+  const Icon = icons[name]
+  return <Icon className="dashboard-icon" strokeWidth={1.8} aria-hidden="true" />
 }
 
 function isActive(task: Task): boolean {
