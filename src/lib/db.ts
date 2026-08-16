@@ -6,7 +6,7 @@
 //   - dbSupabase.ts Supabase PostgreSQL（正式环境）
 // ============================================================
 
-import type { Task, TaskCreateInput, TaskUpdate, TaskUpdateInput, UpdateCreateInput } from '../types'
+import type { Task, TaskCreateInput, TaskUpdate, TaskUpdateInput, UpdateCreateInput, UpdateType } from '../types'
 
 export interface DB {
   readonly mode: 'local' | 'supabase'
@@ -20,6 +20,21 @@ export interface DB {
   updateTask(id: string, patch: TaskUpdateInput): Promise<Task>
   addUpdate(input: UpdateCreateInput): Promise<TaskUpdate>
   deleteTask(id: string): Promise<void>
+  /**
+   * 原子更新：任务字段修改 + 时间线追加 一次完成（supabase 走 RPC 事务 / local 单次写盘）。
+   * 状态类更新（进度/状态/排期/阻塞/完成）必须走这里，保证不出现"改了字段没记时间线"。
+   */
+  applyTaskUpdate(
+    taskId: string,
+    patch: TaskUpdateInput,
+    update: {
+      type: UpdateType
+      content: string
+      old_expected_end_date?: string | null
+      new_expected_end_date?: string | null
+      created_by?: string
+    },
+  ): Promise<Task>
 }
 
 export function newId(prefix = 't'): string {

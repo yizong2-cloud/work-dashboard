@@ -19,7 +19,7 @@ npm run update:export
 
 - 输出到 `~/feishu_export/daily/`：最新 `range_*.json` + `range_*.md`（喂 AI 的 Markdown）。
 - 若提示 cookie 过期：让用户重新从浏览器导出飞书 cookies 覆盖 `~/feishu_export/cookies.json`。
-- 导出结果可能提示「没有新消息」——那本次只需检查确认，无需分析。
+- 导出结果可能提示「没有新消息」——**仍需继续**：Codex/DSH 可能还有新工作，不能跳过分析。
 
 ### 第 1.5 步：读取 Agent 工作摘要（真实工作进度第二/三来源）
 
@@ -33,17 +33,19 @@ npm run update:dsh     # 读取 DSH 会话摘要（~/.dsh/sessions，需本机 z
 - 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把会话关联到看板任务。
 - DSH 会话包含用户用 DSH 处理的问题（如 BI 平台排查），是重要的进度来源。
 
-### 第 2 步：读取三份上下文（并行）
+### 第 2 步：读取五份上下文（并行）
 
-1. **新导出的聊天**：`~/feishu_export/daily/` 里最新的 `range_*.md`
-2. **任务上下文库**：`docs/KNOWLEDGE_BASE.md`（任务别名映射、已确认事实、依赖关系）
-3. **当前线上任务**：`npm run agent -- list`（拿现有任务 id 与状态，避免重复创建）
+1. **飞书增量聊天**：`~/feishu_export/daily/` 里最新的 `range_*.md`（可能为空）
+2. **Codex 工作摘要**：`npm run update:codex` 的输出
+3. **DSH 工作摘要**：`npm run update:dsh` 的输出
+4. **任务上下文库**：`docs/KNOWLEDGE_BASE.md`（任务别名映射、已确认事实、依赖关系）
+5. **当前线上任务**：`npm run agent -- list`（拿现有任务 id 与状态，避免重复创建）
 
 ### 第 3 步：增量分析（可派子 Agent）
 
-把「新导出的聊天内容 + KNOWLEDGE_BASE.md + 当前任务清单」交给子 Agent 分析，规则：
+把「飞书聊天 + Codex 摘要 + DSH 摘要 + KNOWLEDGE_BASE.md + 当前任务清单」一起交给子 Agent 分析，规则：
 
-- **只分析导出时间范围内的新消息**（增量游标保证不重不漏）。
+- **三个数据源都要分析**：飞书无新消息不代表 Codex/DSH 没有新工作。
 - 先对照 KNOWLEDGE_BASE「任务别名映射」：命中的已有任务 → 更新该任务，**不新建**。
 - 新出现的任务 → 按看板数据模型（title/status/priority/progress/日期/时间线）提炼。
 - 口头确认、面聊信息以 KNOWLEDGE_BASE「已确认事实」为准，不被聊天推断覆盖。
@@ -59,7 +61,8 @@ npm run agent -- update <id> --description "..." --current_status "..." --note "
 npm run agent -- batch --file ops.json   # 改动多时用批量
 ```
 
-先 `--dry-run` 预演再执行（可选）。
+- **状态类修改**（进度/状态/排期/阻塞/完成）只用专用命令；`update` 只能改非状态字段。
+- 先 `--dry-run` 预演再执行（可选）。
 
 ### 第 5 步：回写 KNOWLEDGE_BASE
 

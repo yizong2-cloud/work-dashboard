@@ -25,13 +25,13 @@ const MAX_COMPRESSED_MB = 15 // 跳过超大压缩文件
 const MAX_MSGS = 6 // 每会话最多提取的用户消息数
 
 function parseArgs(argv) {
-  const args = { days: 2 }
+  const args = { days: 2, all: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--days') args.days = Number(argv[++i]) || 2
     else if (a === '--since') args.since = argv[++i]
     else if (a === '--json') args.json = true
-    else if (a === '--all') args.days = 0
+    else if (a === '--all') args.all = true
   }
   return args
 }
@@ -83,7 +83,8 @@ function summarizeSession(file) {
   let buf
   try {
     buf = execFileSync('zstd', ['-dc', file], { maxBuffer: 256 * 1024 * 1024, encoding: 'utf8' })
-  } catch {
+  } catch (e) {
+    console.error(`[dsh-summary] ⚠️ 解压失败，跳过: ${file}（${e.message}）`)
     return null
   }
 
@@ -150,7 +151,8 @@ function renderMarkdown(sessions, home) {
 
 const args = parseArgs(process.argv.slice(2))
 const home = os.homedir()
-const since = args.since ? args.since : dayStamp(args.days)
+// --all 扫描全部；--since 从指定日期起；否则最近 N 天
+const since = args.all ? '0000-01-01' : args.since ? args.since : dayStamp(args.days)
 console.error(`[dsh-summary] 扫描 ${since} 之后的 DSH 会话…`)
 
 const files = collectFiles()

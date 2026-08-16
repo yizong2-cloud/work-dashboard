@@ -92,6 +92,8 @@ function createLocalStore() {
     },
     async addUpdate(input) {
       const db = loadLocal()
+      const exists = db.tasks.some((t) => t.id === input.task_id)
+      if (!exists) throw new Error(`任务不存在: ${input.task_id}（拒绝写入孤儿时间线）`)
       const update = {
         id: crypto.randomUUID(),
         task_id: input.task_id,
@@ -105,6 +107,29 @@ function createLocalStore() {
       db.updates.push(update)
       saveLocal(db)
       return update
+    },
+
+    /**
+     * 原子更新：任务字段修改 + 时间线追加 一次完成（local 模式单次写盘）。
+     * 保证「任何变化都写时间线」且不会出现改了一半的中间态。
+     */
+    async applyTaskUpdate(taskId, patch, update) {
+      const db = loadLocal()
+      const task = db.tasks.find((t) => t.id === taskId)
+      if (!task) throw new Error(`任务不存在: ${taskId}`)
+      Object.assign(task, patch, { updated_at: now() })
+      db.updates.push({
+        id: crypto.randomUUID(),
+        task_id: taskId,
+        type: update.type,
+        content: update.content,
+        old_expected_end_date: update.old_expected_end_date ?? null,
+        new_expected_end_date: update.new_expected_end_date ?? null,
+        created_at: update.created_at ?? now(),
+        created_by: update.created_by ?? 'agent',
+      })
+      saveLocal(db)
+      return task
     },
     async deleteTask(id) {
       const db = loadLocal()
@@ -185,6 +210,23 @@ function createSupabaseStore(env) {
       }
       if (input.created_at) payload.created_at = input.created_at
       const { data, error } = await client.from('task_updates').insert(payload).select().single()
+      if (error) throw new Error(error.message)
+      return data
+    },
+
+    /**
+     * 原子更新：通过数据库 RPC（apply_task_update，事务内 UPDATE + INSERT 时间线）。
+     */
+    async applyTaskUpdate(taskId, patch, update) {
+      const { data, error } = await client.rpc('apply_task_update', {
+        p_task_id: taskId,
+        p_patch: patch,
+        p_type: update.type,
+        p_content: update.content,
+        p_old_date: update.old_expected_end_date ?? null,
+        p_new_date: update.new_expected_end_date ?? null,
+        p_created_by: update.created_by ?? 'agent',
+      })
       if (error) throw new Error(error.message)
       return data
     },

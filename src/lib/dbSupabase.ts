@@ -73,6 +73,20 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       return data as TaskUpdate
     },
 
+    async applyTaskUpdate(taskId, patch, update) {
+      const { data, error } = await client.rpc('apply_task_update', {
+        p_task_id: taskId,
+        p_patch: patch as Record<string, unknown>,
+        p_type: update.type,
+        p_content: update.content,
+        p_old_date: update.old_expected_end_date ?? null,
+        p_new_date: update.new_expected_end_date ?? null,
+        p_created_by: update.created_by ?? 'admin',
+      })
+      if (error) throw new Error(error.message)
+      return data as Task
+    },
+
     async deleteTask(id) {
       const { error } = await client.from(TASKS).delete().eq('id', id)
       if (error) throw new Error(error.message)

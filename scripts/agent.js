@@ -36,12 +36,22 @@ const UPDATE_TYPES = ['progress', 'status_change', 'schedule_change', 'blocked',
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/** 本地时区的今天（YYYY-MM-DD），避免 UTC 跨天问题 */
+function localToday() {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
 function fail(msg) {
   throw new Error(msg)
 }
 
 function requireOp(op, key, label) {
-  const v = op[key] ?? op._?.[0]
+  // 注意：位置参数已在 main() 中赋给 args.id；这里不查 op._，
+  // 避免把命令名（如 block）误当作参数值
+  const v = op[key]
   if (v === undefined || v === true || v === '') fail(`缺少参数 --${key}${label ? `（${label}）` : ''}`)
   return String(v)
 }
@@ -103,7 +113,10 @@ async function opList(op) {
   const tasks = await store.listTasks()
   let list = tasks
   if (op.status) list = list.filter((t) => t.status === op.status)
-  if (op.interrupt === 'true' || op.interrupt === '1') list = list.filter((t) => t.is_interrupt_task)
+  // 裸 --interrupt 解析为 true（布尔）；也兼容字符串形式
+  if (op.interrupt === true || op.interrupt === 'true' || op.interrupt === '1') {
+    list = list.filter((t) => t.is_interrupt_task)
+  }
   list = [...list].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   if (jsonOut) return list
   human(`[数据模式] ${store.mode}${store.localFile ? `（文件: ${store.localFile}）` : ''}`)
@@ -159,8 +172,11 @@ async function opProgress(op) {
     human(`[dry-run] 任务 ${id} 进度 → ${to}%，时间线: ${note}`)
     return null
   }
-  const task = await store.updateTask(id, { progress: to })
-  await store.addUpdate({ task_id: id, type: 'progress', content: note, created_by: who })
+  const task = await store.applyTaskUpdate(
+    id,
+    { progress: to },
+    { type: 'progress', content: note, created_by: who },
+  )
   human(`✅ 任务 ${id} 进度已更新为 ${to}%`)
   human(renderTask(task))
   return task
@@ -174,8 +190,11 @@ async function opStatus(op) {
     human(`[dry-run] 任务 ${id} 状态 → ${to}`)
     return null
   }
-  const task = await store.updateTask(id, { status: to })
-  await store.addUpdate({ task_id: id, type: 'status_change', content: note, created_by: who })
+  const task = await store.applyTaskUpdate(
+    id,
+    { status: to },
+    { type: 'status_change', content: note, created_by: who },
+  )
   human(`✅ 任务 ${id} 状态已更新为 ${to}`)
   human(renderTask(task))
   return task
@@ -193,41 +212,46 @@ async function opSchedule(op) {
     human(`[dry-run] 任务 ${id} 预计完成 ${before.expected_end_date ?? '—'} → ${end}`)
     return null
   }
-  const task = await store.updateTask(id, { expected_end_date: end })
-  await store.addUpdate({
-    task_id: id,
-    type: 'schedule_change',
-    content: note,
-    old_expected_end_date: before.expected_end_date,
-    new_expected_end_date: end,
-    created_by: who,
-  })
+  const task = await store.applyTaskUpdate(
+    id,
+    { expected_end_date: end },
+    {
+      type: 'schedule_change',
+      content: note,
+      old_expected_end_date: before.expected_end_date,
+      new_expected_end_date: end,
+      created_by: who,
+    },
+  )
   human(`✅ 任务 ${id} 预计完成日期: ${before.expected_end_date ?? '—'} → ${end}`)
   human(renderTask(task))
   return task
 }
 
 async function opUpdate(op) {
+  // 注意：update 只能改「非状态类」字段（标题/描述/现状/优先级/开始日期/临时标记）。
+  // 状态、进度、排期、完成日期、阻塞原因的修改必须走专用命令
+  // （status / progress / schedule / block / unblock / complete），
+  // 那些命令保证「字段变更 + 时间线」原子写入，避免看板失真。
   const id = requireOp(op, 'id', '任务 id')
   const patch = {}
   if (op.title !== undefined) patch.title = String(op.title)
   if (op.description !== undefined) patch.description = String(op.description)
   if (op.current_status !== undefined) patch.current_status = String(op.current_status)
   if (op.priority !== undefined) patch.priority = assertPriority(op.priority)
-  if (op.status !== undefined) patch.status = assertStatus(op.status)
-  if (op.progress !== undefined) patch.progress = assertProgress(op.progress)
-  if (op.actual_end_date !== undefined) {
-    patch.actual_end_date = op.actual_end_date === 'null' || op.actual_end_date === '' ? null : assertDate(op.actual_end_date, '实际完成日期')
-  }
   if (op.start_date !== undefined || op.start !== undefined) {
     patch.start_date = assertDate(op.start_date ?? op.start, '开始日期')
   }
-  if (op.block_reason !== undefined) patch.block_reason = String(op.block_reason)
   if (op.interrupt !== undefined) {
     patch.is_interrupt_task = op.interrupt === 'true' || op.interrupt === '1' || op.interrupt === true
   }
+  const stateFields = ['status', 'progress', 'actual_end_date', 'block_reason']
+  const illegal = stateFields.filter((f) => op[f] !== undefined)
+  if (illegal.length > 0) {
+    fail(`update 不允许修改状态类字段: ${illegal.join('、')}。请用对应命令: status / progress / schedule / block / unblock / complete`)
+  }
   if (Object.keys(patch).length === 0) {
-    fail('没有要更新的字段（支持 --title / --description / --current_status / --priority / --start_date / --status / --progress / --actual_end_date / --block_reason / --interrupt）')
+    fail('没有要更新的字段（支持 --title / --description / --current_status / --priority / --start_date / --interrupt）')
   }
   if (dryRun) {
     human(`[dry-run] 更新任务 ${id}: ${JSON.stringify(patch)}`)
@@ -249,8 +273,11 @@ async function opBlock(op) {
     human(`[dry-run] 任务 ${id} 标记阻塞: ${reason}`)
     return null
   }
-  const task = await store.updateTask(id, { status: 'blocked', block_reason: reason })
-  await store.addUpdate({ task_id: id, type: 'blocked', content: `标记阻塞：${reason}`, created_by: who })
+  const task = await store.applyTaskUpdate(
+    id,
+    { status: 'blocked', block_reason: reason },
+    { type: 'blocked', content: `标记阻塞：${reason}`, created_by: who },
+  )
   human(`✅ 任务 ${id} 已标记阻塞`)
   human(renderTask(task))
   return task
@@ -263,8 +290,11 @@ async function opUnblock(op) {
     human(`[dry-run] 任务 ${id} 解除阻塞`)
     return null
   }
-  const task = await store.updateTask(id, { status: 'in_progress', block_reason: '' })
-  await store.addUpdate({ task_id: id, type: 'unblocked', content: note, created_by: who })
+  const task = await store.applyTaskUpdate(
+    id,
+    { status: 'in_progress', block_reason: '' },
+    { type: 'unblocked', content: note, created_by: who },
+  )
   human(`✅ 任务 ${id} 已解除阻塞`)
   human(renderTask(task))
   return task
@@ -277,9 +307,12 @@ async function opComplete(op) {
     human(`[dry-run] 任务 ${id} 标记完成`)
     return null
   }
-  const today = new Date().toISOString().slice(0, 10)
-  const task = await store.updateTask(id, { status: 'completed', progress: 100, actual_end_date: today })
-  await store.addUpdate({ task_id: id, type: 'completed', content: note, created_by: who })
+  const today = localToday()
+  const task = await store.applyTaskUpdate(
+    id,
+    { status: 'completed', progress: 100, actual_end_date: today },
+    { type: 'completed', content: note, created_by: who },
+  )
   human(`✅ 任务 ${id} 已完成（${today}）`)
   human(renderTask(task))
   return task
@@ -290,7 +323,11 @@ async function opNote(op) {
   const content = requireOp(op, 'content', '进展内容')
   const type = op.type ?? 'progress'
   if (!UPDATE_TYPES.includes(type)) fail(`非法更新类型: ${type}`)
-  const at = op.at ? String(op.at) : undefined
+  let at = op.at ? String(op.at) : undefined
+  if (at !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(at)) {
+    fail(`非法 --at 时间: ${at}，格式如 2026-08-14 或 2026-08-14T18:00:00`)
+  }
+  if (at !== undefined && at.length === 10) at = `${at}T12:00:00`
   if (dryRun) {
     human(`[dry-run] 任务 ${id} 追加[${type}]记录${at ? ` @${at}` : ''}: ${content}`)
     return null
@@ -378,8 +415,8 @@ function opHelp() {
   progress <id> --to 70 [--note "说明"]         更新进度（自动记录）
   status <id> --to in_progress [--note]         修改状态（自动记录）
   update <id> --title "新标题" --description "..." --current_status "..." 
-        [--priority high] [--start_date YYYY-MM-DD] [--status planned] [--note "说明"]
-                                               通用字段更新（描述/现状/标题等）
+        [--priority high] [--start_date YYYY-MM-DD] [--interrupt] [--note "说明"]
+        ⚠️ 仅限非状态类字段；状态/进度/排期/完成/阻塞请用对应命令
   schedule <id> --end YYYY-MM-DD [--note]       调整预计完成日期（记录 old/new）
   block <id> --reason "原因"                    标记阻塞（必填原因）
   unblock <id> [--note]                         解除阻塞

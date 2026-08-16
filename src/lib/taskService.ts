@@ -51,22 +51,6 @@ export interface TaskService {
 export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService {
   const who = () => opts.createdBy
 
-  async function withUpdate(
-    taskId: string,
-    type: UpdateType,
-    content: string,
-    extra: { oldDate?: string | null; newDate?: string | null } = {},
-  ): Promise<void> {
-    await db.addUpdate({
-      task_id: taskId,
-      type,
-      content,
-      old_expected_end_date: extra.oldDate ?? null,
-      new_expected_end_date: extra.newDate ?? null,
-      created_by: who(),
-    })
-  }
-
   return {
     async listTasks() {
       return db.listTasks()
@@ -80,7 +64,7 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
 
     async createTask(input) {
       const task = await db.createTask(input)
-      await withUpdate(task.id, 'note', '任务创建。')
+      await db.addUpdate({ task_id: task.id, type: 'note', content: '任务创建。', created_by: who() })
       return task
     },
 
@@ -90,50 +74,61 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
 
     async setProgress(id, progress, content) {
       const p = Math.max(0, Math.min(100, Math.round(progress)))
-      const task = await db.updateTask(id, { progress: p })
-      await withUpdate(id, 'progress', content?.trim() || `进度更新为 ${p}%。`)
-      return task
+      return db.applyTaskUpdate(id, { progress: p }, {
+        type: 'progress',
+        content: content?.trim() || `进度更新为 ${p}%。`,
+        created_by: who(),
+      })
     },
 
     async setStatus(id, status, content) {
-      const task = await db.updateTask(id, { status })
-      await withUpdate(id, 'status_change', content?.trim() || `状态变更为 ${status}。`)
-      return task
+      return db.applyTaskUpdate(id, { status }, {
+        type: 'status_change',
+        content: content?.trim() || `状态变更为 ${status}。`,
+        created_by: who(),
+      })
     },
 
     async setSchedule(id, expectedEndDate, content) {
       const before = await db.getTask(id)
       if (!before) throw new Error(`任务不存在: ${id}`)
-      const oldDate = before.expected_end_date
-      const task = await db.updateTask(id, { expected_end_date: expectedEndDate })
-      await withUpdate(id, 'schedule_change', content?.trim() || '调整预计完成日期。', {
-        oldDate,
-        newDate: expectedEndDate,
+      return db.applyTaskUpdate(id, { expected_end_date: expectedEndDate }, {
+        type: 'schedule_change',
+        content: content?.trim() || '调整预计完成日期。',
+        old_expected_end_date: before.expected_end_date,
+        new_expected_end_date: expectedEndDate,
+        created_by: who(),
       })
-      return task
     },
 
     async setBlocked(id, reason) {
       if (!reason || !reason.trim()) throw new Error('标记阻塞必须提供阻塞原因')
-      const task = await db.updateTask(id, { status: 'blocked', block_reason: reason.trim() })
-      await withUpdate(id, 'blocked', `标记阻塞：${reason.trim()}`)
-      return task
+      const r = reason.trim()
+      return db.applyTaskUpdate(id, { status: 'blocked', block_reason: r }, {
+        type: 'blocked',
+        content: `标记阻塞：${r}`,
+        created_by: who(),
+      })
     },
 
     async setUnblocked(id, content) {
-      const task = await db.updateTask(id, { status: 'in_progress', block_reason: '' })
-      await withUpdate(id, 'unblocked', content?.trim() || '阻塞解除，恢复进行。')
-      return task
+      return db.applyTaskUpdate(id, { status: 'in_progress', block_reason: '' }, {
+        type: 'unblocked',
+        content: content?.trim() || '阻塞解除，恢复进行。',
+        created_by: who(),
+      })
     },
 
     async completeTask(id, content) {
-      const task = await db.updateTask(id, {
+      return db.applyTaskUpdate(id, {
         status: 'completed',
         progress: 100,
         actual_end_date: todayISO(),
+      }, {
+        type: 'completed',
+        content: content?.trim() || '任务完成。',
+        created_by: who(),
       })
-      await withUpdate(id, 'completed', content?.trim() || '任务完成。')
-      return task
     },
 
     async addNote(id, type, content) {

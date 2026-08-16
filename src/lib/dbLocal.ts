@@ -7,7 +7,6 @@ import type { DB } from './db'
 import { newId } from './db'
 import type { Task, TaskUpdate } from '../types'
 import { buildSeed } from './seedData'
-
 const STORE_KEY = 'work-dashboard:db:v1'
 
 interface LocalStore {
@@ -92,6 +91,9 @@ export function createLocalDB(): DB {
 
     async addUpdate(input) {
       const store = load()
+      if (!store.tasks.some((t) => t.id === input.task_id)) {
+        throw new Error(`任务不存在: ${input.task_id}（拒绝写入孤儿时间线）`)
+      }
       const update: TaskUpdate = {
         id: newId('u'),
         task_id: input.task_id,
@@ -105,6 +107,25 @@ export function createLocalDB(): DB {
       store.updates.push(update)
       save(store)
       return update
+    },
+
+    async applyTaskUpdate(taskId, patch, update) {
+      const store = load()
+      const task = store.tasks.find((t) => t.id === taskId)
+      if (!task) throw new Error(`任务不存在: ${taskId}`)
+      Object.assign(task, patch, { updated_at: now() })
+      store.updates.push({
+        id: newId('u'),
+        task_id: taskId,
+        type: update.type,
+        content: update.content,
+        old_expected_end_date: update.old_expected_end_date ?? null,
+        new_expected_end_date: update.new_expected_end_date ?? null,
+        created_at: now(),
+        created_by: update.created_by ?? 'admin',
+      })
+      save(store)
+      return task
     },
 
     async deleteTask(id) {

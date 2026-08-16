@@ -24,13 +24,13 @@ const MAX_LINES = 6000 // 单会话最多读取行数（超大文件保护）
 const MAX_FILE_MB = 60 // 超过此大小只读头部
 
 function parseArgs(argv) {
-  const args = { days: 2 }
+  const args = { days: 2, all: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--days') args.days = Number(argv[++i]) || 2
     else if (a === '--since') args.since = argv[++i]
     else if (a === '--json') args.json = true
-    else if (a === '--all') args.days = 0
+    else if (a === '--all') args.all = true
   }
   return args
 }
@@ -70,8 +70,6 @@ function collectSessionFiles(sinceISO) {
   return files.sort()
 }
 
-// ---------- 会话解析 ----------
-
 function stripSystemText(text) {
   // 去掉 Codex 注入的系统上下文（<app-context> <recommended_plugins> <environment_context> 等）
   // 规则：独立成行的 <tag> 进入跳过块，直到 </tag>；行内 <tag> 前缀也跳过
@@ -102,6 +100,7 @@ function summarizeSession(file) {
   const actions = [] // {type, detail}
   let lastTs = ''
   let linesRead = 0
+  let truncated = false
   let fileBytes = 0
   try {
     fileBytes = fs.statSync(file).size
@@ -113,7 +112,10 @@ function summarizeSession(file) {
   const raw = fs.readFileSync(file, 'utf8')
   for (const line of raw.split('\n')) {
     linesRead++
-    if (linesRead > limit) break
+    if (linesRead > limit) {
+      truncated = true
+      break
+    }
     if (!line.trim()) continue
     let e
     try {
@@ -136,12 +138,7 @@ function summarizeSession(file) {
         for (const c of p.content || []) {
           if (c.type === 'input_text' && role === 'user') {
             const text = stripSystemText(c.text || '')
-            if (text && userReqs.length < 6) userReqs.push(text)
-          } else if (c.type === 'output_text' && role === 'assistant') {
-            const text = stripSystemText(c.text || '')
-            if (text && actions.length === 0) {
-              // 助手的第一段说明（可选保留）
-            }
+            if (text) userReqs.push(text.slice(0, 400))
           }
         }
       } else if (p.type === 'function_call' || p.type === 'custom_tool_call') {
@@ -151,7 +148,14 @@ function summarizeSession(file) {
           try {
             args = JSON.parse(args)
           } catch {
-            args = {}
+            // 参数可能是 JS 文本而非 JSON：用正则提取关键字段
+            const mCmd = args.match(/command["']?\s*[:=]\s*["']([^"']{0,140})/)
+            const mPath = args.match(/file_path["']?\s*[:=]\s*["']([^"']{0,120})/)
+            args = {
+              ...(mCmd ? { command: mCmd[1] } : {}),
+              ...(mPath ? { file_path: mPath[1] } : {}),
+              _raw: args.slice(0, 200),
+            }
           }
         }
         let detail = ''
@@ -191,6 +195,7 @@ function summarizeSession(file) {
     commits: commits.slice(0, 5),
     actionCount: actions.length,
     linesRead,
+    truncated,
   }
 }
 
@@ -215,8 +220,15 @@ function renderMarkdown(sessions, home) {
     if (s.originator) lines.push(`> 来源: ${s.originator}`)
     if (s.userReqs.length > 0) {
       lines.push(`用户: ${s.userReqs[0].slice(0, 300).replace(/\n/g, ' ')}`, '')
+      if (s.userReqs.length > 1) {
+        const last = s.userReqs[s.userReqs.length - 1].slice(0, 220).replace(/\n/g, ' ')
+        lines.push(`最新进展: ${last}`, '')
+      }
     } else {
       lines.push('用户: （无文本请求，可能为工具调试会话）', '')
+    }
+    if (s.truncated) {
+      lines.push('⚠️ 会话过大，仅读取了前段（可能遗漏最新内容）', '')
     }
     if (s.commits.length > 0) {
       lines.push('提交:')
@@ -235,8 +247,9 @@ function renderMarkdown(sessions, home) {
 
 const args = parseArgs(process.argv.slice(2))
 const home = os.homedir()
-const since = args.since ? `${args.since}T00:00:00` : dayStamp(args.days)
-console.error(`[codex-summary] 扫描 ${since} 之后的 Codex 会话…`)
+// --all 扫描全部历史；--since 从指定日期起；否则最近 N 天
+const since = args.all ? '0000-01-01' : args.since ? `${args.since}T00:00:00` : dayStamp(args.days)
+console.error(`[codex-summary] 扫描 ${since.slice(0, 10)} 之后的 Codex 会话…`)
 
 const files = collectSessionFiles(since.slice(0, 10))
 const sessions = files
