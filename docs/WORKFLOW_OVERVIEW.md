@@ -100,7 +100,7 @@ npm run dashboard:verify               # ④ 校验
 npm run dashboard:cron:install         # 定时任务：工作日 11:00/15:30/19:30 自动 prepare + 通知
 ```
 
-**定时任务**：macOS launchd，每天 18:00 无人值守执行 `prepare`（机械拉取+打包+通知），
+**定时任务**：macOS launchd，**工作日（周一至周五）每天 3 次（11:00 / 15:30 / 19:30）**无人值守执行 `prepare`（机械拉取+打包+通知），
 分析/写入仍由 Agent 在用户确认后执行（避免 LLM 误判自动写库）。
 
 | 步骤 | 命令/动作 | 产出 |
