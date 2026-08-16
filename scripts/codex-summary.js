@@ -176,6 +176,8 @@ function summarizeSession(file) {
   }
 
   const startTs = meta.start || ''
+  // session_meta.timestamp 为 UTC，转北京时间（+8）后再输出，避免误读
+  const bjStart = startTs ? new Date(new Date(startTs).getTime() + 8 * 3600 * 1000).toISOString() : ''
   const durMin = startTs && lastTs
     ? Math.max(0, Math.round((new Date(lastTs) - new Date(startTs)) / 60000))
     : null
@@ -189,7 +191,8 @@ function summarizeSession(file) {
 
   return {
     file,
-    start: startTs,
+    start: bjStart,
+    startUtc: startTs,
     durationMin: durMin,
     cwd: meta.cwd,
     originator: meta.originator,

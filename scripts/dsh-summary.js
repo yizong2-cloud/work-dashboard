@@ -117,7 +117,7 @@ function summarizeSession(file) {
   if (!meta.cwd) return null
   return {
     file,
-    start: meta.start ? new Date(meta.start).toISOString() : '',
+    start: meta.start ? new Date(meta.start + 8 * 3600 * 1000).toISOString() : '',
     cwd: meta.cwd,
     sessionId: meta.id,
     userMsgs,
