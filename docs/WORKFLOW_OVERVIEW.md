@@ -52,6 +52,7 @@
 | 数据库脚本 | `supabase/schema.sql` | 建表 + RLS 全开放 + updated_at 触发器 |
 | 任务知识库 | `docs/KNOWLEDGE_BASE.md` | 任务别名映射 / 已确认事实 / 依赖关系 / 目录映射 |
 | 反馈线程 | `src/lib/feedbackService.ts` + `src/components/FeedbackPanel.tsx` | Leader 反馈可回复/跟进/标记解决（任务一） |
+| 日计划 | `src/pages/Schedule.tsx` + `src/lib/planRules.ts` | 按天的线性工作计划视图（任务三），CLI `plan-*` 命令 |
 | 部署 | `.github/workflows/deploy.yml` | push main 自动构建发布 GitHub Pages |
 
 ## 4. 数据模型（唯一契约）
@@ -62,6 +63,12 @@
 
 **task_feedback_threads（反馈线程，任务一）**：id、task_id、status(open/in_progress/resolved)、created_at/by、resolved_at/by、updated_at
 **task_feedback_messages（线程消息）**：id、thread_id、body、author_name、author_role(leader/owner)、created_at
+
+**task_plan_blocks（日粒度计划，任务三）**：id、task_id、start_date、end_date、summary、status(planned/active/done/changed)、created_at/by、updated_at
+**task_plan_block_changes（计划调整历史）**：id、block_id、old/new 日期与状态、note、changed_at/by
+
+> 计划块表示「具体哪几天计划投入」，与任务整体生命周期（start_date/expected_end_date）互不覆盖；
+> 调整计划块必须记录原因（plan-move 自动写入历史）；未安排计划的活跃任务在日程页有提示。
 
 > 反馈是**独立结构化数据**（不再用 `💬` 前缀模拟）；旧版本 `💬` 前缀留言通过**兼容读取**（`feedbackService.listThreads` 的 legacyComments）继续可见，数据不动不丢失。免登录：身份仅展示，不做校验（UI 已标注）。原子写：创建线程/回复（含已解决自动重开）/状态迁移均走数据库 RPC。
 

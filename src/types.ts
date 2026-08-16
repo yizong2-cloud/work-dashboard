@@ -134,3 +134,35 @@ export interface FeedbackMessage {
   author_role: FeedbackRole
   created_at: string
 }
+
+// ============================================================
+// 日粒度工作计划（任务三）
+// ============================================================
+
+export type PlanBlockStatus = 'planned' | 'active' | 'done' | 'changed'
+
+export interface PlanBlock {
+  id: string
+  task_id: string
+  start_date: string
+  end_date: string
+  summary: string
+  status: PlanBlockStatus
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface PlanBlockChange {
+  id: string
+  block_id: string
+  old_start_date: string | null
+  old_end_date: string | null
+  old_status: string | null
+  new_start_date: string | null
+  new_end_date: string | null
+  new_status: string | null
+  note: string
+  changed_at: string
+  changed_by: string
+}

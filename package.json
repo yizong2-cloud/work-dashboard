@@ -14,7 +14,7 @@
     "update:export": "~/feishu_export/bin/feishu-export --incremental --markdown",
     "update:codex": "node scripts/codex-summary.js --days 3",
     "update:dsh": "node scripts/dsh-summary.js --days 3",
-    "test": "node --experimental-strip-types --test scripts/agent.test.js scripts/feedback.test.js scripts/notify-cards.test.js",
+    "test": "node --experimental-strip-types --test scripts/agent.test.js scripts/feedback.test.js scripts/notify-cards.test.js scripts/plan.test.js",
     "dashboard:prepare": "node workflow/prepare.mjs",
     "dashboard:apply": "node workflow/apply.mjs",
     "dashboard:verify": "node workflow/verify.mjs",

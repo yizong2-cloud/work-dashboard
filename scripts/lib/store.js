@@ -27,14 +27,22 @@ export function createStore(env) {
 // ---------------- 本地 JSON 存储 ----------------
 
 function loadLocal() {
-  if (!fs.existsSync(LOCAL_FILE)) return { tasks: [], updates: [] }
+  if (!fs.existsSync(LOCAL_FILE)) return { tasks: [], updates: [], feedbackThreads: [], feedbackMessages: [], planBlocks: [], planBlockChanges: [] }
   try {
     const parsed = JSON.parse(fs.readFileSync(LOCAL_FILE, 'utf8'))
-    if (parsed && Array.isArray(parsed.tasks) && Array.isArray(parsed.updates)) return parsed
+    if (parsed && Array.isArray(parsed.tasks) && Array.isArray(parsed.updates)) {
+      return {
+        ...parsed,
+        feedbackThreads: parsed.feedbackThreads ?? [],
+        feedbackMessages: parsed.feedbackMessages ?? [],
+        planBlocks: parsed.planBlocks ?? [],
+        planBlockChanges: parsed.planBlockChanges ?? [],
+      }
+    }
   } catch {
     // 损坏则重建
   }
-  return { tasks: [], updates: [] }
+  return { tasks: [], updates: [], feedbackThreads: [], feedbackMessages: [], planBlocks: [], planBlockChanges: [] }
 }
 
 function saveLocal(db) {
@@ -140,6 +148,74 @@ function createLocalStore() {
     /**
      * 原子创建：任务 + 初始时间线 一次完成。
      */
+
+    // ---- 日粒度计划（任务三）----
+    async listPlanBlocks(opts) {
+      const db = loadLocal()
+      return db.planBlocks
+        .filter((b) => {
+          if (opts?.taskId && b.task_id !== opts.taskId) return false
+          if (opts?.from && b.end_date < opts.from) return false
+          if (opts?.to && b.start_date > opts.to) return false
+          return true
+        })
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+    },
+    async listPlanBlockChanges(blockId) {
+      return loadLocal().planBlockChanges
+        .filter((c) => c.block_id === blockId)
+        .sort((a, b) => a.changed_at.localeCompare(b.changed_at))
+    },
+    async createPlanBlock(input) {
+      const db = loadLocal()
+      if (!db.tasks.some((t) => t.id === input.task_id)) throw new Error(`任务不存在: ${input.task_id}`)
+      if (input.end_date < input.start_date) throw new Error('结束日期不得早于开始日期')
+      const block = {
+        id: crypto.randomUUID(),
+        task_id: input.task_id,
+        start_date: input.start_date,
+        end_date: input.end_date,
+        summary: input.summary ?? '',
+        status: input.status ?? 'planned',
+        created_at: now(),
+        updated_at: now(),
+        created_by: input.created_by ?? '',
+      }
+      db.planBlocks.push(block)
+      saveLocal(db)
+      return block
+    },
+    async movePlanBlock(blockId, patch, note, by) {
+      const db = loadLocal()
+      const block = db.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      const newStart = patch.start_date ?? block.start_date
+      const newEnd = patch.end_date ?? block.end_date
+      if (newEnd < newStart) throw new Error('结束日期不得早于开始日期')
+      db.planBlockChanges.push({
+        id: crypto.randomUUID(), block_id: blockId,
+        old_start_date: block.start_date, old_end_date: block.end_date, old_status: block.status,
+        new_start_date: newStart, new_end_date: newEnd, new_status: 'changed',
+        note, changed_at: now(), changed_by: by,
+      })
+      Object.assign(block, { start_date: newStart, end_date: newEnd, status: 'changed', updated_at: now() })
+      saveLocal(db)
+      return block
+    },
+    async donePlanBlock(blockId, note, by) {
+      const db = loadLocal()
+      const block = db.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      db.planBlockChanges.push({
+        id: crypto.randomUUID(), block_id: blockId,
+        old_start_date: block.start_date, old_end_date: block.end_date, old_status: block.status,
+        new_start_date: block.start_date, new_end_date: block.end_date, new_status: 'done',
+        note, changed_at: now(), changed_by: by,
+      })
+      block.status = 'done'; block.updated_at = now()
+      saveLocal(db)
+      return block
+    },
     async applyCreate(input, note, createdBy = 'agent') {
       const db = loadLocal()
       const task = {
@@ -272,6 +348,112 @@ function createSupabaseStore(env) {
     /**
      * 原子创建：通过 RPC create_task_with_note（任务 + 初始时间线 同事务）。
      */
+
+    // ---- 日粒度计划（任务三）----
+    async listPlanBlocks(opts) {
+      const db = loadLocal()
+      return db.planBlocks
+        .filter((b) => {
+          if (opts?.taskId && b.task_id !== opts.taskId) return false
+          if (opts?.from && b.end_date < opts.from) return false
+          if (opts?.to && b.start_date > opts.to) return false
+          return true
+        })
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+    },
+    async listPlanBlockChanges(blockId) {
+      return loadLocal().planBlockChanges
+        .filter((c) => c.block_id === blockId)
+        .sort((a, b) => a.changed_at.localeCompare(b.changed_at))
+    },
+    async createPlanBlock(input) {
+      const db = loadLocal()
+      if (!db.tasks.some((t) => t.id === input.task_id)) throw new Error(`任务不存在: ${input.task_id}`)
+      if (input.end_date < input.start_date) throw new Error('结束日期不得早于开始日期')
+      const block = {
+        id: crypto.randomUUID(),
+        task_id: input.task_id,
+        start_date: input.start_date,
+        end_date: input.end_date,
+        summary: input.summary ?? '',
+        status: input.status ?? 'planned',
+        created_at: now(),
+        updated_at: now(),
+        created_by: input.created_by ?? '',
+      }
+      db.planBlocks.push(block)
+      saveLocal(db)
+      return block
+    },
+    async movePlanBlock(blockId, patch, note, by) {
+      const db = loadLocal()
+      const block = db.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      const newStart = patch.start_date ?? block.start_date
+      const newEnd = patch.end_date ?? block.end_date
+      if (newEnd < newStart) throw new Error('结束日期不得早于开始日期')
+      db.planBlockChanges.push({
+        id: crypto.randomUUID(), block_id: blockId,
+        old_start_date: block.start_date, old_end_date: block.end_date, old_status: block.status,
+        new_start_date: newStart, new_end_date: newEnd, new_status: 'changed',
+        note, changed_at: now(), changed_by: by,
+      })
+      Object.assign(block, { start_date: newStart, end_date: newEnd, status: 'changed', updated_at: now() })
+      saveLocal(db)
+      return block
+    },
+    async donePlanBlock(blockId, note, by) {
+      const db = loadLocal()
+      const block = db.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      db.planBlockChanges.push({
+        id: crypto.randomUUID(), block_id: blockId,
+        old_start_date: block.start_date, old_end_date: block.end_date, old_status: block.status,
+        new_start_date: block.start_date, new_end_date: block.end_date, new_status: 'done',
+        note, changed_at: now(), changed_by: by,
+      })
+      block.status = 'done'; block.updated_at = now()
+      saveLocal(db)
+      return block
+    },
+    // ---- 日粒度计划（任务三，RPC）----
+    async listPlanBlocks(opts) {
+      let query = client.from('task_plan_blocks').select('*')
+      if (opts?.taskId) query = query.eq('task_id', opts.taskId)
+      if (opts?.from) query = query.gte('end_date', opts.from)
+      if (opts?.to) query = query.lte('start_date', opts.to)
+      const { data, error } = await query.order('start_date', { ascending: true })
+      if (error) throw new Error(error.message)
+      return data ?? []
+    },
+    async listPlanBlockChanges(blockId) {
+      const { data, error } = await client.from('task_plan_block_changes').select('*').eq('block_id', blockId).order('changed_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return data ?? []
+    },
+    async createPlanBlock(input) {
+      const { data, error } = await client.rpc('create_plan_block', {
+        p_task_id: input.task_id, p_start_date: input.start_date, p_end_date: input.end_date,
+        p_summary: input.summary ?? '', p_status: input.status ?? 'planned', p_created_by: input.created_by ?? '',
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
+    async movePlanBlock(blockId, patch, note, by) {
+      const { data, error } = await client.rpc('move_plan_block', {
+        p_block_id: blockId, p_start_date: patch.start_date ?? null, p_end_date: patch.end_date ?? null,
+        p_note: note, p_by: by,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
+    async donePlanBlock(blockId, note, by) {
+      const { data, error } = await client.rpc('done_plan_block', {
+        p_block_id: blockId, p_note: note, p_by: by,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
     async applyCreate(input, note, createdBy = 'agent') {
       const { data, error } = await client.rpc('create_task_with_note', {
         p_title: input.title,

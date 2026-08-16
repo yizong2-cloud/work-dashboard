@@ -358,6 +358,67 @@ async function opNote(op) {
   return update
 }
 
+async function opPlanAdd(op) {
+  const taskId = requireOp(op, 'id', '任务 id')
+  const from = assertDate(requireOp(op, 'from', '开始日期 YYYY-MM-DD'), '开始日期')
+  const to = assertDate(requireOp(op, 'to', '结束日期 YYYY-MM-DD'), '结束日期')
+  if (to < from) fail('结束日期不得早于开始日期')
+  const status = op.status ? op.status : 'planned'
+  if (!['planned', 'active', 'done', 'changed'].includes(status)) fail(`非法计划状态: ${status}`)
+  if (dryRun) {
+    human(`[dry-run] 任务 ${taskId} 添加计划块 ${from} ~ ${to}（${op.summary || ''}）`)
+    return null
+  }
+  const block = await store.createPlanBlock({
+    task_id: taskId, start_date: from, end_date: to,
+    summary: op.summary ?? '', status, created_by: who,
+  })
+  human(`✅ 已添加计划块 id=${block.id}：${from} ~ ${to}（${block.summary || '无摘要'}）`)
+  return block
+}
+
+async function opPlanMove(op) {
+  const blockId = requireOp(op, 'id', '计划块 id')
+  const from = op.from !== undefined ? assertDate(op.from, '开始日期') : null
+  const to = op.to !== undefined ? assertDate(op.to, '结束日期') : null
+  if (from && to && to < from) fail('结束日期不得早于开始日期')
+  if (dryRun) {
+    human(`[dry-run] 移动计划块 ${blockId} → ${from ?? '不变'} ~ ${to ?? '不变'}（${op.note || '无原因'}）`)
+    return null
+  }
+  const block = await store.movePlanBlock(blockId, { start_date: from ?? undefined, end_date: to ?? undefined }, op.note ?? '', who)
+  human(`✅ 计划块 ${blockId} 已调整：${block.start_date} ~ ${block.end_date}（状态 ${block.status}）`)
+  return block
+}
+
+async function opPlanDone(op) {
+  const blockId = requireOp(op, 'id', '计划块 id')
+  if (dryRun) {
+    human(`[dry-run] 标记计划块 ${blockId} 完成`)
+    return null
+  }
+  const block = await store.donePlanBlock(blockId, op.note ?? '', who)
+  human(`✅ 计划块 ${blockId} 已完成（${block.summary || ''}）`)
+  return block
+}
+
+async function opPlanList(op) {
+  const from = op.from !== undefined ? assertDate(op.from, '开始日期') : undefined
+  const to = op.to !== undefined ? assertDate(op.to, '结束日期') : undefined
+  const blocks = await store.listPlanBlocks({ taskId: op.task, from, to })
+  const byId = new Map()
+  for (const t of await store.listTasks()) byId.set(t.id, t)
+  if (jsonOut) return blocks
+  human(`[数据模式] ${store.mode}`)
+  if (blocks.length === 0) human('（该范围内没有计划块）')
+  for (const b of blocks) {
+    const title = byId.get(b.task_id)?.title ?? b.task_id
+    human(`[${b.id}] ${title} | ${b.start_date} ~ ${b.end_date} [${b.status}] ${b.summary}`)
+  }
+  human(`共 ${blocks.length} 条`)
+  return null
+}
+
 async function opDelete(op) {
   const id = requireOp(op, 'id', '任务 id')
   if (dryRun) {
@@ -439,6 +500,10 @@ function opHelp() {
                                        追加时间线（progress/interrupt/note/...；--at 回填历史时间）
   delete <id>                                   删除任务（含时间线）
   batch --file ops.json                         批量执行（数组或 {ops: [...]}）
+  plan-add <id> --from YYYY-MM-DD --to YYYY-MM-DD [--summary ".."]   给任务添加日计划块
+  plan-move <plan-id> [--from] [--to] [--note "原因"]                 调整计划块（记录历史）
+  plan-done <plan-id> [--note]                                        标记计划块完成
+  plan-list [--from] [--to] [--task 任务id]                           查询计划块
   seed [--file seed.json] [--force]             导入种子演示数据
 
 数据模式: 配置 .env 的 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY 则写入线上库；
@@ -462,6 +527,10 @@ const ops = {
   delete: opDelete,
   batch: opBatch,
   seed: opSeed,
+  'plan-add': opPlanAdd,
+  'plan-move': opPlanMove,
+  'plan-done': opPlanDone,
+  'plan-list': opPlanList,
   help: opHelp,
 }
 

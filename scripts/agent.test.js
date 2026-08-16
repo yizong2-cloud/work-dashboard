@@ -172,3 +172,25 @@ test('非法日期被拒绝（2026-99-99）', () => {
   assert.ok(!r.ok, '非法日期应失败')
   assert.match(r.stderr, /非法/)
 })
+
+test('plan-add/move/done/list：计划块全链路（含历史与非法日期）', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '计划任务X', '--end', '2026-08-25')
+  const tid = extractId(c.stdout)
+  const a = run('plan-add', tid, '--from', '2026-08-17', '--to', '2026-08-18', '--summary', '接口联调')
+  assert.ok(a.ok, a.stderr)
+  const pid = extractId(a.stdout)
+  const m = run('plan-move', pid, '--from', '2026-08-18', '--to', '2026-08-19', '--note', '临时需求插入')
+  assert.ok(m.ok, m.stderr)
+  const d = run('plan-done', pid, '--note', '完成')
+  assert.ok(d.ok, d.stderr)
+  const l = run('plan-list')
+  assert.match(l.stdout, /2026-08-18 ~ 2026-08-19 \[done\]/)
+  // 非法日期（结束早于开始）被拒
+  const bad = run('plan-add', tid, '--from', '2026-08-20', '--to', '2026-08-19')
+  assert.ok(!bad.ok, '结束早于开始应失败')
+  assert.match(bad.stderr, /结束日期不得早于开始日期/)
+  // 非真实日期被拒
+  const bad2 = run('plan-add', tid, '--from', '2026-99-99', '--to', '2026-08-25')
+  assert.ok(!bad2.ok, '非法日期应失败')
+})

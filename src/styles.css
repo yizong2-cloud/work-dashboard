@@ -2105,3 +2105,49 @@ section {
 
 .comment-count-open { background: #fff7e8; color: #c47f17; }
 .comment-shortcut-open { color: #c47f17; background: #fff7e8; }
+
+/* ============================================================
+   日粒度计划（任务三）
+   ============================================================ */
+.plan-today-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.plan-today-card h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.plan-today-item { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid #edf1f6; margin-bottom: 6px; }
+.plan-today-item:hover { background: #f7f9fd; }
+.plan-today-item span { color: var(--muted); font-size: 0.82rem; }
+
+.plan-add-card { padding: 14px 16px; }
+.plan-add-card summary { cursor: pointer; font-weight: 600; }
+.plan-add-form { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.6fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+
+.plan-timeline { overflow-x: auto; padding: 16px; }
+.plan-head { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #edf1f6; }
+.plan-head-task { font-size: 0.78rem; color: var(--muted); }
+.plan-head-days { display: grid; grid-template-columns: repeat(7, 1fr); }
+.plan-head-days span { text-align: center; font-size: 0.74rem; color: var(--muted); padding: 4px 0; border-radius: 6px; }
+.plan-head-days .plan-day-today { background: var(--primary); color: #fff; font-weight: 700; }
+
+.plan-row { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; min-width: 720px; }
+.plan-task-name { border: 0; background: transparent; text-align: left; font-size: 0.83rem; font-weight: 600; cursor: pointer; padding: 8px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-task-name:hover { color: var(--primary); }
+.plan-track { position: relative; height: 34px; background: #f7f9fd; border-radius: 8px; margin: 4px 0; }
+.plan-block { position: absolute; top: 4px; bottom: 4px; border-radius: 6px; background: #dbe7ff; color: #1e3a8a; font-size: 0.72rem; padding: 2px 8px; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 40px; }
+.plan-block-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-block-actions { display: none; gap: 4px; }
+.plan-block:hover .plan-block-actions { display: inline-flex; }
+.plan-block-actions button { border: 0; background: rgba(255,255,255,0.8); border-radius: 4px; font-size: 0.66rem; cursor: pointer; padding: 1px 5px; }
+.plan-done { background: #d9f2e3; color: #1e8e4e; }
+.plan-changed { background: #fff1d6; color: #b45309; }
+.plan-unscheduled { margin-top: 10px; font-size: 0.82rem; }
+.plan-legend { margin-top: 10px; font-size: 0.75rem; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.plan-legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; }
+.plan-legend-planned { background: #dbe7ff; }
+.plan-legend-done { background: #d9f2e3; }
+.plan-legend-changed { background: #fff1d6; }
+
+@media (max-width: 640px) {
+  .plan-today-grid { grid-template-columns: 1fr; }
+  .plan-add-form { grid-template-columns: 1fr 1fr; }
+  .plan-add-summary { grid-column: span 2; }
+  .plan-head, .plan-row { grid-template-columns: 110px 1fr; }
+  .plan-timeline { padding: 12px; }
+}

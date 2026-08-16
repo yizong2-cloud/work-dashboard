@@ -11,6 +11,8 @@ import type {
   FeedbackRole,
   FeedbackStatus,
   FeedbackThread,
+  PlanBlock,
+  PlanBlockChange,
   Task,
   TaskCreateInput,
   TaskUpdate,
@@ -63,6 +65,25 @@ export interface DB {
   addFeedbackMessage(threadId: string, body: string, authorName: string, authorRole: FeedbackRole): Promise<FeedbackMessage>
   /** 状态迁移（resolved 记录解决者与时间） */
   setFeedbackStatus(threadId: string, status: FeedbackStatus, byName: string): Promise<FeedbackThread>
+
+  // ---- 日粒度计划（任务三） ----
+  /** 指定日期范围（含边界）的计划块，或某任务的计划块 */
+  listPlanBlocks(opts?: { taskId?: string; from?: string; to?: string }): Promise<PlanBlock[]>
+  /** 计划块的调整历史 */
+  listPlanBlockChanges(blockId: string): Promise<PlanBlockChange[]>
+  /** 原子创建计划块 */
+  createPlanBlock(input: {
+    task_id: string
+    start_date: string
+    end_date: string
+    summary?: string
+    status?: string
+    created_by?: string
+  }): Promise<PlanBlock>
+  /** 原子调整（更新 + 写变更历史） */
+  movePlanBlock(blockId: string, patch: { start_date?: string; end_date?: string }, note: string, by: string): Promise<PlanBlock>
+  /** 原子标记完成（写历史） */
+  donePlanBlock(blockId: string, note: string, by: string): Promise<PlanBlock>
 }
 
 export function newId(prefix = 't'): string {

@@ -435,6 +435,129 @@ $$;
 
 grant execute on function public.retry_failed_notifications(int) to service_role;
 
+-- ============================================================
+-- 日粒度工作计划（任务三：按天的线性工作计划视图）
+-- task_plan_blocks 表示「具体哪几天计划投入」；tasks.start_date/expected_end_date
+-- 表示任务整体生命周期，两者互不覆盖。plan_block_changes 保留调整历史。
+-- ============================================================
+
+create table if not exists public.task_plan_blocks (
+  id          uuid primary key default gen_random_uuid(),
+  task_id     uuid not null references public.tasks(id) on delete cascade,
+  start_date  date not null,
+  end_date    date not null,
+  summary     text not null default '',
+  status      text not null default 'planned' check (status in ('planned','active','done','changed')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  created_by  text not null default '',
+  constraint plan_block_date_ck check (end_date >= start_date)
+);
+
+create table if not exists public.task_plan_block_changes (
+  id             uuid primary key default gen_random_uuid(),
+  block_id       uuid not null references public.task_plan_blocks(id) on delete cascade,
+  old_start_date date,
+  old_end_date   date,
+  old_status     text,
+  new_start_date date,
+  new_end_date   date,
+  new_status     text,
+  note           text not null default '',
+  changed_at     timestamptz not null default now(),
+  changed_by     text not null default ''
+);
+
+create index if not exists task_plan_blocks_task_idx on public.task_plan_blocks (task_id);
+create index if not exists task_plan_blocks_dates_idx on public.task_plan_blocks (start_date, end_date);
+create index if not exists task_plan_block_changes_block_idx on public.task_plan_block_changes (block_id);
+
+drop trigger if exists task_plan_blocks_set_updated_at on public.task_plan_blocks;
+create trigger task_plan_blocks_set_updated_at
+  before update on public.task_plan_blocks
+  for each row execute function public.set_updated_at();
+
+-- 原子创建计划块
+create or replace function public.create_plan_block(
+  p_task_id uuid, p_start_date date, p_end_date date,
+  p_summary text default '', p_status text default 'planned',
+  p_created_by text default ''
+) returns public.task_plan_blocks
+language plpgsql
+security definer
+as $$
+declare v_block public.task_plan_blocks;
+begin
+  if p_end_date < p_start_date then
+    raise exception '结束日期不得早于开始日期';
+  end if;
+  insert into public.task_plan_blocks (task_id, start_date, end_date, summary, status, created_by)
+  values (p_task_id, p_start_date, p_end_date, p_summary, p_status, p_created_by)
+  returning * into v_block;
+  return v_block;
+end;
+$$;
+
+-- 原子调整计划块（更新 + 写变更历史）
+create or replace function public.move_plan_block(
+  p_block_id uuid, p_start_date date default null, p_end_date date default null,
+  p_note text default '', p_by text default ''
+) returns public.task_plan_blocks
+language plpgsql
+security definer
+as $$
+declare v_block public.task_plan_blocks;
+begin
+  select * into v_block from public.task_plan_blocks where id = p_block_id;
+  if v_block is null then
+    raise exception '计划块不存在: %', p_block_id;
+  end if;
+  if p_start_date is null then p_start_date := v_block.start_date; end if;
+  if p_end_date is null then p_end_date := v_block.end_date; end if;
+  if p_end_date < p_start_date then
+    raise exception '结束日期不得早于开始日期';
+  end if;
+  insert into public.task_plan_block_changes
+    (block_id, old_start_date, old_end_date, old_status, new_start_date, new_end_date, new_status, note, changed_by)
+  values
+    (p_block_id, v_block.start_date, v_block.end_date, v_block.status, p_start_date, p_end_date, 'changed', p_note, p_by);
+  update public.task_plan_blocks
+     set start_date = p_start_date, end_date = p_end_date, status = 'changed'
+   where id = p_block_id
+  returning * into v_block;
+  return v_block;
+end;
+$$;
+
+-- 原子标记完成（记录历史）
+create or replace function public.done_plan_block(
+  p_block_id uuid, p_note text default '', p_by text default ''
+) returns public.task_plan_blocks
+language plpgsql
+security definer
+as $$
+declare v_block public.task_plan_blocks;
+begin
+  select * into v_block from public.task_plan_blocks where id = p_block_id;
+  if v_block is null then
+    raise exception '计划块不存在: %', p_block_id;
+  end if;
+  insert into public.task_plan_block_changes
+    (block_id, old_start_date, old_end_date, old_status, new_start_date, new_end_date, new_status, note, changed_by)
+  values
+    (p_block_id, v_block.start_date, v_block.end_date, v_block.status, v_block.start_date, v_block.end_date, 'done', p_note, p_by);
+  update public.task_plan_blocks
+     set status = 'done'
+   where id = p_block_id
+  returning * into v_block;
+  return v_block;
+end;
+$$;
+
+grant execute on function public.create_plan_block(uuid, date, date, text, text, text) to anon, authenticated;
+grant execute on function public.move_plan_block(uuid, date, date, text, text) to anon, authenticated;
+grant execute on function public.done_plan_block(uuid, text, text) to anon, authenticated;
+
 -- ---------------- 权限：全开放（无登录、无权限控制） ----------------
 -- 仅本人与 Leader 使用，无敏感数据；打开网页即可查看与编辑。
 -- 若未来需要加权限，可在此收紧策略。
@@ -445,14 +568,20 @@ drop policy if exists allow_all_tasks        on public.tasks;
 drop policy if exists allow_all_task_updates on public.task_updates;
 drop policy if exists allow_all_feedback_threads  on public.task_feedback_threads;
 drop policy if exists allow_all_feedback_messages on public.task_feedback_messages;
+drop policy if exists allow_all_plan_blocks on public.task_plan_blocks;
+drop policy if exists allow_all_plan_block_changes on public.task_plan_block_changes;
 create policy allow_all_tasks        on public.tasks        for all using (true) with check (true);
 create policy allow_all_task_updates on public.task_updates for all using (true) with check (true);
 create policy allow_all_feedback_threads  on public.task_feedback_threads  for all using (true) with check (true);
 create policy allow_all_feedback_messages on public.task_feedback_messages for all using (true) with check (true);
+create policy allow_all_plan_blocks        on public.task_plan_blocks        for all using (true) with check (true);
+create policy allow_all_plan_block_changes on public.task_plan_block_changes for all using (true) with check (true);
 
 -- anon（前端网页使用的匿名 key）与 authenticated 角色均授予全权限
 grant all on public.tasks        to anon, authenticated;
 grant all on public.task_updates to anon, authenticated;
 grant all on public.task_feedback_threads  to anon, authenticated;
 grant all on public.task_feedback_messages to anon, authenticated;
+grant all on public.task_plan_blocks        to anon, authenticated;
+grant all on public.task_plan_block_changes to anon, authenticated;
 grant usage on schema public to anon, authenticated;

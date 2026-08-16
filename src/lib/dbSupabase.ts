@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DB } from './db'
-import type { FeedbackMessage, FeedbackThread, Task, TaskUpdate } from '../types'
+import type { FeedbackMessage, FeedbackThread, PlanBlock, PlanBlockChange, Task, TaskUpdate } from '../types'
 
 const TASKS = 'tasks'
 const UPDATES = 'task_updates'
@@ -168,6 +168,63 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       })
       if (error) throw new Error(error.message)
       return data as FeedbackThread
+    },
+
+    // ---- 日粒度计划（任务三） ----
+
+    async listPlanBlocks(opts) {
+      let query = client.from('task_plan_blocks').select('*')
+      if (opts?.taskId) query = query.eq('task_id', opts.taskId)
+      if (opts?.from) query = query.gte('end_date', opts.from)
+      if (opts?.to) query = query.lte('start_date', opts.to)
+      const { data, error } = await query.order('start_date', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data ?? []) as PlanBlock[]
+    },
+
+    async listPlanBlockChanges(blockId) {
+      const { data, error } = await client
+        .from('task_plan_block_changes')
+        .select('*')
+        .eq('block_id', blockId)
+        .order('changed_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data ?? []) as PlanBlockChange[]
+    },
+
+    async createPlanBlock(input) {
+      const { data, error } = await client.rpc('create_plan_block', {
+        p_task_id: input.task_id,
+        p_start_date: input.start_date,
+        p_end_date: input.end_date,
+        p_summary: input.summary ?? '',
+        p_status: input.status ?? 'planned',
+        p_created_by: input.created_by ?? '',
+      })
+      if (error) throw new Error(error.message)
+      return data as PlanBlock
+    },
+
+    async movePlanBlock(blockId, patch, note, by) {
+      const { data, error } = await client.rpc('move_plan_block', {
+        p_block_id: blockId,
+        p_start_date: patch.start_date ?? null,
+        p_end_date: patch.end_date ?? null,
+        p_note: note,
+        p_by: by,
+      })
+      if (error) throw new Error(error.message)
+      return data as PlanBlock
+    },
+
+    async donePlanBlock(blockId, note, by) {
+      const { data, error } = await client.rpc('done_plan_block', {
+        p_block_id: blockId,
+        p_note: note,
+        p_by: by,
+      })
+      if (error) throw new Error(error.message)
+      return data as PlanBlock
     },
   }
 }

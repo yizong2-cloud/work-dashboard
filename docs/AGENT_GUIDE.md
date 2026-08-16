@@ -102,6 +102,15 @@ npm run agent -- batch --file ops.json
 npm run agent -- seed --force     # 仅本地演示模式（local）可用；连线上库时请用网页或 create 命令添加真实任务
 ```
 
+
+# 日粒度计划（任务三：按天的线性工作计划）
+npm run agent -- plan-add <任务id> --from YYYY-MM-DD --to YYYY-MM-DD [--summary "阶段说明"]
+npm run agent -- plan-move <计划块id> [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--note "调整原因"]
+npm run agent -- plan-done <计划块id> [--note]
+npm run agent -- plan-list [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--task 任务id]
+  # 计划块 = 「具体哪几天投入」；tasks.start_date/expected_end_date = 任务整体生命周期，两者互不覆盖
+  # 日期严格校验（真实日期、结束>=开始）；plan-move 会写入变更历史（旧/新日期+原因）
+  # 无法从聊天确认的具体日期不要编造：进入待确认流程问用户
 ## 5.1 工作记录摘要器（一条龙流程的数据源）
 
 ```bash

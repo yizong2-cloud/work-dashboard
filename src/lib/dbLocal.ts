@@ -5,7 +5,7 @@
 
 import type { DB } from './db'
 import { newId } from './db'
-import type { FeedbackMessage, FeedbackThread, Task, TaskUpdate } from '../types'
+import type { FeedbackMessage, FeedbackThread, PlanBlock, PlanBlockChange, Task, TaskUpdate } from '../types'
 import { buildSeed } from './seedData'
 const STORE_KEY = 'work-dashboard:db:v1'
 
@@ -14,6 +14,8 @@ interface LocalStore {
   updates: TaskUpdate[]
   feedbackThreads: FeedbackThread[]
   feedbackMessages: FeedbackMessage[]
+  planBlocks: PlanBlock[]
+  planBlockChanges: PlanBlockChange[]
 }
 
 function load(): LocalStore {
@@ -27,6 +29,8 @@ function load(): LocalStore {
           ...parsed,
           feedbackThreads: parsed.feedbackThreads ?? [],
           feedbackMessages: parsed.feedbackMessages ?? [],
+          planBlocks: parsed.planBlocks ?? [],
+          planBlockChanges: parsed.planBlockChanges ?? [],
         }
       }
     }
@@ -34,7 +38,7 @@ function load(): LocalStore {
     // 数据损坏则重建
   }
   const seed = buildSeed()
-  const fresh: LocalStore = { ...seed, feedbackThreads: [], feedbackMessages: [] }
+  const fresh: LocalStore = { ...seed, feedbackThreads: [], feedbackMessages: [], planBlocks: [], planBlockChanges: [] }
   save(fresh)
   return fresh
 }
@@ -264,6 +268,97 @@ export function createLocalDB(): DB {
       save(store)
       return thread
     },
+
+    // ---- 日粒度计划（任务三） ----
+
+    async listPlanBlocks(opts) {
+      const store = load()
+      return store.planBlocks
+        .filter((b) => {
+          if (opts?.taskId && b.task_id !== opts.taskId) return false
+          if (opts?.from && b.end_date < opts.from) return false
+          if (opts?.to && b.start_date > opts.to) return false
+          return true
+        })
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+    },
+
+    async listPlanBlockChanges(blockId) {
+      return load()
+        .planBlockChanges.filter((c) => c.block_id === blockId)
+        .sort((a, b) => a.changed_at.localeCompare(b.changed_at))
+    },
+
+    async createPlanBlock(input) {
+      if (input.end_date < input.start_date) throw new Error('结束日期不得早于开始日期')
+      const store = load()
+      if (!store.tasks.some((t) => t.id === input.task_id)) throw new Error(`任务不存在: ${input.task_id}`)
+      const block: PlanBlock = {
+        id: newId('pb'),
+        task_id: input.task_id,
+        start_date: input.start_date,
+        end_date: input.end_date,
+        summary: input.summary ?? '',
+        status: (input.status as PlanBlock['status']) ?? 'planned',
+        created_at: now(),
+        updated_at: now(),
+        created_by: input.created_by ?? '',
+      }
+      store.planBlocks.push(block)
+      save(store)
+      return block
+    },
+
+    async movePlanBlock(blockId, patch, note, by) {
+      const store = load()
+      const block = store.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      const newStart = patch.start_date ?? block.start_date
+      const newEnd = patch.end_date ?? block.end_date
+      if (newEnd < newStart) throw new Error('结束日期不得早于开始日期')
+      store.planBlockChanges.push({
+        id: newId('pc'),
+        block_id: blockId,
+        old_start_date: block.start_date,
+        old_end_date: block.end_date,
+        old_status: block.status,
+        new_start_date: newStart,
+        new_end_date: newEnd,
+        new_status: 'changed',
+        note,
+        changed_at: now(),
+        changed_by: by,
+      })
+      block.start_date = newStart
+      block.end_date = newEnd
+      block.status = 'changed'
+      block.updated_at = now()
+      save(store)
+      return block
+    },
+
+    async donePlanBlock(blockId, note, by) {
+      const store = load()
+      const block = store.planBlocks.find((b) => b.id === blockId)
+      if (!block) throw new Error(`计划块不存在: ${blockId}`)
+      store.planBlockChanges.push({
+        id: newId('pc'),
+        block_id: blockId,
+        old_start_date: block.start_date,
+        old_end_date: block.end_date,
+        old_status: block.status,
+        new_start_date: block.start_date,
+        new_end_date: block.end_date,
+        new_status: 'done',
+        note,
+        changed_at: now(),
+        changed_by: by,
+      })
+      block.status = 'done'
+      block.updated_at = now()
+      save(store)
+      return block
+    },
   }
 }
 
@@ -280,3 +375,5 @@ function enrichThread(t: FeedbackThread, store: LocalStore): FeedbackThread {
     latest_author: last?.author_name,
   }
 }
+
+// ---- 日粒度计划（任务三，local 实现，附在 LocalStore 内）----
