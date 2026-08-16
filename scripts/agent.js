@@ -207,6 +207,37 @@ async function opSchedule(op) {
   return task
 }
 
+async function opUpdate(op) {
+  const id = requireOp(op, 'id', '任务 id')
+  const patch = {}
+  if (op.title !== undefined) patch.title = String(op.title)
+  if (op.description !== undefined) patch.description = String(op.description)
+  if (op.current_status !== undefined) patch.current_status = String(op.current_status)
+  if (op.priority !== undefined) patch.priority = assertPriority(op.priority)
+  if (op.status !== undefined) patch.status = assertStatus(op.status)
+  if (op.start_date !== undefined || op.start !== undefined) {
+    patch.start_date = assertDate(op.start_date ?? op.start, '开始日期')
+  }
+  if (op.block_reason !== undefined) patch.block_reason = String(op.block_reason)
+  if (op.interrupt !== undefined) {
+    patch.is_interrupt_task = op.interrupt === 'true' || op.interrupt === '1' || op.interrupt === true
+  }
+  if (Object.keys(patch).length === 0) {
+    fail('没有要更新的字段（支持 --title / --description / --current_status / --priority / --start_date / --status / --block_reason / --interrupt）')
+  }
+  if (dryRun) {
+    human(`[dry-run] 更新任务 ${id}: ${JSON.stringify(patch)}`)
+    return null
+  }
+  const task = await store.updateTask(id, patch)
+  if (op.note) {
+    await store.addUpdate({ task_id: id, type: 'note', content: String(op.note), created_by: who })
+  }
+  human(`✅ 任务 ${id} 已更新${op.note ? '（并记录说明）' : ''}`)
+  human(renderTask(task))
+  return task
+}
+
 async function opBlock(op) {
   const id = requireOp(op, 'id', '任务 id')
   const reason = requireOp(op, 'reason', '阻塞原因')
@@ -335,6 +366,9 @@ function opHelp() {
         [--interrupt] [--note "创建说明"]       新建任务（自动记录时间线）
   progress <id> --to 70 [--note "说明"]         更新进度（自动记录）
   status <id> --to in_progress [--note]         修改状态（自动记录）
+  update <id> --title "新标题" --description "..." --current_status "..." 
+        [--priority high] [--start_date YYYY-MM-DD] [--status planned] [--note "说明"]
+                                               通用字段更新（描述/现状/标题等）
   schedule <id> --end YYYY-MM-DD [--note]       调整预计完成日期（记录 old/new）
   block <id> --reason "原因"                    标记阻塞（必填原因）
   unblock <id> [--note]                         解除阻塞
@@ -356,6 +390,7 @@ const ops = {
   create: opCreate,
   progress: opProgress,
   status: opStatus,
+  update: opUpdate,
   schedule: opSchedule,
   block: opBlock,
   unblock: opUnblock,
