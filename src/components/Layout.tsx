@@ -16,8 +16,10 @@ export function Layout({ children }: { children: ReactNode }) {
           <Link to="/" className="brand">
             <span className="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 28 28" fill="none">
-                <rect x="3" y="3" width="22" height="22" rx="7" fill="currentColor" />
+                <path d="m7 6 2-4 4 4M21 6l-2-4-4 4" fill="currentColor" opacity=".8" />
+                <rect x="3" y="4" width="22" height="21" rx="8" fill="currentColor" />
                 <path d="M8.5 17.5 12 14l2.5 2.5L20 11" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="9" cy="10" r="1" fill="white" opacity=".72" />
               </svg>
             </span>
             <span className="brand-copy">
