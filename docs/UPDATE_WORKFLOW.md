@@ -74,3 +74,12 @@ npm run agent -- create --title "..." --priority normal --end YYYY-MM-DD
 ```
 
 完整命令说明见 `docs/AGENT_GUIDE.md`。
+
+## 常见问题（实测踩坑记录）
+
+- **首次运行**不能用 `--incremental`（会提示"状态文件中没有上次同步记录"）——首次用 `--since YYYY-MM-DDT00:00 --markdown`，之后才有增量游标。
+- **会话打开失败（openfail）**：偶发，重跑一次并加 `--refresh-chats` 强制重扫会话列表即可。
+- **大量会话被"跳过（无更新）"**：正常，工具按会话最后活跃时间判断，只有有更新的会话才会打开。
+- **导出的消息多是闲聊/表情包**：正常，分析时要过滤掉（图片、表情、玩笑话），只提炼实质工作。
+- **本次无实质更新**：流程正常结束，看板不用改，向用户说明即可。
+- **cookies 过期**：工具提示登录态失效时，让用户重新导出飞书 cookies 覆盖 `~/feishu_export/cookies.json`。

@@ -60,6 +60,10 @@ work-dashboard/
 
 所有命令支持 `--dry-run` 预演。详见 **[docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md)**（这是给未来 Agent 看的操作手册，请连同代码一起交给它）。
 
+## 一条龙更新流程（"开始更新"即触发）
+
+用户说「开始更新」→ `npm run update:export` 自动拉取飞书最新聊天（调用用户自写的 `feishu-export` 工具）→ Agent 结合 **[docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)**（任务别名映射/已确认事实/依赖关系）做增量分析 → 通过 CLI 更新线上数据 → 刷新即见。完整流程见 **[docs/UPDATE_WORKFLOW.md](docs/UPDATE_WORKFLOW.md)**。
+
 ## 关键约定
 
 - 每次「变化」都会追加一条时间线记录（`task_updates`），绝不只覆盖字段 —— 这是 Leader 能看到「为什么延期/变化」的基础。
