@@ -14,19 +14,29 @@ export function Layout({ children }: { children: ReactNode }) {
       <header className="header">
         <div className="header-inner">
           <Link to="/" className="brand">
-            <span className="brand-mark">📋</span>
-            <span className="brand-name">工作进度看板</span>
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 28 28" fill="none">
+                <rect x="3" y="3" width="22" height="22" rx="7" fill="currentColor" />
+                <path d="M8.5 17.5 12 14l2.5 2.5L20 11" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="brand-copy">
+              <span className="brand-name">Workboard</span>
+              <small>个人工作进度看板</small>
+            </span>
             {isLocalMode && <span className="tag tag-demo">演示</span>}
           </Link>
           <nav className="nav">
-            <Link to="/" className="nav-link">
-              看板
-            </Link>
+            <span className="nav-sync"><i /> 数据持续更新</span>
+            <Link to="/" className="nav-link nav-link-active">总览</Link>
           </nav>
         </div>
       </header>
       <main className="main">{children}</main>
-      <footer className="footer muted">个人工作进度看板 · 数据由本人/Agent 维护</footer>
+      <footer className="footer muted">
+        <span>Workboard</span>
+        <span>数据由本人 / Agent 维护</span>
+      </footer>
     </div>
   )
 }

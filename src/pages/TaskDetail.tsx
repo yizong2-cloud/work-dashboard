@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Task, TaskUpdate } from '../types'
 import { getDB } from '../lib/dbFactory'
 import { useTaskService } from '../hooks/useTaskService'
@@ -8,12 +8,14 @@ import { PriorityBadge } from '../components/PriorityBadge'
 import { TaskProgress } from '../components/TaskProgress'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { QuickUpdateModal } from '../components/QuickUpdateModal'
-import { zhDate, shortDateTime } from '../lib/format'
+import { LeaderCommentPanel } from '../components/LeaderCommentPanel'
+import { isComment } from '../lib/comments'
+import { todayISO, zhDate, shortDateTime } from '../lib/format'
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-
+  const [searchParams] = useSearchParams()
   const db = getDB()
   const service = useTaskService(db)
 
@@ -29,12 +31,11 @@ export function TaskDetail() {
     setLoading(true)
     setError('')
     try {
-      const [t, us] = await Promise.all([service.getTask(id), service.listUpdates(id)])
-      if (!t) {
-        setError('任务不存在或已被删除')
-      } else {
-        setTask(t)
-        setUpdates(us)
+      const [nextTask, nextUpdates] = await Promise.all([service.getTask(id), service.listUpdates(id)])
+      if (!nextTask) setError('任务不存在或已被删除')
+      else {
+        setTask(nextTask)
+        setUpdates(nextUpdates)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -47,9 +48,18 @@ export function TaskDetail() {
     void refresh()
   }, [refresh])
 
+  const comments = useMemo(() => updates.filter(isComment), [updates])
+  const timelineUpdates = useMemo(() => updates.filter((update) => !isComment(update)), [updates])
+
+  function notify(message: string) {
+    setToast(message)
+    window.setTimeout(() => setToast(''), 3000)
+    void refresh()
+  }
+
   async function remove() {
     if (!task) return
-    if (!window.confirm(`确定删除任务「${task.title}」？其时间线记录也会一并删除。`)) return
+    if (!window.confirm(`确定删除任务「${task.title}」？其时间线和留言也会一并删除。`)) return
     try {
       await service.deleteTask(task.id)
       navigate('/')
@@ -59,123 +69,104 @@ export function TaskDetail() {
   }
 
   if (loading) {
-    return (
-      <div className="page">
-        <p className="muted">加载中…</p>
-      </div>
-    )
+    return <div className="page detail-page"><div className="skeleton skeleton-title" /><div className="skeleton skeleton-panel" /></div>
   }
+
   if (error || !task) {
     return (
-      <div className="page">
+      <div className="page detail-page">
         <p className="banner banner-error">{error || '任务不存在'}</p>
-        <Link className="btn btn-ghost" to="/">
-          返回看板
-        </Link>
+        <Link className="btn btn-ghost" to="/">返回看板</Link>
       </div>
     )
   }
 
-  const overdue =
-    !!task.expected_end_date &&
-    task.status !== 'completed' &&
-    task.status !== 'cancelled' &&
-    task.expected_end_date < new Date().toISOString().slice(0, 10)
+  const overdue = !!task.expected_end_date
+    && task.status !== 'completed'
+    && task.status !== 'cancelled'
+    && task.expected_end_date < todayISO()
+  const lastActivity = updates.length > 0 ? updates[updates.length - 1].created_at : task.updated_at
 
   return (
-    <div className="page">
-      <Link className="back-link" to="/">
-        ← 返回看板
-      </Link>
+    <div className="page detail-page">
+      <div className="detail-topbar">
+        <Link className="back-link" to="/"><span aria-hidden="true">←</span> 返回总览</Link>
+        <span className="detail-activity">最近活动 {shortDateTime(lastActivity)}</span>
+      </div>
 
-      <div className="detail-head card">
-        <div className="detail-title-row">
-          <h1>
-            {task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}
-            {task.title}
-          </h1>
-          <div className="row-gap">
+      <article className={`detail-hero card ${task.status === 'blocked' ? 'detail-hero-blocked' : ''}`}>
+        <div className="detail-kicker-row">
+          <div className="detail-badges">
             <StatusBadge status={task.status} />
             <PriorityBadge priority={task.priority} />
+            {task.is_interrupt_task && <span className="tag tag-interrupt">临时任务</span>}
           </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setQuick(true)}>快速更新</button>
         </div>
+        <h1>{task.title}</h1>
         {task.description && <p className="detail-desc">{task.description}</p>}
-        <TaskProgress progress={task.progress} overdue={overdue} />
 
-        <div className="detail-info">
-          <div className="info-item">
-            <span className="info-label">开始日期</span>
-            <span>{zhDate(task.start_date)}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">预计完成</span>
-            <span className={overdue ? 'txt-warn' : ''}>
-              {zhDate(task.expected_end_date)}
-              {overdue && '（已逾期）'}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">实际完成</span>
-            <span>{zhDate(task.actual_end_date)}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">创建于</span>
-            <span>{shortDateTime(task.created_at)}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">最后更新</span>
-            <span>
-              {shortDateTime(
-                updates.length > 0
-                  ? updates[updates.length - 1].created_at // 最新时间线时间（真实活动）
-                  : task.updated_at,
-              )}
-            </span>
-          </div>
+        <div className="detail-progress-block">
+          <div className="detail-progress-label"><span>任务进度</span></div>
+          <TaskProgress progress={task.progress} overdue={overdue} />
+        </div>
+
+        <div className="detail-facts">
+          <Fact label="开始日期" value={zhDate(task.start_date)} />
+          <Fact label="预计完成" value={zhDate(task.expected_end_date)} warn={overdue || !task.expected_end_date} suffix={overdue ? '已逾期' : undefined} />
+          <Fact label="实际完成" value={zhDate(task.actual_end_date)} />
+          <Fact label="创建时间" value={shortDateTime(task.created_at)} />
         </div>
 
         {task.current_status && (
-          <div className="current-status">
-            <span className="info-label">当前情况</span>
+          <div className="detail-current">
+            <span>当前情况</span>
             <p>{task.current_status}</p>
           </div>
         )}
         {task.status === 'blocked' && task.block_reason && (
-          <div className="current-status">
-            <span className="info-label">阻塞原因</span>
-            <p className="block-reason">⛔ {task.block_reason}</p>
-          </div>
+          <div className="detail-blocker"><strong>当前阻塞</strong><p>{task.block_reason}</p></div>
         )}
+      </article>
 
-        <div className="row-gap">
-          <button className="btn btn-primary" onClick={() => setQuick(true)}>
-            快速更新
-          </button>
-          <button className="btn btn-danger btn-sm" onClick={() => void remove()}>
-            删除任务
-          </button>
-        </div>
+      <div className="detail-content-grid">
+        <section className="timeline-panel card">
+          <div className="panel-heading">
+            <div><span className="eyebrow">Activity history</span><h2>任务时间线</h2></div>
+            <span className="count-pill">{timelineUpdates.length}</span>
+          </div>
+          <p className="section-intro">进展、阻塞与排期变化会按时间完整保留。</p>
+          <TaskTimeline updates={timelineUpdates} />
+        </section>
+
+        <aside className="detail-sidebar">
+          <LeaderCommentPanel
+            taskId={task.id}
+            comments={comments}
+            service={service}
+            autoFocus={searchParams.get('comment') === '1'}
+            onDone={notify}
+          />
+          <details className="danger-zone">
+            <summary>任务管理</summary>
+            <p>删除后任务、时间线和留言都不可恢复。</p>
+            <button className="btn btn-danger btn-sm" onClick={() => void remove()}>删除任务</button>
+          </details>
+        </aside>
       </div>
 
-      <section className="detail-section">
-        <h2>任务时间线</h2>
-        <p className="muted">每一次进展、阻塞、排期调整都会记录在这里。</p>
-        <TaskTimeline updates={updates} />
-      </section>
-
-      {quick && (
-        <QuickUpdateModal
-          task={task}
-          service={service}
-          onClose={() => setQuick(false)}
-          onDone={(msg) => {
-            setToast(msg)
-            window.setTimeout(() => setToast(''), 3000)
-            void refresh()
-          }}
-        />
-      )}
+      {quick && <QuickUpdateModal task={task} service={service} onClose={() => setQuick(false)} onDone={notify} />}
       {toast && <div className="toast">{toast}</div>}
+    </div>
+  )
+}
+
+function Fact({ label, value, warn = false, suffix }: { label: string; value: string; warn?: boolean; suffix?: string }) {
+  return (
+    <div className="detail-fact">
+      <span>{label}</span>
+      <strong className={warn ? 'txt-warn' : ''}>{value}</strong>
+      {suffix && <small>{suffix}</small>}
     </div>
   )
 }

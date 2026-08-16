@@ -11,6 +11,7 @@
 import type { DB } from './db'
 import type { Task, TaskCreateInput, TaskStatus, TaskUpdate, UpdateType } from '../types'
 import { todayISO } from './format'
+import { encodeComment } from './comments'
 
 export interface TaskServiceOptions {
   /** 当前操作者标识（邮箱或 'admin'），写入 created_by */
@@ -46,6 +47,9 @@ export interface TaskService {
 
   /** 追加一条任意类型的时间线（note / interrupt / progress 说明等） */
   addNote(id: string, type: UpdateType, content: string): Promise<TaskUpdate>
+
+  /** Leader 留言：作为特殊 note 写入时间线，保留独立作者 */
+  addComment(id: string, author: string, content: string): Promise<TaskUpdate>
 }
 
 export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService {
@@ -139,6 +143,19 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
         type,
         content: content.trim(),
         created_by: who(),
+      })
+    },
+
+    async addComment(id, author, content) {
+      const cleanAuthor = author.trim()
+      const cleanContent = content.trim()
+      if (!cleanAuthor) throw new Error('留言署名不能为空')
+      if (!cleanContent) throw new Error('留言内容不能为空')
+      return db.addUpdate({
+        task_id: id,
+        type: 'note',
+        content: encodeComment(cleanContent),
+        created_by: cleanAuthor,
       })
     },
   }

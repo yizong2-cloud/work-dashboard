@@ -1,5 +1,6 @@
 import type { TaskUpdate, UpdateType } from '../types'
 import { shortDateTime, shortDate } from '../lib/format'
+import { commentBody, isComment } from '../lib/comments'
 
 const TYPE_META: Record<UpdateType, { label: string; className: string }> = {
   progress: { label: '进展', className: 'tl-progress' },
@@ -20,7 +21,10 @@ export function TaskTimeline({ updates }: { updates: TaskUpdate[] }) {
   return (
     <ol className="timeline">
       {sorted.map((u) => {
-        const meta = TYPE_META[u.type] ?? TYPE_META.note
+        const comment = isComment(u)
+        const meta = comment
+          ? { label: '留言', className: 'tl-comment' }
+          : (TYPE_META[u.type] ?? TYPE_META.note)
         const hasSchedule = u.old_expected_end_date || u.new_expected_end_date
         return (
           <li key={u.id} className="timeline-item">
@@ -30,7 +34,7 @@ export function TaskTimeline({ updates }: { updates: TaskUpdate[] }) {
                 <span className={`tl-type ${meta.className}`}>{meta.label}</span>
                 <time>{shortDateTime(u.created_at)}</time>
               </div>
-              <p className="tl-content">{u.content}</p>
+              <p className="tl-content">{comment ? commentBody(u) : u.content}</p>
               {hasSchedule && (
                 <p className="tl-schedule-change">
                   {shortDate(u.old_expected_end_date)} → {shortDate(u.new_expected_end_date)}

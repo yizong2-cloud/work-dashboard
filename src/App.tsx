@@ -8,7 +8,7 @@ import { TaskDetail } from './pages/TaskDetail'
 // 因此使用 HashRouter（URL 形如 /work-dashboard/#/task/:id），刷新永不 404，最稳妥。
 export default function App() {
   return (
-    <HashRouter>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
