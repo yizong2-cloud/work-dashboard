@@ -166,7 +166,7 @@ export function Schedule() {
     }
   }
 
-  function pos(block: PlanBlock): { left: number; width: number } {
+  function pos(block: { start_date: string; end_date: string }): { left: number; width: number } {
     const start = Math.max(0, dayIndex(block.start_date))
     const end = Math.min(RANGE_DAYS - 1, dayIndex(block.end_date))
     return {
@@ -255,46 +255,63 @@ export function Schedule() {
             ))}
           </div>
         </div>
-        {rows.length === 0 ? <p className="muted">还没有计划块或活跃任务。</p> : null}
-        {rows.map(({ task, blocks: taskBlocks }) => (
-          <div key={task!.id} className="plan-row">
-            <button className="plan-task-name" onClick={() => navigate(`/task/${task!.id}`)}>
-              {task!.title}
-              {task!.status === 'blocked' && ' ⛔'}
-            </button>
-            <div className="plan-track">
-              {taskBlocks.map((b) => {
-                const p = pos(b)
-                const done = b.status === 'done'
-                const changed = b.status === 'changed'
-                return (
+        {rows.length === 0 ? <p className="muted">还没有活跃任务或排期。</p> : null}
+        {rows.map(({ task, blocks: taskBlocks }) => {
+          const hasSchedule = !!task!.start_date && !!task!.expected_end_date
+          const scheduleBar = hasSchedule ? pos({ start_date: task!.start_date!, end_date: task!.expected_end_date! }) : null
+          return (
+            <div key={task!.id} className="plan-row">
+              <button className="plan-task-name" onClick={() => navigate(`/task/${task!.id}`)}>
+                {task!.title}
+                {task!.status === 'blocked' && ' ⛔'}
+                {!task!.expected_end_date && <span className="tag tag-noschedule">未排期</span>}
+              </button>
+              <div className="plan-track">
+                {/* 自动排期条：任务生命周期（开始 ~ 预计完成），无需手动维护 */}
+                {scheduleBar && (
                   <div
-                    key={b.id}
-                    className={`plan-block ${done ? 'plan-done' : ''} ${changed ? 'plan-changed' : ''} ${b.task_id === adjustBlock?.id ? 'plan-adjusting' : ''}`}
-                    style={{ left: `${p.left}%`, width: `${p.width}%` }}
-                    title={`${b.start_date} ~ ${b.end_date} · ${b.summary || '无摘要'}`}
+                    className={`plan-schedule-bar ${isOverdueSchedule(task!) ? 'plan-schedule-overdue' : ''}`}
+                    style={{ left: `${scheduleBar.left}%`, width: `${scheduleBar.width}%` }}
+                    title={`排期：${task!.start_date} ~ ${task!.expected_end_date}${isOverdueSchedule(task!) ? '（已逾期）' : ''}`}
                   >
-                    <span className="plan-block-text">{b.summary || '计划'}</span>
-                    <span className="plan-block-actions">
-                      <button onClick={(e) => { e.stopPropagation(); void toggleDone(b) }}>{done ? '恢复' : '完成'}</button>
-                      <button onClick={(e) => {
-                        e.stopPropagation()
-                        setAdjustBlock(b); setAdjFrom(b.start_date); setAdjTo(b.end_date); setAdjNote('')
-                      }}>调整</button>
+                    <span className="plan-schedule-label">
+                      排期 {shortDate(task!.start_date)} ~ {shortDate(task!.expected_end_date)}
                     </span>
                   </div>
-                )
-              })}
+                )}
+                {taskBlocks.map((b) => {
+                  const p = pos(b)
+                  const done = b.status === 'done'
+                  const changed = b.status === 'changed'
+                  return (
+                    <div
+                      key={b.id}
+                      className={`plan-block ${done ? 'plan-done' : ''} ${changed ? 'plan-changed' : ''} ${b.task_id === adjustBlock?.id ? 'plan-adjusting' : ''}`}
+                      style={{ left: `${p.left}%`, width: `${p.width}%` }}
+                      title={`${b.start_date} ~ ${b.end_date} · ${b.summary || '无摘要'}`}
+                    >
+                      <span className="plan-block-text">{b.summary || '计划'}</span>
+                      <span className="plan-block-actions">
+                        <button onClick={(e) => { e.stopPropagation(); void toggleDone(b) }}>{done ? '恢复' : '完成'}</button>
+                        <button onClick={(e) => {
+                          e.stopPropagation()
+                          setAdjustBlock(b); setAdjFrom(b.start_date); setAdjTo(b.end_date); setAdjNote('')
+                        }}>调整</button>
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {unscheduled.length > 0 && (
           <p className="plan-unscheduled muted">
             ⚠️ {unscheduled.length} 个活跃任务未安排计划：{unscheduled.map((t) => t.title).join('、')}
           </p>
         )}
         <div className="plan-legend muted">
-          <span className="plan-legend-dot plan-legend-planned" />计划 · <span className="plan-legend-dot plan-legend-done" />已完成 · <span className="plan-legend-dot plan-legend-changed" />已调整 · 今天列高亮
+          <span className="plan-legend-dot plan-legend-schedule" />自动排期（任务开始~预计完成） · <span className="plan-legend-dot plan-legend-planned" />计划块 · <span className="plan-legend-dot plan-legend-done" />已完成 · <span className="plan-legend-dot plan-legend-changed" />已调整 · 今天列高亮
         </div>
       </section>
 
@@ -320,5 +337,14 @@ export function Schedule() {
 
       {toast && <div className="toast">{toast}</div>}
     </div>
+  )
+}
+
+function isOverdueSchedule(task: Task): boolean {
+  return (
+    !!task.expected_end_date &&
+    task.status !== 'completed' &&
+    task.status !== 'cancelled' &&
+    task.expected_end_date < todayISO()
   )
 }

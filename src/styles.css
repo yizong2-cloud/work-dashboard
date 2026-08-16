@@ -2151,3 +2151,10 @@ section {
   .plan-head, .plan-row { grid-template-columns: 110px 1fr; }
   .plan-timeline { padding: 12px; }
 }
+
+/* 自动排期条（任务生命周期） */
+.plan-schedule-bar { position: absolute; bottom: 3px; height: 7px; border-radius: 4px; background: rgba(37, 99, 235, 0.16); border: 1px dashed rgba(37, 99, 235, 0.45); pointer-events: none; display: flex; align-items: center; overflow: hidden; }
+.plan-schedule-overdue { background: rgba(220, 38, 38, 0.14); border-color: rgba(220, 38, 38, 0.5); }
+.plan-schedule-label { font-size: 0.62rem; color: #2563eb; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-schedule-overdue .plan-schedule-label { color: #dc2626; }
+.plan-legend-schedule { background: rgba(37, 99, 235, 0.3); border: 1px dashed rgba(37, 99, 235, 0.6); }
