@@ -305,6 +305,48 @@ create table if not exists public.notification_outbox (
 
 create index if not exists notification_outbox_status_idx on public.notification_outbox (status, created_at);
 
+-- ---- 投递目标配置（URL 与签名 secret，值在部署时写入，不落仓库）----
+create table if not exists public.webhook_endpoint (
+  id     int primary key default 1 check (id = 1),
+  url    text not null default '',
+  secret text not null default ''
+);
+-- RLS：不允许 anon 读取投递配置；触发器以 security definer 访问
+alter table public.webhook_endpoint enable row level security;
+drop policy if exists webhook_endpoint_no_public on public.webhook_endpoint;
+
+-- ---- 投递触发器：outbox 新事件（或失败重试置 pending）→ pg_net 调 Edge Function ----
+-- 替代平台 Database Webhook（Management API 无 CRUD 端点，pg_net 全自动且无需控制台）。
+-- 幂等由 Edge Function 的 claim 保证；失败事件由 retry_failed_notifications() 置回 pending 触发重发。
+create or replace function public.notify_outbox_deliver()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare v_ep public.webhook_endpoint;
+begin
+  if new.status <> 'pending' then
+    return new;
+  end if;
+  select * into v_ep from public.webhook_endpoint where id = 1;
+  if v_ep is null or v_ep.url = '' then
+    return new; -- 未配置投递目标，静默跳过（outbox 仍可审计）
+  end if;
+  perform net.http_post(
+    url := v_ep.url,
+    body := jsonb_build_object('type', TG_OP, 'table', 'notification_outbox', 'record', to_jsonb(new)),
+    headers := jsonb_build_object('content-type', 'application/json', 'x-dashboard-secret', v_ep.secret),
+    timeout_milliseconds := 30000
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_outbox_deliver_trigger on public.notification_outbox;
+create trigger notify_outbox_deliver_trigger
+  after insert or update of status on public.notification_outbox
+  for each row execute function public.notify_outbox_deliver();
+
 alter table public.notification_outbox enable row level security;
 -- 无 anon/authenticated 策略：只有 service_role / 触发器（security definer）可访问
 drop policy if exists outbox_no_public_access on public.notification_outbox;

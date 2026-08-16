@@ -17,7 +17,7 @@ task_feedback_messages / threads        task_updates
         ▼                                        ▼
               notification_outbox（唯一事件源；幂等键 = 源记录 id）
         │
-        ▼ Database Webhook（监听 INSERT + UPDATE，带 x-dashboard-secret）
+        ▼ 投递触发器（pg_net 异步调用 Edge Function，带 x-dashboard-secret）
         │
         ▼ feishu-notify Edge Function
         │   验签 → 幂等 claim（pending→sending）→ 加载任务/原反馈 → 建卡 → 发飞书
@@ -46,20 +46,13 @@ task_feedback_messages / threads        task_updates
    - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
 3. **本地测试**：`npm test`（含 `scripts/notify-cards.test.js`：事件分类、深链接、原反馈摘要、聚合卡、不泄露密钥）
 
-## 需要你在控制台完成：Database Webhook（约 3 分钟）
+## 投递方式（已自动配置，无需控制台）
 
-> Management API 无 webhook CRUD 端点，需在控制台操作一次。
-
-1. 打开 https://supabase.com/dashboard/project/htrihsrxzcohxzzvwebz → 左侧 **Database** → **Webhooks** → **Create a new hook**（若提示启用该功能，点启用）
-2. 填写：
-   - **Name**: `feishu-notify-outbox`
-   - **Table**: `notification_outbox`
-   - **Events**: 勾选 `INSERT` 和 `UPDATE`（UPDATE 用于失败重试重新投递）
-   - **URL**: `https://htrihsrxzcohxzzvwebz.supabase.co/functions/v1/feishu-notify`
-   - **Headers**: `x-dashboard-secret` = 与 Supabase Secret `DASHBOARD_WEBHOOK_SECRET` 相同的值
-3. 保存。
-
-> 旧配置（如监听 `task_updates` 的 hook）可保留（函数会跳过非 outbox 事件）或删除。
+- 采用 **pg_net 触发器**（`notify_outbox_deliver`）在 outbox 新事件时异步调用 Edge Function，
+  不需要在控制台配置 Database Webhook（Management API 无 webhook CRUD 端点）。
+- 投递目标（函数 URL + `x-dashboard-secret`）存在 `public.webhook_endpoint` 表（RLS 禁止 anon 读取），
+  值在部署时写入，不落仓库；**与函数 Secrets `DASHBOARD_WEBHOOK_SECRET` 保持一致**。
+- 更换 secret：重新生成 → `supabase secrets set DASHBOARD_WEBHOOK_SECRET=<新值>` → `update public.webhook_endpoint set secret='<新值>' where id=1`。
 
 ## 端到端验证清单
 
