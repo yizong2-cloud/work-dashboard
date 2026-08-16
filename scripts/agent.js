@@ -215,6 +215,10 @@ async function opUpdate(op) {
   if (op.current_status !== undefined) patch.current_status = String(op.current_status)
   if (op.priority !== undefined) patch.priority = assertPriority(op.priority)
   if (op.status !== undefined) patch.status = assertStatus(op.status)
+  if (op.progress !== undefined) patch.progress = assertProgress(op.progress)
+  if (op.actual_end_date !== undefined) {
+    patch.actual_end_date = op.actual_end_date === 'null' || op.actual_end_date === '' ? null : assertDate(op.actual_end_date, '实际完成日期')
+  }
   if (op.start_date !== undefined || op.start !== undefined) {
     patch.start_date = assertDate(op.start_date ?? op.start, '开始日期')
   }
@@ -223,7 +227,7 @@ async function opUpdate(op) {
     patch.is_interrupt_task = op.interrupt === 'true' || op.interrupt === '1' || op.interrupt === true
   }
   if (Object.keys(patch).length === 0) {
-    fail('没有要更新的字段（支持 --title / --description / --current_status / --priority / --start_date / --status / --block_reason / --interrupt）')
+    fail('没有要更新的字段（支持 --title / --description / --current_status / --priority / --start_date / --status / --progress / --actual_end_date / --block_reason / --interrupt）')
   }
   if (dryRun) {
     human(`[dry-run] 更新任务 ${id}: ${JSON.stringify(patch)}`)
@@ -286,12 +290,19 @@ async function opNote(op) {
   const content = requireOp(op, 'content', '进展内容')
   const type = op.type ?? 'progress'
   if (!UPDATE_TYPES.includes(type)) fail(`非法更新类型: ${type}`)
+  const at = op.at ? String(op.at) : undefined
   if (dryRun) {
-    human(`[dry-run] 任务 ${id} 追加[${type}]记录: ${content}`)
+    human(`[dry-run] 任务 ${id} 追加[${type}]记录${at ? ` @${at}` : ''}: ${content}`)
     return null
   }
-  const update = await store.addUpdate({ task_id: id, type, content, created_by: who })
-  human(`✅ 已记录 [${type}]`)
+  const update = await store.addUpdate({
+    task_id: id,
+    type,
+    content,
+    created_by: who,
+    ...(at ? { created_at: at } : {}),
+  })
+  human(`✅ 已记录 [${type}]${at ? ` @${at}` : ''}`)
   human(renderUpdate(update))
   return update
 }
@@ -373,7 +384,8 @@ function opHelp() {
   block <id> --reason "原因"                    标记阻塞（必填原因）
   unblock <id> [--note]                         解除阻塞
   complete <id> [--note]                        标记完成（进度=100，记录实际完成日）
-  note <id> --content "内容" [--type 类型]      追加时间线（progress/interrupt/note/...）
+  note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"]   
+                                       追加时间线（progress/interrupt/note/...；--at 回填历史时间）
   delete <id>                                   删除任务（含时间线）
   batch --file ops.json                         批量执行（数组或 {ops: [...]}）
   seed [--file seed.json] [--force]             导入种子演示数据

@@ -99,7 +99,7 @@ function createLocalStore() {
         content: input.content,
         old_expected_end_date: input.old_expected_end_date ?? null,
         new_expected_end_date: input.new_expected_end_date ?? null,
-        created_at: now(),
+        created_at: input.created_at ?? now(),
         created_by: input.created_by ?? 'agent',
       }
       db.updates.push(update)
@@ -175,7 +175,16 @@ function createSupabaseStore(env) {
       return data
     },
     async addUpdate(input) {
-      const { data, error } = await client.from('task_updates').insert(input).select().single()
+      const payload = {
+        task_id: input.task_id,
+        type: input.type,
+        content: input.content,
+        old_expected_end_date: input.old_expected_end_date ?? null,
+        new_expected_end_date: input.new_expected_end_date ?? null,
+        created_by: input.created_by ?? 'agent',
+      }
+      if (input.created_at) payload.created_at = input.created_at
+      const { data, error } = await client.from('task_updates').insert(payload).select().single()
       if (error) throw new Error(error.message)
       return data
     },
