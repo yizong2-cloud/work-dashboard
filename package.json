@@ -14,7 +14,12 @@
     "update:export": "~/feishu_export/bin/feishu-export --incremental --markdown",
     "update:codex": "node scripts/codex-summary.js --days 3",
     "update:dsh": "node scripts/dsh-summary.js --days 3",
-    "test": "node --test scripts/agent.test.js"
+    "test": "node --test scripts/agent.test.js",
+    "dashboard:prepare": "node workflow/prepare.mjs",
+    "dashboard:apply": "node workflow/apply.mjs",
+    "dashboard:verify": "node workflow/verify.mjs",
+    "dashboard:cron:install": "node workflow/install-cron.mjs install",
+    "dashboard:cron:uninstall": "node workflow/install-cron.mjs uninstall"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

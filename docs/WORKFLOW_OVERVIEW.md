@@ -89,15 +89,29 @@ npm run agent -- seed --force                                  # 仅本地演示
 
 ## 6. 一条龙更新流程（用户说「开始更新」触发）
 
+**唯一入口**（详见 `workflow/README.md`）：
+
+```bash
+npm run dashboard:prepare    # ① 拉三数据源+看板+知识库 → workflow/update-context.json + 报告
+# Agent 分析 context（结合 KNOWLEDGE_BASE）→ 产出 workflow/ops.json
+npm run dashboard:apply -- --dry-run   # ② 预演
+npm run dashboard:apply                # ③ 执行
+npm run dashboard:verify               # ④ 校验
+npm run dashboard:cron:install         # 定时任务：每天 18:00 自动 prepare + 通知
+```
+
+**定时任务**：macOS launchd，每天 18:00 无人值守执行 `prepare`（机械拉取+打包+通知），
+分析/写入仍由 Agent 在用户确认后执行（避免 LLM 误判自动写库）。
+
 | 步骤 | 命令/动作 | 产出 |
 | --- | --- | --- |
-| ① 拉飞书 | `npm run update:export`（feishu-export --incremental） | `~/feishu_export/daily/range_*.md` |
-| ② 拉 Codex | `npm run update:codex` | Codex 会话摘要（cwd/用户请求/commit） |
-| ③ 拉 DSH | `npm run update:dsh` | DSH 会话摘要（用户用 DSH 处理的问题） |
-| ④ 读上下文 | KNOWLEDGE_BASE + 当前看板 `agent list` | 识别既有任务、目录映射 |
-| ⑤ 分析 | Agent/子 Agent 增量分析（过滤闲聊，合并同名任务） | 结构化变更建议 |
-| ⑥ 写入 | `npm run agent -- ...`（可先 --dry-run） | 线上库实时更新 |
-| ⑦ 回写 | 新别名/事实追加 KNOWLEDGE_BASE 并 commit | 知识库持续累积 |
+| ① 拉飞书 | `dashboard:prepare`（内含 feishu-export --incremental） | `~/feishu_export/daily/range_*.md` |
+| ② 拉 Codex | 同上（codex-summary.js） | 会话摘要（cwd/用户请求/commit） |
+| ③ 拉 DSH | 同上（dsh-summary.js） | DSH 会话摘要 |
+| ④ 打包 | 同上 | `workflow/update-context.json` + `latest-report.md`（规则化提示） |
+| ⑤ 分析 | Agent/子 Agent 增量分析（过滤闲聊，合并同名任务） | `workflow/ops.json` 变更建议 |
+| ⑥ 写入 | `dashboard:apply`（先 `--dry-run`） | 线上库实时更新 |
+| ⑦ 回写 | 新别名/事实追加 KNOWLEDGE_BASE（先入待确认区）并 commit | 知识库持续累积 |
 | ⑧ 汇报 | 总结更新内容与不确定点 | 用户刷新即见 |
 
 ## 7. 任务知识库（KNOWLEDGE_BASE）的作用

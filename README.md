@@ -65,7 +65,7 @@ work-dashboard/
 
 ## 一条龙更新流程（"开始更新"即触发）
 
-用户说「开始更新」→ `npm run update:export` 自动拉取飞书最新聊天（调用用户自写的 `feishu-export` 工具）→ Agent 结合 **[docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)**（任务别名映射/已确认事实/依赖关系）做增量分析 → 通过 CLI 更新线上数据 → 刷新即见。完整流程见 **[docs/UPDATE_WORKFLOW.md](docs/UPDATE_WORKFLOW.md)**。
+用户说「开始更新」→ **`npm run dashboard:prepare`**（自动拉飞书增量 + Codex 摘要 + DSH 摘要，打包 `workflow/update-context.json`）→ Agent 结合 **[docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)** 增量分析 → **`npm run dashboard:apply`** 写入 → **`npm run dashboard:verify`** 校验 → 刷新即见。还支持 **定时任务**（`npm run dashboard:cron:install`，每天 18:00 自动拉数据并通知）。完整流程见 **[docs/UPDATE_WORKFLOW.md](docs/UPDATE_WORKFLOW.md)** 与 **[workflow/README.md](workflow/README.md)**。
 
 ## 关键约定
 
