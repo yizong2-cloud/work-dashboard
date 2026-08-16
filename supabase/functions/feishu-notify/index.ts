@@ -53,7 +53,7 @@ Deno.serve(async (request) => {
         return response({ ok: true, skipped: true, reason: 'unsupported event type' })
       }
       const channel = await sendFeishu(card)
-      await markStatus(record.id, 'sent', '', channel)
+      await markStatus(record.id, 'sent', '', new Date().toISOString())
       return response({ ok: true, channel, event_id: record.id })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -100,13 +100,16 @@ async function claimEvent(id: string): Promise<boolean> {
 }
 
 async function markStatus(id: string, status: string, lastError: string, sentAt?: string): Promise<void> {
-  const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
-  if (lastError) patch.last_error = lastError
-  if (status === 'sent') patch.sent_at = new Date().toISOString()
-  if (status === 'failed') patch.attempts = 1 // 用 UPDATE 表达式自增更稳，这里简化为标记；重试次数看 attempts
+  // 通过 RPC 原子更新：failed 时 attempts 自增（REST PATCH 无法做表达式）
+  const body = JSON.stringify({
+    p_id: id,
+    p_status: status,
+    p_error: lastError ?? '',
+    p_sent_at: sentAt ?? null,
+  })
   const result = await fetch(
-    `${adminUrl()}/rest/v1/notification_outbox?id=eq.${encodeURIComponent(id)}`,
-    { method: 'PATCH', headers: adminHeaders(), body: JSON.stringify(patch) },
+    `${adminUrl()}/rest/v1/rpc/mark_notification_status`,
+    { method: 'POST', headers: { ...adminHeaders(), Prefer: 'return=minimal' }, body },
   )
   if (!result.ok) console.error(`[feishu-notify] markStatus(${status}) failed: ${await result.text()}`)
 }

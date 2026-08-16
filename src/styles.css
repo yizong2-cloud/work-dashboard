@@ -2158,3 +2158,5 @@ section {
 .plan-schedule-label { font-size: 0.62rem; color: #2563eb; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plan-schedule-overdue .plan-schedule-label { color: #dc2626; }
 .plan-legend-schedule { background: rgba(37, 99, 235, 0.3); border: 1px dashed rgba(37, 99, 235, 0.6); }
+
+.count-pill-open { background: #fff7e8; color: #c47f17; }

@@ -28,7 +28,8 @@ export function Layout({ children }: { children: ReactNode }) {
           </Link>
           <nav className="nav">
             <span className="nav-sync"><i /> 数据持续更新</span>
-            <Link to="/" className="nav-link nav-link-active">总览</Link>
+            <Link to="/" className="nav-link">总览</Link>
+            <Link to="/schedule" className="nav-link">日程</Link>
           </nav>
         </div>
       </header>

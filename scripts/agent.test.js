@@ -194,3 +194,15 @@ test('plan-add/move/done/list：计划块全链路（含历史与非法日期）
   const bad2 = run('plan-add', tid, '--from', '2026-99-99', '--to', '2026-08-25')
   assert.ok(!bad2.ok, '非法日期应失败')
 })
+
+test('plan-move 不填原因必须报错', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '计划任务Y', '--end', '2026-08-25')
+  const tid = extractId(c.stdout)
+  const a = run('plan-add', tid, '--from', '2026-08-17', '--to', '2026-08-18')
+  assert.ok(a.ok, a.stderr)
+  const pid = extractId(a.stdout)
+  const m = run('plan-move', pid, '--from', '2026-08-19')
+  assert.ok(!m.ok, '不填原因应失败')
+  assert.match(m.stderr, /原因/)
+})

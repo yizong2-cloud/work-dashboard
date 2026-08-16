@@ -355,6 +355,28 @@ export function Dashboard() {
 
         <div className="side-stack">
           <article className="side-card card">
+            <div className="panel-heading compact-heading">
+              <div><span className="eyebrow">Feedback</span><h2>待回应反馈</h2></div>
+              <span className={`count-pill ${unresolvedThreads.length > 0 ? 'count-pill-open' : ''}`}>{unresolvedThreads.length}</span>
+            </div>
+            <div className="compact-list">
+              {unresolvedThreads.length === 0 ? (
+                <p className="empty-copy">暂无未解决反馈</p>
+              ) : (
+                unresolvedThreads.slice(0, 4).map((thread) => {
+                  const task = byId.get(thread.task_id)
+                  return (
+                    <button key={thread.id} onClick={() => navigate(`/task/${thread.task_id}?thread=${thread.id}`)}>
+                      <span className="compact-date">{shortDate(thread.latest_message_at ?? thread.created_at)}</span>
+                      <span>{task?.title || '（已删除任务）'}：{thread.latest_message || thread.latest_author || '反馈'}</span>
+                      <DashboardIcon name="chevron" />
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </article>
+          <article className="side-card card">
             <div className="panel-heading compact-heading"><div><span className="eyebrow">Coming next</span><h2>接下来</h2></div><span className="count-pill">{plannedTasks.length}</span></div>
             <div className="compact-list">
               {plannedTasks.length === 0 ? <p className="empty-copy">暂无待开始任务</p> : plannedTasks.slice(0, 4).map((task) => (

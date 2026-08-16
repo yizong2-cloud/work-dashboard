@@ -6,7 +6,7 @@ import { useTaskService } from '../hooks/useTaskService'
 import { validatePlanDates } from '../lib/planRules'
 import { shortDate, todayISO } from '../lib/format'
 
-const RANGE_DAYS = 7
+const RANGE_DAYS_MIN = 7
 
 function addDays(iso: string, n: number): string {
   const d = new Date(iso + 'T00:00:00')
@@ -24,6 +24,7 @@ export function Schedule() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [blocks, setBlocks] = useState<PlanBlock[]>([])
   const [rangeStart, setRangeStart] = useState(() => todayISO())
+  const [rangeDays, setRangeDays] = useState(RANGE_DAYS_MIN)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -39,7 +40,8 @@ export function Schedule() {
   const [adjTo, setAdjTo] = useState('')
   const [adjNote, setAdjNote] = useState('')
 
-  const rangeEnd = addDays(rangeStart, RANGE_DAYS - 1)
+  const rangeEnd = addDays(rangeStart, rangeDays - 1)
+  const planMinWidth = 190 + rangeDays * 84
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -64,8 +66,8 @@ export function Schedule() {
 
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
   const days = useMemo(
-    () => Array.from({ length: RANGE_DAYS }, (_, i) => addDays(rangeStart, i)),
-    [rangeStart],
+    () => Array.from({ length: rangeDays }, (_, i) => addDays(rangeStart, i)),
+    [rangeStart, rangeDays],
   )
   const today = todayISO()
 
@@ -133,6 +135,7 @@ export function Schedule() {
 
   async function doAdjust() {
     if (!adjustBlock) return
+    if (!adjNote.trim()) return setError('调整计划块必须填写原因')
     const err = validatePlanDates(adjFrom, adjTo)
     if (err) return setError(err)
     setBusy(true)
@@ -168,10 +171,10 @@ export function Schedule() {
 
   function pos(block: { start_date: string; end_date: string }): { left: number; width: number } {
     const start = Math.max(0, dayIndex(block.start_date))
-    const end = Math.min(RANGE_DAYS - 1, dayIndex(block.end_date))
+    const end = Math.min(rangeDays - 1, dayIndex(block.end_date))
     return {
-      left: (start / RANGE_DAYS) * 100,
-      width: ((end - start + 1) / RANGE_DAYS) * 100,
+      left: (start / rangeDays) * 100,
+      width: ((end - start + 1) / rangeDays) * 100,
     }
   }
   function dayIndex(iso: string): number {
@@ -193,9 +196,11 @@ export function Schedule() {
           <p>看每天安排什么：计划块（具体哪几天投入）与任务生命周期（开始/预计完成）相互独立。</p>
         </div>
         <div className="intro-actions">
-          <button className="btn btn-ghost" onClick={() => setRangeStart(addDays(rangeStart, -7))}>← 前 7 天</button>
-          <button className="btn btn-ghost" onClick={() => setRangeStart(addDays(rangeStart, 7))}>后 7 天 →</button>
-          <button className="btn btn-primary" onClick={() => setRangeStart(todayISO())}>回到今天</button>
+          <button className="btn btn-ghost" onClick={() => setRangeStart(addDays(rangeStart, -rangeDays))}>← 前 {rangeDays} 天</button>
+          <button className="btn btn-ghost" onClick={() => setRangeStart(addDays(rangeStart, rangeDays))}>后 {rangeDays} 天 →</button>
+          <button className={`btn btn-sm ${rangeDays === 7 ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setRangeDays(7)}>7 天</button>
+          <button className={`btn btn-sm ${rangeDays === 30 ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setRangeDays(30)}>30 天</button>
+          <button className="btn btn-ghost" onClick={() => setRangeStart(todayISO())}>回到今天</button>
         </div>
       </header>
 
@@ -245,7 +250,7 @@ export function Schedule() {
 
       {/* 时间轴 */}
       <section className="plan-timeline card">
-        <div className="plan-head">
+        <div className="plan-head" style={{ minWidth: planMinWidth }}>
           <span className="plan-head-task">任务</span>
           <div className="plan-head-days">
             {days.map((d) => (
@@ -260,7 +265,7 @@ export function Schedule() {
           const hasSchedule = !!task!.start_date && !!task!.expected_end_date
           const scheduleBar = hasSchedule ? pos({ start_date: task!.start_date!, end_date: task!.expected_end_date! }) : null
           return (
-            <div key={task!.id} className="plan-row">
+            <div key={task!.id} className="plan-row" style={{ minWidth: planMinWidth }}>
               <button className="plan-task-name" onClick={() => navigate(`/task/${task!.id}`)}>
                 {task!.title}
                 {task!.status === 'blocked' && ' ⛔'}

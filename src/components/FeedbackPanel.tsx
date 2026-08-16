@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FeedbackMessage, FeedbackRole, FeedbackStatus, FeedbackThread } from '../types'
 import type { FeedbackService, LegacyComment } from '../lib/feedbackService'
 import { feedbackDisplayName } from '../lib/feedbackRules'
 import { shortDateTime } from '../lib/format'
 
 const ROLE_KEY = 'work-dashboard:feedback-role'
+const COMMENT_MASCOT = `${import.meta.env.BASE_URL}mascots/mascot-comment.png`
 
 export const FEEDBACK_STATUS_LABEL: Record<FeedbackStatus, string> = {
   open: '待回应',
@@ -45,6 +46,14 @@ export function FeedbackPanel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  // 深链接定位（?thread=xxx）：初始展开并自动加载消息
+  useEffect(() => {
+    if (initialThreadId) {
+      void loadMessages(initialThreadId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialThreadId])
+
   const openCount = threads.filter((t) => t.status !== 'resolved').length
 
   const sorted = useMemo(
@@ -57,8 +66,8 @@ export function FeedbackPanel({
     localStorage.setItem(ROLE_KEY, next)
   }
 
-  async function loadMessages(threadId: string) {
-    if (messages[threadId]) return
+  async function loadMessages(threadId: string, force = false) {
+    if (!force && messages[threadId]) return
     try {
       const ms = await service.listMessages(threadId)
       setMessages((m) => ({ ...m, [threadId]: ms }))
@@ -98,7 +107,7 @@ export function FeedbackPanel({
     try {
       await service.reply(threadId, body, role)
       setDrafts((d) => ({ ...d, [threadId]: '' }))
-      await loadMessages(threadId)
+      await loadMessages(threadId, true)
       onNotify('回复已发送')
       onChanged()
     } catch (e) {
@@ -197,7 +206,10 @@ export function FeedbackPanel({
       <div className="comment-list">
         {sorted.length === 0 && legacyComments.length === 0 ? (
           <div className="comment-empty">
-            <span>还没有反馈。Leader 的留言会以线程形式出现在这里，可回复、可标记解决。</span>
+            <div className="comment-empty-art" aria-hidden="true">
+              <img src={COMMENT_MASCOT} alt="" loading="lazy" decoding="async" />
+              <span>还没有反馈。Leader 的留言会以线程形式出现在这里，可回复、可标记解决。</span>
+            </div>
           </div>
         ) : null}
         {sorted.map((thread) => {

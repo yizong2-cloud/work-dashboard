@@ -379,6 +379,7 @@ async function opPlanAdd(op) {
 
 async function opPlanMove(op) {
   const blockId = requireOp(op, 'id', '计划块 id')
+  const note = requireOp(op, 'note', '调整原因（调整计划块必须留因）')
   const from = op.from !== undefined ? assertDate(op.from, '开始日期') : null
   const to = op.to !== undefined ? assertDate(op.to, '结束日期') : null
   if (from && to && to < from) fail('结束日期不得早于开始日期')
