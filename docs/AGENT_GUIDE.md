@@ -37,7 +37,7 @@
 
 | 字段 | 说明 |
 | --- | --- |
-| `type` | `progress` 进展 / `status_change` 状态 / `schedule_change` 排期 / `blocked` 阻塞 / `unblocked` 解除 / `interrupt` 临时插入 / `note` 说明 / `completed` 完成 |
+| `type` | `progress` 进展 / `status_change` 状态 / `schedule_change` 排期 / `blocked` 阻塞 / `unblocked` 解除 / `interrupt` 临时插入 / `note` 说明 / `completed` 完成 / `urgent` 加急 / `nudge` 催办 |
 | `content` | 这条变化说了什么（要写清楚，Leader 靠它理解过程） |
 | `old_expected_end_date` / `new_expected_end_date` | 排期调整时的旧/新日期 |
 | `created_by` | 操作者（Agent 固定写「agent」，网页端写「本人」） |
@@ -95,6 +95,10 @@ npm run agent -- unblock <id> --note "素材已到位，恢复开发"
 # 完成 / 追加说明（--at 可回填历史时间，如 --at "2026-08-14T18:00:00"）
 npm run agent -- complete <id> --note "已发布上线，观察无异常"
 npm run agent -- note <id> --type interrupt --content "临时插入线上问题排查，占用约2小时" [--at "时间"]
+
+# Leader 协作操作（同样触发飞书通知）
+npm run agent -- nudge <id> --note "这个周五前能完成吗？"   # 催进度（橙色飞书卡 + 时间线留痕）
+npm run agent -- update <id> --priority urgent --note "Leader 要求加急"   # 加急（置顶 + 红色徽章）；取消加急用 --priority high
 
 # 删除（谨慎） / 批量 / 种子
 npm run agent -- delete <id>

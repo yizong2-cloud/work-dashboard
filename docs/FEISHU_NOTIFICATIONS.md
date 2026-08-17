@@ -33,7 +33,8 @@ task_feedback_messages / threads        task_updates
 | `feedback_created` | Leader 在网站发起反馈（线程首条消息） | 「💬 发起了新反馈」+ 任务名 + 正文；按钮**查看反馈并回复** → `#/task/:id?thread=:thread` | 即时 |
 | `feedback_replied` | 负责人在线程下回复 | 回复摘要 + **原反馈摘要**（上下文完整）；按钮同上 | 即时 |
 | `feedback_resolved` | 线程被标记解决 / 重新打开 | 低噪音状态卡（绿/橙） | 低频 |
-| `task_update`（blocked/unblocked/completed/schedule_change/interrupt） | 任务关键变化 | 现有任务简报卡；按钮**查看任务详情** | 即时 |
+| `task_update`（blocked/unblocked/completed/schedule_change/interrupt/urgent） | 任务关键变化（含**加急**，红色卡片「任务加急」） | 现有任务简报卡；按钮**查看任务详情** | 即时 |
+| `task_nudged` | Leader 在任务详情页点「催进度」（或 CLI `nudge`） | 橙色「⏰ 有人催进度了」卡 + 附言；按钮**查看任务并更新进度** | 即时 |
 | `task_update_progress`（普通进度） | 任意 progress 时间线 | **聚合摘要**「任务进度更新（N 条）」（数据库触发器把 30 分钟内同一任务的 progress 合并为一条，防止 Agent 批量更新刷屏） | 聚合 |
 
 ## 已部署内容（2026-08-16）
