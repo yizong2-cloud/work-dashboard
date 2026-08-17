@@ -50,7 +50,12 @@ function addDaysISO(dateStr, n) {
   return d.toISOString().slice(0, 10)
 }
 
-function collectSessionFiles(sinceISO) {
+/**
+ * 收集会话文件：按「最后修改时间 mtime ≥ minMtime」过滤（不再是文件名日期）。
+ * 原因：用户常「续着旧对话干活」——文件名日期是会话开始那天（可能很旧），
+ * 但 mtime 是最近活动时间；按文件名日期过滤会漏掉续旧对话的工作。
+ */
+function collectSessionFiles(minMtime) {
   const files = []
   if (!fs.existsSync(SESSIONS_ROOT)) return files
   for (const y of fs.readdirSync(SESSIONS_ROOT)) {
@@ -67,11 +72,12 @@ function collectSessionFiles(sinceISO) {
         if (!fs.statSync(dp).isDirectory()) continue
         for (const fn of fs.readdirSync(dp)) {
           if (!fn.startsWith('rollout-') || !fn.endsWith('.jsonl')) continue
-          // rollout-2026-08-13T20-04-21-xxx.jsonl
-          const m2 = fn.match(/^rollout-(\d{4}-\d{2}-\d{2})T/)
-          if (!m2) continue
-          const stamp = m2[1]
-          if (stamp >= sinceISO) files.push(path.join(dp, fn))
+          const fp = path.join(dp, fn)
+          try {
+            if (fs.statSync(fp).mtimeMs >= minMtime) files.push(fp)
+          } catch {
+            /* 文件可能被删除，忽略 */
+          }
         }
       }
     }

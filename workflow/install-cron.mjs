@@ -68,6 +68,7 @@ function plistXml() {
   <array>
     <string>${NODE_BIN}</string>
     <string>${path.join(ROOT, 'workflow', 'prepare.mjs')}</string>
+    <string>--no-advance</string>
   </array>
   <key>StartCalendarInterval</key>
   <array>

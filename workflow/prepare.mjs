@@ -72,11 +72,18 @@ function summarizeStep(line) {
 
 function main() {
   const steps = []
+  // 定时任务专用：只拉数据、不推进任何增量游标（飞书 lastSync + update-context.generated_at）。
+  // 否则 cron 拉完就把游标推走，下次手动「开始更新」会漏掉 cron 期间已拉到但未分析的内容。
+  const noAdvance = process.argv.includes('--no-advance')
 
   // ---- 1. 飞书增量导出 ----
   // --refresh-chats：强制重扫会话列表。否则 --incremental 复用 .state.json 里缓存的
   // updateTime（快照陈旧），会漏掉期间收到新消息、但上次快照不活跃的会话（如高琦 8/17）。
-  const feishuRes = run(FEISHU_BIN, ['--incremental', '--markdown', '--refresh-chats'], 300000)
+  // --no-advance（定时任务）：不推进飞书游标（--no-update-state），避免 cron 拉完数据
+  // 却把游标推走、导致下次手动「开始更新」漏掉 cron 期间已拉到但未分析的增量。
+  const feishuArgs = ['--incremental', '--markdown', '--refresh-chats']
+  if (noAdvance) feishuArgs.push('--no-update-state')
+  const feishuRes = run(FEISHU_BIN, feishuArgs, 300000)
   const feishuFile = latestFile(DAILY_DIR, /^range_.*\.md$/)
   let feishuText = '（无飞书增量文件）'
   if (feishuFile) {
@@ -161,8 +168,10 @@ function main() {
   }
 
   // ---- 打包 context ----
+  // generated_at 即增量游标：--no-advance（定时任务）时保持旧值，不推进，
+  // 这样下次手动「开始更新」的窗口仍从上次分析点起，不漏掉 cron 期间已拉到的内容。
   const ctx = {
-    generated_at: new Date().toISOString(),
+    generated_at: noAdvance ? (LAST_AT || new Date().toISOString()) : new Date().toISOString(),
     source_range_days: DAYS,
     incremental_since: LAST_AT,
     steps,
