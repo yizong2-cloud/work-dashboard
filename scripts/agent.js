@@ -289,7 +289,12 @@ async function opUpdate(op) {
       content = op.note ? op.note : '取消加急。'
     }
   }
-  const task = await store.applyTaskUpdate(id, patch, { type, content, created_by: who })
+  // update 只改非状态字段：普通字段更新（type=note）默认静默，避免与 progress/status
+  // 等进展通知重复刷屏；--notify 可强制即时。优先级变化（urgent/deurgent）是关键事件，保持即时。
+  const task = await store.applyTaskUpdate(id, patch, {
+    type, content, created_by: who,
+    notify_mode: type === 'note' && !op.notify ? 'silent' : 'immediate',
+  })
   human(`✅ 任务 ${id} 已更新（字段: ${changed}）`)
   human(renderTask(task))
   return task
