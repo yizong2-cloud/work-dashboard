@@ -320,7 +320,7 @@ export function Dashboard() {
                 <span className="work-status-text">{task.current_status || '尚未填写当前情况'}</span>
               </button>
               <div className="work-progress"><TaskProgress progress={task.progress} overdue={isOverdue(task)} size="sm" /></div>
-              <div className="work-due"><span>预计完成</span><strong className={isOverdue(task) || !task.expected_end_date ? 'txt-warn' : ''}>{task.expected_end_date ? shortDate(task.expected_end_date) : '未排期'}</strong>{!task.expected_end_date && (task.current_status || latestByTask.get(task.id)?.content) && <small className="due-reason" title={(task.current_status || latestByTask.get(task.id)?.content || '').slice(0, 80)}>{(task.current_status || latestByTask.get(task.id)?.content || '').slice(0, 18)}{(task.current_status || latestByTask.get(task.id)?.content || '').length > 18 ? '…' : ''}</small>}</div>
+              <div className="work-due"><span>预计完成</span><strong className={isOverdue(task) || !task.expected_end_date ? 'txt-warn' : ''}>{task.expected_end_date ? shortDate(task.expected_end_date) : '未排期'}</strong>{!task.expected_end_date && task.current_status && <small className="due-reason" title={task.current_status.slice(0, 80)}>{task.current_status.slice(0, 18)}{task.current_status.length > 18 ? '…' : ''}</small>}</div>
               <StatusBadge status={task.status} />
               <button
                 className={`comment-shortcut ${unresolvedByTask.get(task.id) ? 'comment-shortcut-open' : ''}`}
