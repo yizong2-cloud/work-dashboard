@@ -7,7 +7,7 @@ import { validatePlanDates } from '../lib/planRules'
 import { buildMonthCalendar, buildScheduleEntries, type ScheduleEntry } from '../lib/scheduleView'
 import { buildDailyReport } from '../lib/dailyReport'
 import { taskColorClass } from '../lib/taskColor'
-import { ScheduleWeek } from '../components/ScheduleWeek'
+import { ScheduleWeek, weekOf } from '../components/ScheduleWeek'
 import { TaskQuickCard } from '../components/TaskQuickCard'
 import { shortDate, todayISO } from '../lib/format'
 
@@ -106,8 +106,11 @@ export function Schedule() {
   const [adjNote, setAdjNote] = useState('')
   const [activeTask, setActiveTask] = useState<import('../types').Task | null>(null)
 
-  const { rangeStart, rangeEnd, weeks } = useMemo(() => buildMonthCalendar(monthStart), [monthStart])
   const today = todayISO()
+  const { rangeStart, rangeEnd, weeks } = useMemo(() => buildMonthCalendar(monthStart), [monthStart])
+  const weekRange = useMemo(() => { const w = weekOf(today); return { from: w[0], to: w[6] } }, [today])
+  // 计划块查询范围按当前视图：本周视图取本周，月历取该月——避免切回本周仍用被浏览月份的数据
+  const planRange = viewMode === 'week' ? weekRange : { from: rangeStart, to: rangeEnd }
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -115,7 +118,7 @@ export function Schedule() {
     try {
       const [taskRows, planRows, updateRows] = await Promise.all([
         service.listTasks(),
-        db.listPlanBlocks({ from: rangeStart, to: rangeEnd }),
+        db.listPlanBlocks({ from: planRange.from, to: planRange.to }),
         db.listAllUpdates(),
       ])
       setTasks(taskRows)
@@ -126,7 +129,7 @@ export function Schedule() {
     } finally {
       setLoading(false)
     }
-  }, [service, db, rangeStart, rangeEnd])
+  }, [service, db, planRange.from, planRange.to])
 
   useEffect(() => {
     void refresh()
@@ -151,6 +154,18 @@ export function Schedule() {
     () => buildDailyReport(tasks, allUpdates, today),
     [tasks, allUpdates, today],
   )
+
+  // 统一「安排到今天」：走 taskService.planToday（计划块 + 静默审计时间线），成功刷新、失败报错不吞
+  async function handlePlanToday(taskId: string) {
+    try {
+      await service.planToday(taskId)
+      setActiveTask(null)
+      await refresh()
+    } catch (reason) {
+      setActiveTask(null)
+      setError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
 
   function notify(message: string) {
     setToast(message)
@@ -291,10 +306,9 @@ export function Schedule() {
         <ScheduleWeek
           tasks={tasks}
           blocks={blocks}
-          db={db}
+          onPlanToday={(taskId) => void handlePlanToday(taskId)}
           onQuickProgress={(taskId) => navigate(`/task/${taskId}?action=progress`)}
           onOpenTask={(taskId) => navigate(`/task/${taskId}`)}
-          onPlanned={() => void refresh()}
         />
       ) : viewMode === 'calendar' ? (
         <>
@@ -450,11 +464,10 @@ export function Schedule() {
         <TaskQuickCard
           task={activeTask}
           blocks={blocks}
-          db={db}
+          onPlanToday={(taskId) => void handlePlanToday(taskId)}
           onQuickProgress={(taskId) => navigate(`/task/${taskId}?action=progress`)}
           onOpenTask={(taskId) => navigate(`/task/${taskId}`)}
           onClose={() => setActiveTask(null)}
-          onChanged={() => void refresh()}
         />
       )}
 

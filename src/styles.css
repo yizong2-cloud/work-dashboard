@@ -3518,3 +3518,22 @@ h3,
   .week-summary{grid-template-columns:repeat(2,1fr);}
   .week-grid{grid-template-columns:44px repeat(7,minmax(70px,1fr));}
 }
+/* ===== 任务颜色圆点（QuickCard / 通用）===== */
+.task-color-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;margin-right:8px;}
+.task-color-sunset{background:#f97316;}
+.task-color-ocean{background:#0ea5e9;}
+.task-color-forest{background:#22c55e;}
+.task-color-grape{background:#8b5cf6;}
+.task-color-gold{background:#d4a106;}
+.task-color-coral{background:#f43f5e;}
+.task-color-sky{background:#06b6d4;}
+.task-color-lime{background:#65a30d;}
+.task-color-rose{background:#ec4899;}
+.task-color-slate{background:#64748b;}
+.task-color-teal{background:#0d9488;}
+.task-color-amber{background:#d35400;}
+/* 周视图/月历 风险样式（红边，不覆盖任务色） */
+.week-plan.is-blocked,.week-plan.is-urgent,.task-chip.is-blocked,.task-chip.is-urgent{outline:2px solid var(--danger);outline-offset:0;}
+.task-chip.is-overdue{outline:2px solid var(--warn);}
+.week-risk.day-overdue{border:1px dashed var(--danger);background:var(--danger-weak);color:var(--danger);text-align:left;padding:4px 6px;border-radius:6px;font-size:.7rem;cursor:pointer;}
+.legend-overdue-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warn);margin-right:4px;}

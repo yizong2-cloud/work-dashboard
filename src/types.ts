@@ -101,6 +101,8 @@ export interface UpdateCreateInput {
   old_expected_end_date?: string | null
   new_expected_end_date?: string | null
   created_by?: string
+  /** 推送意图：immediate 即时 / merge 合并 / silent 静默（Agent 与统一领域操作用） */
+  notify_mode?: 'immediate' | 'merge' | 'silent'
 }
 
 // ============================================================
