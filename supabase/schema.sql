@@ -385,6 +385,12 @@ security definer
 as $$
 declare v_existing uuid;
 begin
+  -- 历史补记（CLI note/schedule 等 --at 回填，或批量拆分补时间线）：
+  -- 时间远早于当前说明不是「此刻发生」的事件，只入时间线、不触发实时推送。
+  if new.created_at < now() - interval '10 minutes' then
+    return new;
+  end if;
+
   if new.type = 'progress' then
     select id into v_existing
       from public.notification_outbox
