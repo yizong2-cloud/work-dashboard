@@ -64,6 +64,95 @@ function scanLocalFiles(sinceMs) {
   }
   return out.sort((a, b) => b.mtime.localeCompare(a.mtime))
 }
+
+// ============ 候选提示（LLM 职责收缩：先用规则化映射给 Agent 线索，而非从零提炼）============
+
+function loadSourceMap() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(ROOT, 'workflow', 'source-map.json'), 'utf8'))
+  } catch {
+    return { codex_cwd: [], feishu_chat: [] }
+  }
+}
+
+function matchPattern(list, str) {
+  const low = String(str || '').toLowerCase()
+  for (const rule of list) {
+    if (rule.pattern && low.includes(rule.pattern.toLowerCase())) return rule
+  }
+  return null
+}
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// 从 codex_detail / dsh_detail 会话（含 cwd）生成候选；unmapped 收集未映射目录提醒
+function buildSessionCandidates(sessions, map, key) {
+  const hits = []
+  const unmapped = []
+  for (const s of sessions) {
+    const cwd = s.cwd || ''
+    if (cwd.includes('Documents/Codex')) continue // 临时/测试会话
+    if (cwd === HOME || cwd === `${HOME}/`) continue // DSH 根目录会话（工具维护等）
+    const rule = matchPattern(map.codex_cwd, cwd)
+    if (rule) {
+      hits.push({ source: 'codex', cwd, hint: rule.hint, tasks: rule.tasks || [], last: s.lastTs || s.lastTsMs || null, start: s.start || null })
+    } else if (cwd) {
+      unmapped.push(cwd)
+    }
+  }
+  return { hits, unmapped: [...new Set(unmapped)] }
+}
+
+// 从飞书 markdown 提取群名并映射
+function buildFeishuCandidates(feishuText, map) {
+  const titles = []
+  const re = /^##\s+(.+)$/gm
+  let m
+  while ((m = re.exec(feishuText))) titles.push(m[1].trim())
+  const hits = []
+  const unmappedGroups = new Set()
+  for (const t of titles) {
+    const rule = matchPattern(map.feishu_chat, t)
+    if (rule) hits.push({ group: t, hint: rule.hint, tasks: rule.tasks || [] })
+    else unmappedGroups.add(t)
+  }
+  return { hits, unmappedGroups: [...unmappedGroups] }
+}
+
+function buildCandidates({ codexDetail, dshDetail, feishuText, localFiles, board }) {
+  const map = loadSourceMap()
+  const codexCand = buildSessionCandidates(codexDetail, map, 'codex')
+  const dshCand = buildSessionCandidates(dshDetail, map, 'dsh')
+  const feishuCand = buildFeishuCandidates(feishuText, map)
+  // 未排期 / 已逾期（Leader 核心痛点提示）
+  const today = todayStr()
+  const unscheduled = []
+  const overdue = []
+  for (const t of board || []) {
+    if (['in_progress', 'blocked', 'paused'].includes(t.status)) {
+      if (!t.expected_end_date) unscheduled.push(t.title)
+      else if (t.expected_end_date < today) overdue.push({ title: t.title, due: t.expected_end_date })
+    }
+  }
+  return {
+    codex: codexCand.hits,
+    dsh: dshCand.hits,
+    feishu: feishuCand.hits,
+    unmapped_cwd: [...codexCand.unmapped, ...dshCand.unmapped].filter((v, i, a) => a.indexOf(v) === i),
+    unmapped_feishu_groups: feishuCand.unmappedGroups,
+    unscheduled,
+    overdue,
+    all_sessions_accounted: !unmappedCwdRequired(codexCand.unmapped.concat(dshCand.unmapped)),
+  }
+}
+
+function unmappedCwdRequired(unmapped) {
+  // 有未映射的工作目录（且非 Downloads 素材）才需要提示
+  return unmapped.some((c) => !c.includes('Downloads') && !c.includes('Documents') && !c.includes('StudioProjects') && !c.includes('IdeaProjects'))
+}
 function run(cmd, args, timeoutMs = 120000) {
   try {
     const stdout = execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs })
@@ -199,6 +288,10 @@ function main() {
   try { codexDetail = JSON.parse(codexDetailRes.stdout) } catch { codexDetail = [] }
   try { dshDetail = JSON.parse(dshDetailRes.stdout) } catch { dshDetail = [] }
 
+  // ---- 候选提示（规则化线索，供 Agent 分析优先参考，降低从零提炼的漏/错）----
+  const candidates = buildCandidates({ codexDetail, dshDetail, feishuText, localFiles, board })
+  steps.push({ name: '候选提示', ok: true, detail: `codex命中${candidates.codex.length} dsh命中${candidates.dsh.length} 飞书群命中${candidates.feishu.length} 未映射目录${candidates.unmapped_cwd.length} 未排期${candidates.unscheduled.length} 逾期${candidates.overdue.length}` })
+
   // 摘要步骤报告（增量数 + 三日窗口 detail 数；增量可能为 0 但窗口内仍有长会话内容）
   if (!steps.some((s) => s.name === 'Codex 摘要')) {
     steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（三日窗口共 ${codexDetail.length} 个，含跨窗口长会话）` })
@@ -230,6 +323,7 @@ function main() {
     dsh,
     codex_detail: codexDetail,
     dsh_detail: dshDetail,
+    candidates,
     board,
     knowledge_base: knowledgeBase.slice(0, 40000),
   }
@@ -260,6 +354,18 @@ function main() {
     const req = (s.userMsgs && s.userMsgs[0] || '').replace(/\n/g, ' ').slice(0, 80)
     lines.push(`  - ${(s.start || '?').slice(0, 16).replace('T', ' ')} @ ${s.cwd} ${req ? `：${req}` : ''}`)
   }
+  lines.push('', '## 候选提示（规则化线索，供分析优先参考）', '')
+  lines.push(`- Codex/DSH 会话映射命中: ${candidates.codex.length + candidates.dsh.length}`)
+  for (const x of [...candidates.codex, ...candidates.dsh].slice(0, 8)) {
+    lines.push(`  - ${x.cwd} → ${(x.tasks || ['(无候选)']).slice(0, 2).join(' / ') || '(按内容判断)'}`)
+  }
+  lines.push(`- 飞书群命中: ${candidates.feishu.length}`)
+  for (const x of candidates.feishu.slice(0, 8)) {
+    lines.push(`  - ${x.group} → ${(x.tasks || ['(按内容判断)']).slice(0, 2).join(' / ')}`)
+  }
+  if (candidates.unmapped_cwd.length) lines.push(`- ⚠️ 未映射工作目录（可能新任务/需确认）: ${candidates.unmapped_cwd.join(', ')}`)
+  if (candidates.unscheduled.length) lines.push(`- 🟠 未排期活跃任务 ${candidates.unscheduled.length} 个（Leader 会问何时完成）`)
+  if (candidates.overdue.length) lines.push(`- 🔴 已逾期 ${candidates.overdue.length} 个`)
   lines.push('', '## 下一步', '')
   lines.push('1. Agent 读取 `workflow/update-context.json`，结合知识库做增量分析')
   lines.push('2. 生成变更建议 `workflow/ops.json`')

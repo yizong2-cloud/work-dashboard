@@ -282,7 +282,9 @@ const since = args.all ? '0000-01-01' : args.sinceTime ? args.sinceTime.slice(0,
 const sinceMs = args.sinceTime ? new Date(args.sinceTime).getTime() : 0
 console.error(`[codex-summary] 扫描 ${since.slice(0, 10)} 之后的 Codex 会话…`)
 
-const files = collectSessionFiles(addDaysISO(since.slice(0, 10), -2))
+// 收集起点：mtime 过滤（数字 ms）。增量/日期窗口都留 1 天缓冲，兼容跨 UTC 午夜续旧对话。
+const windowStartMs = args.all ? 0 : new Date(`${since.slice(0, 10)}T00:00:00Z`).getTime() - 86400000
+const files = collectSessionFiles(windowStartMs)
 let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
