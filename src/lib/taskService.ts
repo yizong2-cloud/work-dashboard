@@ -9,7 +9,7 @@
 // ============================================================
 
 import type { DB } from './db'
-import type { Task, TaskCreateInput, TaskStatus, TaskUpdate, UpdateType } from '../types'
+import type { Task, TaskCreateInput, TaskStatus, TaskUpdate, TaskUpdateInput, UpdateType } from '../types'
 import { todayISO } from './format'
 import { encodeComment } from './comments'
 
@@ -33,8 +33,8 @@ export interface TaskService {
   /** 修改状态，自动追加 status_change 时间线 */
   setStatus(id: string, status: TaskStatus, content?: string): Promise<Task>
 
-  /** 调整预计完成日期，自动记录 old/new */
-  setSchedule(id: string, expectedEndDate: string, content?: string, author?: string): Promise<Task>
+  /** 调整排期（预计完成日期必填；startDate 可选，传了则同时调整开始日期），自动记录 old/new */
+  setSchedule(id: string, expectedEndDate: string, content?: string, author?: string, startDate?: string | null): Promise<Task>
 
   /** 标记阻塞（必须给原因），自动追加 blocked 时间线 */
   setBlocked(id: string, reason: string): Promise<Task>
@@ -100,10 +100,12 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
       })
     },
 
-    async setSchedule(id, expectedEndDate, content, author) {
+    async setSchedule(id, expectedEndDate, content, author, startDate) {
       const before = await db.getTask(id)
       if (!before) throw new Error(`任务不存在: ${id}`)
-      return db.applyTaskUpdate(id, { expected_end_date: expectedEndDate }, {
+      const patch: TaskUpdateInput = { expected_end_date: expectedEndDate }
+      if (startDate !== undefined && startDate !== null) patch.start_date = startDate
+      return db.applyTaskUpdate(id, patch, {
         type: 'schedule_change',
         content: content?.trim() || '调整预计完成日期。',
         old_expected_end_date: before.expected_end_date,

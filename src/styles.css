@@ -3423,3 +3423,8 @@ h3,
   .daily-report-metrics span { flex: 1; }
   .daily-update { grid-template-columns: 40px auto 1fr; }
 }
+
+.field-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+}

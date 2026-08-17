@@ -29,6 +29,7 @@ export function LeaderActions({ task, service, onNotify, pendingNudges }: {
   const [action, setAction] = useState<ActionKind>(null)
   const [note, setNote] = useState('')
   const [date, setDate] = useState(task.expected_end_date ?? todayISO())
+  const [startDate, setStartDate] = useState(task.start_date ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -40,7 +41,10 @@ export function LeaderActions({ task, service, onNotify, pendingNudges }: {
     setAction(kind)
     setNote('')
     setError('')
-    if (kind === 'schedule') setDate(task.expected_end_date ?? todayISO())
+    if (kind === 'schedule') {
+      setDate(task.expected_end_date ?? todayISO())
+      setStartDate(task.start_date ?? '')
+    }
   }
 
   async function submit() {
@@ -56,8 +60,18 @@ export function LeaderActions({ task, service, onNotify, pendingNudges }: {
         await service.addNote(task.id, 'note', trimmed ? `已取消催办：${trimmed}` : '已取消催办。', 'Leader')
       }
       else if (action === 'schedule') {
-        if (!date) throw new Error('请选择日期')
-        await service.setSchedule(task.id, date, trimmed || undefined, 'Leader')
+        if (!date) throw new Error('请选择预计完成日期')
+        if (startDate && date < startDate) throw new Error('预计完成日期不能早于开始日期')
+        // 开始日期是否真的变化（空 = 不调整）
+        const startChanged = startDate !== '' && startDate !== task.start_date
+        let content = trimmed || undefined
+        if (startChanged) {
+          const parts: string[] = []
+          if (task.start_date) parts.push(`开始 ${task.start_date} → ${startDate}`)
+          else parts.push(`开始日期设为 ${startDate}`)
+          content = trimmed ? `${trimmed}（${parts.join('；')}）` : parts.join('；')
+        }
+        await service.setSchedule(task.id, date, content, 'Leader', startChanged ? startDate : undefined)
       }
       onNotify(ACTION_META[action].done)
       setAction(null)
@@ -93,10 +107,17 @@ export function LeaderActions({ task, service, onNotify, pendingNudges }: {
             <div className="modal-head"><h3>{meta.title}</h3></div>
             <div className="modal-body">
               {action === 'schedule' && (
-                <label className="field">
-                  <span>预计完成日期</span>
-                  <input type="date" value={date} min={todayISO()} onChange={(e) => setDate(e.target.value)} />
-                </label>
+                <>
+                  <label className="field">
+                    <span>开始日期（如需一并调整）</span>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <small className="field-hint">留空表示不调整开始日期</small>
+                  </label>
+                  <label className="field">
+                    <span>预计完成日期</span>
+                    <input type="date" value={date} min={startDate || todayISO()} onChange={(e) => setDate(e.target.value)} />
+                  </label>
+                </>
               )}
               <label className="field">
                 <span>{meta.noteLabel}</span>
