@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ============================================================
 // 安装「每天下班前自动拉取看板数据」的定时任务（macOS launchd）
-// 每天 18:00 运行 workflow/prepare.mjs（导出三数据源 + 打包 context + 报告 + 通知）。
+// 工作日 11:00/15:30/19:30 运行 workflow/prepare.mjs --no-advance（只拉数据、不推进增量游标、不分析）。
 // 分析/写入保持由 Agent 按需触发（需要 LLM 判断，且用户确认更稳）。
 //
 // 用法: npm run dashboard:cron:install
@@ -97,7 +97,7 @@ function install() {
     console.error(`❌ launchctl load 失败`)
     process.exit(1)
   }
-  console.log(`✅ 定时任务已安装（每天 18:00 自动拉取看板数据）`)
+  console.log(`✅ 定时任务已安装（工作日 11:00/15:30/19:30 自动拉取数据，--no-advance 只拉不推进游标）`)
   console.log(`   plist: ${PLIST}`)
   console.log(`   日志: ${LOG_OUT}`)
   console.log(`   校验: launchctl list | grep ${LABEL}`)

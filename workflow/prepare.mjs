@@ -21,19 +21,49 @@ const FEISHU_BIN = path.join(HOME, 'feishu_export', 'bin', 'feishu-export')
 const DAILY_DIR = path.join(HOME, 'feishu_export', 'daily')
 const DAYS = 3
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
+const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
 
-// 增量窗口：上次 context 的生成时间（UTC）；无则退化为最近 3 天
-function lastGeneratedAt() {
+// 分析游标 = 上次「apply + verify 都成功」的时间（由 verify 在通过后推进）。
+// 与「采集生成」分离：prepare 只管采集/打包，不推进分析游标——
+// 否则手动 prepare 即使分析中断也会把下批增量起点前移，导致永久漏数据。
+function readAnalysisState() {
   try {
-    const old = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'))
-    return old.generated_at || null
+    return JSON.parse(fs.readFileSync(ANALYSIS_STATE, 'utf8')) || {}
   } catch {
-    return null
+    return {}
   }
 }
-const LAST_AT = lastGeneratedAt()
+// 增量窗口起点：分析游标（无则退化最近 3 天由 codex/dsh 的 --days 兜底）
+const LAST_AT = readAnalysisState().reviewed_at || null
 const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
 
+// 第四数据源：本地常见放文档/素材/产物的目录（白名单，只收集元数据不含内容）
+const LOCAL_DIRS = [path.join(HOME, 'Downloads'), path.join(HOME, 'Desktop'), path.join(HOME, 'Documents')]
+const LOCAL_EXT = /\.(apk|pdf|md|docx?|xlsx?|pptx?|zip|html?|png|jpe?g|webp|gif|mp4|txt|jsx?|tsx?|json|svg)$/i
+
+// 扫描白名单目录里「自分析游标以来」修改过的文件，输出候选清单（path/mtime/size/ext）。
+// 只收集元数据，不把文件内容直接送入模型，避免无关/隐私文件泄漏。
+function scanLocalFiles(sinceMs) {
+  const out = []
+  if (!sinceMs) return out
+  const minMtime = sinceMs - 6 * 3600 * 1000 // 缓冲 6h，防止跨午夜/边界漏
+  for (const dir of LOCAL_DIRS) {
+    if (!fs.existsSync(dir)) continue
+    let entries
+    try { entries = fs.readdirSync(dir) } catch { continue }
+    for (const fn of entries) {
+      if (fn.startsWith('.')) continue
+      if (!LOCAL_EXT.test(fn)) continue
+      const fp = path.join(dir, fn)
+      let st
+      try { st = fs.statSync(fp) } catch { continue }
+      if (st.isFile() && st.mtimeMs >= minMtime) {
+        out.push({ path: fp, name: fn, mtime: new Date(st.mtimeMs).toISOString(), size: st.size, ext: fn.split('.').pop().toLowerCase() })
+      }
+    }
+  }
+  return out.sort((a, b) => b.mtime.localeCompare(a.mtime))
+}
 function run(cmd, args, timeoutMs = 120000) {
   try {
     const stdout = execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs })
@@ -150,6 +180,16 @@ function main() {
     knowledgeBase = '（知识库读取失败）'
   }
 
+  // ---- 5.5 第四数据源：本地新文件（Downloads/Desktop/Documents 白名单，仅元数据）----
+  const localFiles = scanLocalFiles(LAST_AT ? new Date(LAST_AT).getTime() : 0)
+  steps.push({ name: '本地新文件', ok: true, detail: `${localFiles.length} 个候选（自分析游标以来，元数据）` })
+
+  // ---- 快照健康：任一关键源失败即 degraded（apply 默认拒绝对接快照）----
+  const feishuOk = feishuRes.ok
+  const codexOk = !codexRes || codexRes.ok
+  const dshOk = !dshRes || dshRes.ok
+  const snapshot_health = feishuOk && codexOk && dshOk ? 'ok' : 'degraded'
+
   // ---- 详情：增量窗口内会话的完整对话内容（分析者第一步就能看到具体说了什么）----
   const detailArgs = (extra) => [path.join(ROOT, 'scripts', extra), '--days', String(DAYS), '--detail', '--json']
   const codexDetailRes = run('node', detailArgs('codex-summary.js'), 240000)
@@ -168,12 +208,22 @@ function main() {
   }
 
   // ---- 打包 context ----
-  // generated_at 即增量游标：--no-advance（定时任务）时保持旧值，不推进，
-  // 这样下次手动「开始更新」的窗口仍从上次分析点起，不漏掉 cron 期间已拉到的内容。
+  // captured_at = 本次采集时间（仅记录快照，不再是增量游标）；
+  // 分析游标在 .analysis-state.reviewed_at，由 verify 通过后推进。
+  // incremental_since = 上次成功审查的时间点，保证分析/应用中断也不会丢增量。
+  const capturedAt = new Date().toISOString()
   const ctx = {
-    generated_at: noAdvance ? (LAST_AT || new Date().toISOString()) : new Date().toISOString(),
-    source_range_days: DAYS,
+    captured_at: capturedAt,
+    generated_at: capturedAt,
     incremental_since: LAST_AT,
+    source_range_days: DAYS,
+    snapshot_health,
+    sources: {
+      feishu: { ok: feishuOk, file: feishuFile },
+      codex: { ok: codexOk, count: codex.length },
+      dsh: { ok: dshOk, count: dsh.length },
+      local_files: localFiles,
+    },
     steps,
     feishu: { latest_file: feishuFile, content: feishuText },
     codex,

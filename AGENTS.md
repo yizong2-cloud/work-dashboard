@@ -16,7 +16,7 @@
 npm run dashboard:prepare   # 拉取三数据源 + 打包 update-context.json（可定时无人值守）
 npm run dashboard:apply     # 校验并执行变更建议 ops.json（先 --dry-run）
 npm run dashboard:verify    # 校验数据不变量
-npm run dashboard:cron:install | uninstall   # 定时任务（每天 18:00 自动 prepare）
+npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15:30/19:30 自动 prepare，--no-advance 只拉不推进游标）
 ```
 
 完整流程见 `workflow/README.md` 与 `docs/UPDATE_WORKFLOW.md`。
@@ -53,6 +53,6 @@ npm run dashboard:cron:install | uninstall   # 定时任务（每天 18:00 自�
 
 ## 质量
 
-- `npm test`：Agent CLI 测试（12 用例，本地隔离，绝不碰线上）
+- `npm test`：本地测试集（CLI/卡片构建/摘要器，本地隔离，绝不碰线上；数量以 `npm test` 实际执行为准），当前 45 用例全绿
 - `npm run build`：TS 严格编译 + Vite 构建
 - 数据库 CHECK 约束兜底：`completed→progress=100 且 actual_end_date 非空`、`blocked→block_reason 非空`

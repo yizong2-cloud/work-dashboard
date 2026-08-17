@@ -11,3 +11,5 @@ data
 workflow/update-context.json
 workflow/latest-report.md
 workflow/ops.json
+workflow/.analysis-state.json
+workflow/last-changeset.json

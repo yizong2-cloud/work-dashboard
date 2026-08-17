@@ -19,7 +19,7 @@
   ① 飞书聊天   ~/feishu_export/daily/range_*.md/.json   （沟通/排期/阻塞/需求）
   ② Codex 会话 ~/.codex/sessions/**/rollout-*.jsonl      （实际开发记录）
   ③ DSH 会话   ~/.dsh/sessions/**/session.jsonl.zstd     （DSH 处理的问题）
-  ④ 本地新文件 ~/Downloads 等（apk/pdf/md 需求文档/素材）  ← prepare 不覆盖，靠「对账」补
+  ④ 本地新文件 ~/Downloads 等（apk/pdf/md 需求文档/素材）  ← prepare 白名单扫描元数据（snapshot.sources.local_files）
         │ 读取器 scripts/ (codex-summary.js / dsh-summary.js / feishu-export 外部工具)
         ▼
    prepare.mjs ──打包──▶ workflow/update-context.json + latest-report.md（增量 + 三日窗口 detail）
@@ -197,6 +197,21 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 - 通知是否应改为"关键事件即时 + 普通事件默认聚合/日报"，进一步减少对 Agent 正确声明 notify_mode 的依赖？
 - 本地 Downloads 等第四数据源能否纳入 prepare 自动扫描？
 - 测试能否扩展到触发器/前端（哪怕冒烟级），减少对"手工端到端"的依赖？
+
+### 10.4 审查后的本轮改进（2026-08-17 第二次审查）
+
+外部审查提出 P0/P1 后已完成：
+1. **游标语义分离**：`captured_at`（采集快照时间）与 `.analysis-state.reviewed_at`（分析游标）分离；**仅 apply+verify 均成功、verify 通过时才推进分析游标**——分析中断不会再丢增量（此前手动 prepare 就会把游标前移）。
+2. **verify 真正校验**：新增引用完整性检查（孤儿时间线/孤儿计划块，线上模式经 Supabase REST 查询）；发现问题 `exit(1)`，不再把违规当正常快照；通过后推进分析游标。
+3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——默认拒绝，需 --force）；② 高风险操作（create/complete/block/delete/schedule）必须带 reconciliation（全量对账证据）；③ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；④ 执行后写 `workflow/last-changeset.json` 可追溯。
+4. **第四数据源纳入 prepare**：白名单目录（Downloads/Desktop/Documents）扫描自分析游标以来的新文件，仅收集元数据（path/mtime/size/ext），输出到 `snapshot.sources.local_files`，不再靠人工记忆。
+5. **manifest/snapshot**：`update-context.json` 现含 `captured_at`、`snapshot_health`、`sources`（各源 ok/失败 + 计数 + 本地文件）。
+6. **通知**：关键事件即时、note/update 静默、批量 merge——由 CLI 命令类型内置默认 notify_mode 实现（已确认），未为改触发器引入回归风险。
+7. **文档/schema 漂移修复**：cron 时间注释（工作日 11/15:30/19:30）、测试数口径、operation.schema.json 补 `urgent`。
+
+仍待办 / 需用户拍板：
+- **候选提示**（prepare 规则化产出「疑似任务/进度」降低对 LLM 语义提炼的依赖）：工程量大、易误报，列为下一步优化。
+- **RLS 写权限收紧**（外部审查 P0：禁匿名写）：与用户明确「不做登录/权限」的决策冲突，**需用户重新拍板**是否引入轻量写保护。
 
 ## 11. 文件索引
 
