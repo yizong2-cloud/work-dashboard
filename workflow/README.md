@@ -7,10 +7,10 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dashboard:prepare` | 拉取三数据源（飞书/Codex/DSH）+ 当前看板 + 知识库，打包 `workflow/update-context.json`，生成 `workflow/latest-report.md`（规则化提示，无需 LLM）。**可无人值守** |
+| `npm run dashboard:prepare` | 拉取四数据源（飞书/Codex/DSH/本地 Downloads 白名单）+ 当前看板 + 知识库 + 候选提示，打包 `workflow/update-context.json`，生成 `workflow/latest-report.md`（规则化提示，无需 LLM）。**可无人值守** |
 | `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
-| `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，每天 18:00 自动 `prepare` + 通知） |
+| `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
 
 ## 一条龙流程（用户说「开始更新」时）

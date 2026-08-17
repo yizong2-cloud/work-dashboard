@@ -210,7 +210,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 7. **文档/schema 漂移修复**：cron 时间注释（工作日 11/15:30/19:30）、测试数口径、operation.schema.json 补 `urgent`。
 
 仍待办 / 需用户拍板：
-- **候选提示**（prepare 规则化产出「疑似任务/进度」降低对 LLM 语义提炼的依赖）：工程量大、易误报，列为下一步优化。
+- **候选提示已落地**（prepare 基于 `workflow/source-map.json` 规则化产出目录/群→任务线索 + 未映射/未排期/逾期提醒，进 `update-context.candidates` 与报告）。映射表可迭代，用户随时提调整。
 - **RLS 写权限收紧**（外部审查 P0：禁匿名写）：与用户明确「不做登录/权限」的决策冲突，**需用户重新拍板**是否引入轻量写保护。
 
 ## 11. 文件索引

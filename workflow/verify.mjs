@@ -16,6 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const AGENT = path.join(ROOT, 'scripts', 'agent.js')
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
+const CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
 const ENV_FILE = path.join(ROOT, '.env')
 
 function loadEnv() {
@@ -78,7 +79,14 @@ function main() {
         if (orphans.size > 0) issues.push(`孤儿计划块 ${orphans.size} 条（指向不存在的任务）`)
       }
     } catch (e) {
-      console.error(`⚠️ 引用完整性检查跳过: ${e.message}`)
+      // 本地模式（未配置 Supabase）可以跳过线上引用检查；但配置了却在查询时失败 → 必须失败退出，不得装作正常。
+      const env = loadEnv()
+      const hasDb = !!(env.SUPABASE_URL || env.VITE_SUPABASE_URL) && !!(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY)
+      if (hasDb) {
+        console.error(`❌ 引用完整性检查失败（数据源配置存在但查询报错）: ${e.message}`)
+        process.exit(1)
+      }
+      console.error(`⚠️ 本地模式，跳过线上引用检查: ${e.message || ''}`)
     }
 
     const active = board.filter((t) => ['in_progress', 'blocked', 'paused'].includes(t.status))
@@ -100,16 +108,31 @@ function main() {
     for (const t of board) byStatus[t.status] = (byStatus[t.status] || 0) + 1
     console.log('状态分布:', JSON.stringify(byStatus))
 
-    // 3) 校验通过 → 推进分析游标（captured_at 是本次采集成功的快照时间）
+    // 3) 校验通过 → 推进分析游标。
+    // 闸门：仅当「本快照(snapshot_id) 已被成功 apply（last-changeset 匹配且全 op 成功）」才推进；
+    // 否则即使数据校验通过，也不前移游标——防止"prepare→未 apply/部分失败→verify"跳过后续增量。
+    let cursorPushed = false
     try {
       const ctx = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'))
-      if (ctx.captured_at) {
-        fs.writeFileSync(ANALYSIS_STATE, JSON.stringify({ reviewed_at: ctx.captured_at, at: new Date().toISOString() }, null, 2))
-        console.log(`✅ 分析游标已推进至 ${ctx.captured_at}`)
+      const snapshotId = ctx.snapshot_id || ctx.captured_at
+      if (snapshotId) {
+        let applied = false
+        try {
+          const chg = JSON.parse(fs.readFileSync(CHANGESET_FILE, 'utf8'))
+          applied = chg.snapshot_id === snapshotId && chg.all_ok === true
+        } catch { /* 无 changeset = 未 apply */ }
+        if (applied) {
+          fs.writeFileSync(ANALYSIS_STATE, JSON.stringify({ reviewed_at: ctx.captured_at, at: new Date().toISOString() }, null, 2))
+          console.log(`✅ 分析游标已推进至 ${ctx.captured_at}（本快照 ${snapshotId.slice(0, 12)}… 已成功 apply）`)
+          cursorPushed = true
+        } else {
+          console.log(`⏸️ 分析游标未推进：快照 ${snapshotId.slice(0, 12)}… 尚未被成功 apply（先执行 dashboard:apply 并保证全 op 成功）`)
+        }
       }
     } catch (e) {
-      console.error(`⚠️ 分析游标未推进: ${e.message}`)
+      console.error(`⚠️ 分析游标检查失败: ${e.message}`)
     }
+    if (!cursorPushed) process.exit(0) // 校验通过但未推游标也正常返回，但不假装"已审查"
   })()
 }
 

@@ -113,10 +113,30 @@ function main() {
     }
   }
 
-  // ---- 2) 对账要求：高风险操作必须带 reconciliation ----
+  // ---- 2) 对账要求：高风险操作必须带「非空且结构化」的 reconciliation ----
   const hasHighRisk = ops.some((op) => HIGH_RISK.includes(op.op))
-  if (hasHighRisk && !reconciliation && !args.force) {
-    fail('含高风险操作（create/complete/block/delete/schedule）但未提供 reconciliation（全量对账）。先完成对账或 --force。')
+  const VALID_DECISION = ['mapped', 'irrelevant', 'needs_confirmation']
+  if (hasHighRisk && !args.force) {
+    // 空数组也算未对账
+    if (!Array.isArray(reconciliation) || reconciliation.length === 0) {
+      fail('含高风险操作（create/complete/block/delete/schedule）但 reconciliation 为空/缺失。先完成全量对账或 --force。')
+    }
+    // 结构化校验：每条对账项必须有 source_id + 合法 decision；mapped 需 task_id
+    for (const [i, r] of reconciliation.entries()) {
+      if (!r || !r.source_id) errors.push(`reconciliation[${i}]: 缺 source_id`)
+      if (r && !VALID_DECISION.includes(r.decision)) errors.push(`reconciliation[${i}]: decision 非法（${r.decision}，应 ${VALID_DECISION.join('/')}）`)
+      if (r && r.decision === 'mapped' && !r.task_id) errors.push(`reconciliation[${i}]: mapped 项缺 task_id`)
+    }
+  }
+  if (errors.length > 0) {
+    console.error('❌ 校验失败:')
+    for (const e of errors) console.error(`  - ${e}`)
+    process.exit(1)
+  }
+
+  // ---- 2.5) delete 技术闸门：铁律「delete 必须用户明确要求」→ 需 --force ----
+  if (ops.some((op) => op.op === 'delete') && !args.force) {
+    fail('包含 delete 操作：按铁律需用户明确要求，apply 要求 --force 显式确认。')
   }
 
   // ---- 3) 预条件：引用的任务必须存在（真实可用的预检）----
@@ -154,16 +174,29 @@ function main() {
 
   // ---- 4) 执行 + changeset ----
   const changeset_id = `chg-${Date.now()}`
+  let batchOut = ''
   try {
-    const stdout = execFileSync('node', [AGENT, 'batch', '--file', args.file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
-    console.log(stdout)
+    batchOut = execFileSync('node', [AGENT, 'batch', '--file', args.file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+    console.log(batchOut)
   } catch (e) {
     console.error(String(e.stdout || ''))
     fail(`应用失败: ${String(e.stderr || e.message || '').slice(0, 500)}`)
   }
+  // 解析 batch 结果「批处理完成：N/M 成功」——部分失败不得当作「已全面完成」。
+  const m = batchOut.match(/批处理完成：(\d+)\/(\d+) 成功/)
+  const okCount = m ? Number(m[1]) : ops.length // 无该行时保守：视作未知 → 全成功才记录
+  const allOk = okCount === ops.length
+  const snapshot = (() => {
+    try { return JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8')) } catch { return {} }
+  })()
+  if (!allOk) {
+    console.error(`❌ 批处理部分失败（成功 ${okCount}/${ops.length}），本次不标记为已 apply，分析游标不会推进。请修复失败项后重跑。`)
+    process.exit(1)
+  }
   try {
     fs.writeFileSync(CHANGESET_FILE, JSON.stringify({
-      changeset_id, applied_at: new Date().toISOString(), ops_count: ops.length,
+      changeset_id, snapshot_id: snapshot.snapshot_id || null, all_ok: true,
+      applied_at: new Date().toISOString(), ops_count: ops.length,
       ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null })),
       reconciliation: reconciliation || [],
     }, null, 2))

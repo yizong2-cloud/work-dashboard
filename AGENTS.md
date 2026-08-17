@@ -13,7 +13,7 @@
 ## 唯一入口
 
 ```bash
-npm run dashboard:prepare   # 拉取三数据源 + 打包 update-context.json（可定时无人值守）
+npm run dashboard:prepare   # 拉取四数据源（含本地 Downloads 白名单）+ 打包 update-context.json + 候选提示（可定时无人值守，无状态不推进游标）
 npm run dashboard:apply     # 校验并执行变更建议 ops.json（先 --dry-run）
 npm run dashboard:verify    # 校验数据不变量
 npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15:30/19:30 自动 prepare，--no-advance 只拉不推进游标）
@@ -36,7 +36,7 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 1. `codex_detail` 每个会话：逐条标注归属（→ 任务 X / 工具维护 / 无关），**不许只看增量数或跳过**——长会话可能 start 早于窗口但内容极重要（如成就 13 小时会话）。
 2. `dsh_detail` 每个会话：同上。
 3. 飞书增量每个会话：确认有无未映射到看板的消息。
-4. **本地 `~/Downloads`（及 Desktop/Documents）近 2 小时新文件**：检查新产物/需求（apk、pdf、md 文档、图片素材）——用户常把东西下到本地，prepare 不覆盖。
+4. **本地新文件（prepare 已自动白名单扫描 Downloads/Desktop/Documents 元数据 → `sources.local_files`）**：对 apk/pdf/md 等产物/需求结合 `source-map.json` 判断归属；不在候选提示里的新文件也要核对。
 5. 结论输出格式：`N 项已映射、M 项无关/工具维护、X 项本次补录`。
 
 **宁可多报"无关"，不可漏报"有工作"。**
@@ -49,7 +49,7 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 | Codex | `npm run update:codex` | 实际开发记录 |
 | DSH | `npm run update:dsh` | DSH 处理的问题（需本机 zstd） |
 
-三源互相印证；飞书无新消息不代表 Codex/DSH 没新工作。
+四源互相印证；某源无新消息不代表其他源没新工作（含本地 Downloads 新文件）。
 
 ## 质量
 

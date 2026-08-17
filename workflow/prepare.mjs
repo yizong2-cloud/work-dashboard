@@ -98,7 +98,7 @@ function buildSessionCandidates(sessions, map, key) {
     if (cwd === HOME || cwd === `${HOME}/`) continue // DSH 根目录会话（工具维护等）
     const rule = matchPattern(map.codex_cwd, cwd)
     if (rule) {
-      hits.push({ source: 'codex', cwd, hint: rule.hint, tasks: rule.tasks || [], last: s.lastTs || s.lastTsMs || null, start: s.start || null })
+      hits.push({ source: key, cwd, hint: rule.hint, tasks: rule.tasks || [], last: s.lastTs || s.lastTsMs || null, start: s.start || null })
     } else if (cwd) {
       unmapped.push(cwd)
     }
@@ -191,17 +191,19 @@ function summarizeStep(line) {
 
 function main() {
   const steps = []
-  // 定时任务专用：只拉数据、不推进任何增量游标（飞书 lastSync + update-context.generated_at）。
-  // 否则 cron 拉完就把游标推走，下次手动「开始更新」会漏掉 cron 期间已拉到但未分析的内容。
-  const noAdvance = process.argv.includes('--no-advance')
+  // 说明：prepare 全程无状态重叠窗口（Codex/DSH 用 --since-time=分析游标、飞书用 --since=分析游标、
+  // 本地文件自分析游标起）——不推进任何游标；分析游标仅由 verify 在「本快照已成功 apply」后推进。
+  // (install-cron 仍可传 --no-advance，向后兼容、无副作用。)
 
-  // ---- 1. 飞书增量导出 ----
-  // --refresh-chats：强制重扫会话列表。否则 --incremental 复用 .state.json 里缓存的
-  // updateTime（快照陈旧），会漏掉期间收到新消息、但上次快照不活跃的会话（如高琦 8/17）。
-  // --no-advance（定时任务）：不推进飞书游标（--no-update-state），避免 cron 拉完数据
-  // 却把游标推走、导致下次手动「开始更新」漏掉 cron 期间已拉到但未分析的增量。
-  const feishuArgs = ['--incremental', '--markdown', '--refresh-chats']
-  if (noAdvance) feishuArgs.push('--no-update-state')
+  // ---- 1. 飞书导出（无状态重叠窗口）----
+  // 用「自分析游标起」的无状态窗口（--since .reviewed_at 日期 + --no-update-state），
+  // 不从/不推进飞书 .state.lastSync —— 消除「飞书游标过早推进导致增量丢失」的缺口。
+  // --refresh-chats：强制重扫会话列表，避免缓存快照陈旧漏会话（如高琦）。
+  // cron(--no-advance) 与手动 prepare 走同一无状态逻辑。
+  const reviewedDate = LAST_AT ? LAST_AT.slice(0, 10) : null
+  const feishuArgs = reviewedDate
+    ? ['--since', `${reviewedDate}T00:00`, '--refresh-chats', '--markdown', '--no-update-state']
+    : ['--today', '--refresh-chats', '--markdown', '--no-update-state']
   const feishuRes = run(FEISHU_BIN, feishuArgs, 300000)
   const feishuFile = latestFile(DAILY_DIR, /^range_.*\.md$/)
   let feishuText = '（无飞书增量文件）'
@@ -306,6 +308,7 @@ function main() {
   // incremental_since = 上次成功审查的时间点，保证分析/应用中断也不会丢增量。
   const capturedAt = new Date().toISOString()
   const ctx = {
+    snapshot_id: capturedAt, // 本快照唯一标识；verify 用它校验「本快照是否已成功 apply」后才推游标
     captured_at: capturedAt,
     generated_at: capturedAt,
     incremental_since: LAST_AT,
