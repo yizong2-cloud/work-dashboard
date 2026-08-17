@@ -11,6 +11,8 @@ const TYPE_META: Record<UpdateType, { label: string; className: string }> = {
   interrupt: { label: '插入', className: 'tl-interrupt' },
   note: { label: '说明', className: 'tl-note' },
   completed: { label: '完成', className: 'tl-completed' },
+  urgent: { label: '加急', className: 'tl-urgent' },
+  nudge: { label: '催办', className: 'tl-nudge' },
 }
 
 export function TaskTimeline({ updates }: { updates: TaskUpdate[] }) {

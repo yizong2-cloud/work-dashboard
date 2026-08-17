@@ -11,6 +11,7 @@ import { TaskProgress } from '../components/TaskProgress'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { QuickUpdateModal } from '../components/QuickUpdateModal'
 import { FeedbackPanel } from '../components/FeedbackPanel'
+import { LeaderActions } from '../components/LeaderActions'
 import { isComment } from '../lib/comments'
 import { todayISO, zhDate, shortDateTime } from '../lib/format'
 
@@ -153,6 +154,7 @@ export function TaskDetail() {
         </section>
 
         <aside className="detail-sidebar">
+          <LeaderActions task={task} service={service} onNotify={notify} />
           <FeedbackPanel
             taskId={task.id}
             service={feedback}

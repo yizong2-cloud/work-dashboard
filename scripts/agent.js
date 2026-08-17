@@ -31,8 +31,8 @@ const who = 'agent'
 // ---------------- 常量与校验 ----------------
 
 const STATUSES = ['planned', 'in_progress', 'blocked', 'paused', 'completed', 'cancelled']
-const PRIORITIES = ['high', 'normal', 'low']
-const UPDATE_TYPES = ['progress', 'status_change', 'schedule_change', 'blocked', 'unblocked', 'interrupt', 'note', 'completed']
+const PRIORITIES = ['urgent', 'high', 'normal', 'low']
+const UPDATE_TYPES = ['progress', 'status_change', 'schedule_change', 'blocked', 'unblocked', 'interrupt', 'note', 'completed', 'urgent', 'nudge']
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -358,6 +358,24 @@ async function opNote(op) {
   return update
 }
 
+async function opNudge(op) {
+  const id = requireOp(op, 'id', '任务 id')
+  const note = op.note !== undefined && op.note !== '' ? String(op.note) : '请关注一下这个任务的进度'
+  if (dryRun) {
+    human(`[dry-run] 任务 ${id} 催进度: ${note}`)
+    return null
+  }
+  const update = await store.addUpdate({
+    task_id: id,
+    type: 'nudge',
+    content: note,
+    created_by: who,
+  })
+  human(`✅ 已催进度（任务 ${id}）: ${note}`)
+  human(renderUpdate(update))
+  return update
+}
+
 async function opPlanAdd(op) {
   const taskId = requireOp(op, 'id', '任务 id')
   const from = assertDate(requireOp(op, 'from', '开始日期 YYYY-MM-DD'), '开始日期')
@@ -499,6 +517,7 @@ function opHelp() {
   complete <id> [--note]                        标记完成（进度=100，记录实际完成日）
   note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"]   
                                        追加时间线（progress/interrupt/note/...；--at 回填历史时间）
+  nudge <id> [--note "附言"]           催进度（记录时间线 + 飞书通知任务负责人）
   delete <id>                                   删除任务（含时间线）
   batch --file ops.json                         批量执行（数组或 {ops: [...]}）
   plan-add <id> --from YYYY-MM-DD --to YYYY-MM-DD [--summary ".."]   给任务添加日计划块
@@ -525,6 +544,7 @@ const ops = {
   unblock: opUnblock,
   complete: opComplete,
   note: opNote,
+  nudge: opNudge,
   delete: opDelete,
   batch: opBatch,
   seed: opSeed,

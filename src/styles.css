@@ -237,6 +237,11 @@ section {
 .pr-badge {
   font-weight: 500;
 }
+.pr-urgent {
+  background: var(--danger);
+  color: #fff;
+  animation: urgent-pulse 1.6s ease-in-out infinite;
+}
 .pr-high {
   background: var(--danger-weak);
   color: var(--danger);
@@ -248,6 +253,11 @@ section {
 .pr-low {
   background: #f3f4f6;
   color: #9ca3af;
+}
+
+@keyframes urgent-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); }
 }
 
 .tag {
@@ -262,6 +272,28 @@ section {
 .tag-interrupt {
   background: var(--warn-weak);
   color: var(--warn);
+}
+.tag-urgent {
+  background: var(--danger);
+  color: #fff;
+}
+.nudge-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.due-reason {
+  display: block;
+  max-width: 130px;
+  font-size: 0.66rem;
+  color: var(--warn);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .tag-demo {
   background: #f3f4f6;
@@ -594,6 +626,12 @@ section {
 .tl-dot.tl-completed {
   background: var(--ok);
 }
+.tl-dot.tl-urgent {
+  background: var(--danger);
+}
+.tl-dot.tl-nudge {
+  background: var(--warn);
+}
 .tl-dot.tl-interrupt {
   background: var(--warn);
 }
@@ -641,6 +679,14 @@ section {
 .tl-type.tl-completed {
   background: var(--ok-weak);
   color: var(--ok);
+}
+.tl-type.tl-urgent {
+  background: var(--danger-weak);
+  color: var(--danger);
+}
+.tl-type.tl-nudge {
+  background: var(--warn-weak);
+  color: var(--warn);
 }
 .tl-type.tl-interrupt {
   background: var(--warn-weak);
@@ -1547,6 +1593,11 @@ section {
 .timeline-panel { padding: 24px 26px; }
 .section-intro { color: var(--muted); font-size: 0.78rem; margin: 5px 0 14px; }
 .detail-sidebar { display: flex; flex-direction: column; gap: 12px; }
+
+.leader-actions { padding: 18px 20px; border: 1px solid #e8dcc8; background: linear-gradient(180deg, #fffaf2 0%, var(--card) 100%); }
+.leader-actions .panel-heading h2 { font-size: 1rem; }
+.leader-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.leader-actions-row .btn { flex: 1 1 auto; white-space: nowrap; }
 
 .comment-panel { padding: 22px; }
 .comment-panel-head { display: flex; justify-content: space-between; align-items: flex-start; }

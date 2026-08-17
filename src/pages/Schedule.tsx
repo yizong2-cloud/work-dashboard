@@ -69,6 +69,8 @@ function updateTypeLabel(type: UpdateType): string {
     interrupt: '临时任务',
     note: '说明',
     completed: '完成',
+    urgent: '加急',
+    nudge: '催办',
   }
   return labels[type]
 }

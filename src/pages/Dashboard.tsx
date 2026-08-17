@@ -24,7 +24,7 @@ import { CreateTaskModal } from '../components/CreateTaskModal'
 import { commentBody, isComment } from '../lib/comments'
 import { shortDate, shortDateTime, relativeDay, todayISO, zhDate } from '../lib/format'
 
-const PRIORITY_ORDER = { high: 0, normal: 1, low: 2 } as const
+const PRIORITY_ORDER = { urgent: -1, high: 0, normal: 1, low: 2 } as const
 type WorkFilter = 'all' | 'risk' | 'blocked' | 'unscheduled'
 const mascotAsset = (name: string) => `${import.meta.env.BASE_URL}mascots/mascot-${name}.png`
 
@@ -84,6 +84,15 @@ export function Dashboard() {
     return map
   }, [allUpdates])
 
+  // 被催进度计数（type === 'nudge'，Leader 催办留痕）
+  const nudgesByTask = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const update of allUpdates) {
+      if (update.type === 'nudge') map.set(update.task_id, (map.get(update.task_id) ?? 0) + 1)
+    }
+    return map
+  }, [allUpdates])
+
   // 反馈线程（任务一）：未解决统计 + 每任务未解决数 + 最近反馈
   const unresolvedThreads = useMemo(
     () =>
@@ -114,7 +123,7 @@ export function Dashboard() {
   )
 
   const focusTask = useMemo(
-    () => activeTasks.find((task) => task.status === 'in_progress' && task.priority === 'high') ?? activeTasks[0] ?? null,
+    () => activeTasks.find((task) => task.status === 'in_progress' && (task.priority === 'urgent' || task.priority === 'high')) ?? activeTasks[0] ?? null,
     [activeTasks],
   )
 
@@ -307,11 +316,11 @@ export function Dashboard() {
             <article className="work-row" key={task.id}>
               <span className={`work-rail rail-${statusTone(task)}`} />
               <button className="work-main" onClick={() => navigate(`/task/${task.id}`)}>
-                <span className="work-title-line"><strong>{task.title}</strong>{task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}</span>
+                <span className="work-title-line"><strong>{task.title}</strong>{task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}{task.priority === 'urgent' && <span className="tag tag-urgent">🔥 加急</span>}{nudgesByTask.get(task.id) ? <span className="nudge-count" title="被催过进度">⏰ ×{nudgesByTask.get(task.id)}</span> : null}</span>
                 <span className="work-status-text">{task.current_status || '尚未填写当前情况'}</span>
               </button>
               <div className="work-progress"><TaskProgress progress={task.progress} overdue={isOverdue(task)} size="sm" /></div>
-              <div className="work-due"><span>预计完成</span><strong className={isOverdue(task) || !task.expected_end_date ? 'txt-warn' : ''}>{task.expected_end_date ? shortDate(task.expected_end_date) : '未排期'}</strong></div>
+              <div className="work-due"><span>预计完成</span><strong className={isOverdue(task) || !task.expected_end_date ? 'txt-warn' : ''}>{task.expected_end_date ? shortDate(task.expected_end_date) : '未排期'}</strong>{!task.expected_end_date && (task.current_status || latestByTask.get(task.id)?.content) && <small className="due-reason" title={(task.current_status || latestByTask.get(task.id)?.content || '').slice(0, 80)}>{(task.current_status || latestByTask.get(task.id)?.content || '').slice(0, 18)}{(task.current_status || latestByTask.get(task.id)?.content || '').length > 18 ? '…' : ''}</small>}</div>
               <StatusBadge status={task.status} />
               <button
                 className={`comment-shortcut ${unresolvedByTask.get(task.id) ? 'comment-shortcut-open' : ''}`}

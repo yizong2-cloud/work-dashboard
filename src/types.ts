@@ -11,7 +11,7 @@ export type TaskStatus =
   | 'completed'    // 已完成
   | 'cancelled'    // 已取消
 
-export type TaskPriority = 'high' | 'normal' | 'low'
+export type TaskPriority = 'urgent' | 'high' | 'normal' | 'low'
 
 export type UpdateType =
   | 'progress'        // 进度更新
@@ -22,6 +22,8 @@ export type UpdateType =
   | 'interrupt'       // 临时插入
   | 'note'            // 普通说明
   | 'completed'       // 标记完成
+  | 'urgent'          // 加急 / 取消加急（priority 变化）
+  | 'nudge'           // Leader 催进度
 
 export interface Task {
   id: string

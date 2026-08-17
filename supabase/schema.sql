@@ -15,7 +15,7 @@ create table if not exists public.tasks (
   status             text not null default 'planned'
                      check (status in ('planned','in_progress','blocked','paused','completed','cancelled')),
   priority           text not null default 'normal'
-                     check (priority in ('high','normal','low')),
+                     check (priority in ('urgent','high','normal','low')),
   progress           integer not null default 0 check (progress between 0 and 100),
   start_date         date,
   expected_end_date  date,
@@ -44,6 +44,8 @@ begin
   alter table public.tasks add constraint tasks_completed_actual_ck check (status <> 'completed' or actual_end_date is not null);
   alter table public.tasks drop constraint if exists tasks_blocked_reason_ck;
   alter table public.tasks add constraint tasks_blocked_reason_ck check (status <> 'blocked' or btrim(block_reason) <> '');
+  alter table public.tasks drop constraint if exists tasks_priority_ck;
+  alter table public.tasks add constraint tasks_priority_ck check (priority in ('urgent','high','normal','low'));
 end $$;
 
 -- ---------------- task_updates 表（时间线，保留完整历史） ----------------
@@ -51,7 +53,7 @@ create table if not exists public.task_updates (
   id                    uuid primary key default gen_random_uuid(),
   task_id               uuid not null references public.tasks(id) on delete cascade,
   type                  text not null default 'note'
-                        check (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed')),
+                        check (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','nudge')),
   content               text not null default '',
   old_expected_end_date date,
   new_expected_end_date date,
@@ -61,6 +63,14 @@ create table if not exists public.task_updates (
 
 create index if not exists task_updates_task_id_idx on public.task_updates (task_id);
 create index if not exists tasks_status_idx on public.tasks (status);
+
+-- 对已存在的表重建 task_updates.type 约束（支持 urgent/nudge 新类型）
+do $$
+begin
+  alter table public.task_updates drop constraint if exists task_updates_type_check;
+  alter table public.task_updates add constraint task_updates_type_check check
+    (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','nudge'));
+end $$;
 
 -- ---------------- updated_at 自动维护 ----------------
 create or replace function public.set_updated_at()
@@ -292,7 +302,7 @@ grant execute on function public.set_feedback_status(uuid, text, text) to anon, 
 create table if not exists public.notification_outbox (
   id          uuid primary key default gen_random_uuid(),
   event_type  text not null check (event_type in
-              ('task_update','task_update_progress','feedback_created','feedback_replied','feedback_resolved')),
+              ('task_update','task_update_progress','task_nudged','feedback_created','feedback_replied','feedback_resolved')),
   source_key  text not null unique,          -- 幂等键（源记录 id；progress 聚合行用首条 id）
   payload     jsonb not null default '{}',
   status      text not null default 'pending' check (status in ('pending','sending','sent','failed','skipped')),
@@ -304,6 +314,14 @@ create table if not exists public.notification_outbox (
 );
 
 create index if not exists notification_outbox_status_idx on public.notification_outbox (status, created_at);
+
+-- 对已存在的表重建 event_type 约束（支持 task_nudged 新事件）
+do $$
+begin
+  alter table public.notification_outbox drop constraint if exists notification_outbox_event_type_check;
+  alter table public.notification_outbox add constraint notification_outbox_event_type_check check
+    (event_type in ('task_update','task_update_progress','task_nudged','feedback_created','feedback_replied','feedback_resolved'));
+end $$;
 
 -- ---- 投递目标配置（URL 与签名 secret，值在部署时写入，不落仓库）----
 create table if not exists public.webhook_endpoint (
@@ -385,7 +403,11 @@ begin
   end if;
   insert into public.notification_outbox (event_type, source_key, payload)
   values (
-    case when new.type = 'progress' then 'task_update_progress' else 'task_update' end,
+    case
+      when new.type = 'progress' then 'task_update_progress'
+      when new.type = 'nudge' then 'task_nudged'
+      else 'task_update'
+    end,
     new.id::text,
     jsonb_build_object(
       'task_id', new.task_id::text,

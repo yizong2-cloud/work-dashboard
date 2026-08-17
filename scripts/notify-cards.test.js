@@ -79,6 +79,31 @@ test('task_update_progress：聚合摘要卡显示条数', () => {
   assert.match(JSON.stringify(card), /完成联调/)
 })
 
+test('task_update：加急事件 → 红色卡片 + 加急标题', () => {
+  const card = buildCard(
+    ev('task_update', { task_id: 't-1', type: 'urgent', content: 'Leader 要求本周内完成', created_by: 'Leader' }),
+    TASK, BASE,
+  )
+  assert.ok(card)
+  assert.equal(headerOf(card).template, 'red')
+  assert.equal(headerOf(card).subtitle.content, '任务加急')
+  assert.match(JSON.stringify(card), /Leader 要求本周内完成/)
+})
+
+test('task_nudged：催进度 → 橙色卡片 + 深链接', () => {
+  const card = buildCard(
+    ev('task_nudged', { task_id: 't-1', type: 'nudge', content: '这个周五前能完成吗？', created_by: 'Leader' }),
+    TASK, BASE,
+  )
+  assert.ok(card)
+  assert.equal(headerOf(card).template, 'orange')
+  assert.equal(headerOf(card).subtitle.content, '⏰ 有人催进度了')
+  const json = JSON.stringify(card)
+  assert.match(json, /这个周五前能完成吗？/)
+  assert.match(json, /#\/task\/t-1/)
+  assert.match(json, /Leader 催办/)
+})
+
 test('buildCard：未知事件返回 null', () => {
   assert.equal(buildCard(ev('unknown_event', {}), TASK, BASE), null)
 })

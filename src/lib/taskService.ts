@@ -50,6 +50,12 @@ export interface TaskService {
 
   /** Leader 留言：作为特殊 note 写入时间线，保留独立作者 */
   addComment(id: string, author: string, content: string): Promise<TaskUpdate>
+
+  /** 加急 / 取消加急（priority → urgent / high），自动追加 urgent 时间线 */
+  setUrgent(id: string, urgent: boolean, content?: string, author?: string): Promise<Task>
+
+  /** Leader 催进度：追加 nudge 时间线 + 飞书通知，不改任何任务属性 */
+  nudge(id: string, content?: string, author?: string): Promise<Task>
 }
 
 export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService {
@@ -156,6 +162,22 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
         type: 'note',
         content: encodeComment(cleanContent),
         created_by: cleanAuthor,
+      })
+    },
+
+    async setUrgent(id, urgent, content, author) {
+      return db.applyTaskUpdate(id, { priority: urgent ? 'urgent' : 'high' }, {
+        type: 'urgent',
+        content: content?.trim() || (urgent ? '标记为加急。' : '取消加急。'),
+        created_by: author ?? who(),
+      })
+    },
+
+    async nudge(id, content, author) {
+      return db.applyTaskUpdate(id, {}, {
+        type: 'nudge',
+        content: content?.trim() || '请关注一下这个任务的进度',
+        created_by: author ?? who(),
       })
     },
   }

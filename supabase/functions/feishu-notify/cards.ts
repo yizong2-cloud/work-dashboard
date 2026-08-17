@@ -77,15 +77,16 @@ export function eventTitle(type: string): string {
     {
       progress: '任务进度更新', status_change: '任务状态更新', schedule_change: '任务排期调整',
       blocked: '任务出现阻塞', unblocked: '任务解除阻塞', interrupt: '新增临时任务',
-      completed: '任务已经完成', note: '任务有新进展',
+      completed: '任务已经完成', note: '任务有新进展', urgent: '任务加急', nudge: '进度催办',
     } as Record<string, string>
   )[type] || '任务内容更新'
 }
 
 function taskTone(type: string, status: string): string {
   if (type === 'blocked' || status === 'blocked') return 'red'
+  if (type === 'urgent' || status === 'urgent') return 'red'
   if (type === 'completed' || status === 'completed') return 'green'
-  if (type === 'schedule_change') return 'orange'
+  if (type === 'schedule_change' || type === 'nudge') return 'orange'
   if (type === 'note') return 'purple'
   return 'blue'
 }
@@ -191,6 +192,30 @@ export function buildProgressDigestCard(event: OutboxEvent, task: TaskSummary, b
   return card
 }
 
+// ---- Leader 催进度（task_nudged）----
+
+export function buildNudgeCard(event: OutboxEvent, task: TaskSummary, baseUrl: string): Record<string, unknown> {
+  const note = trimText(String(event.payload.content || '请关注一下这个任务的进度'), 500)
+  const by = String(event.payload.created_by || 'Leader')
+  const card = baseCard('orange', '⏰ 有人催进度了')
+  const elements = card.elements as Array<Record<string, unknown>>
+  elements.push({ tag: 'markdown', content: `**${escapeMarkdown(task.title)}**\n> ${escapeMarkdown(note)}` })
+  elements.push({
+    tag: 'column_set', flex_mode: 'none', background_style: 'grey',
+    columns: [
+      { tag: 'column', width: 'weighted', weight: 1, elements: [{ tag: 'markdown', content: `**状态**\n${statusLabel(task.status)}` }] },
+      { tag: 'column', width: 'weighted', weight: 1, elements: [{ tag: 'markdown', content: `**进度**\n${task.progress}%` }] },
+      { tag: 'column', width: 'weighted', weight: 1, elements: [{ tag: 'markdown', content: `**预计完成**\n${task.expected_end_date || '未排期'}` }] },
+    ],
+  })
+  elements.push({
+    tag: 'action',
+    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看任务并更新进度' }, url: deepLink(baseUrl, task.id) }],
+  })
+  elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: `${by} 催办 · ${formatTime(String(event.payload.created_at || ''))}` }] })
+  return card
+}
+
 /** 根据事件类型分发卡片构建（供 Edge Function 与测试使用） */
 export function buildCard(
   event: OutboxEvent,
@@ -201,6 +226,7 @@ export function buildCard(
   switch (event.event_type) {
     case 'task_update': return buildTaskCard(event, task, baseUrl)
     case 'task_update_progress': return buildProgressDigestCard(event, task, baseUrl)
+    case 'task_nudged': return buildNudgeCard(event, task, baseUrl)
     case 'feedback_created': return buildFeedbackCreatedCard(event, task, baseUrl)
     case 'feedback_replied': return buildFeedbackRepliedCard(event, task, baseUrl, original)
     case 'feedback_resolved': return buildFeedbackResolvedCard(event, task, baseUrl)
