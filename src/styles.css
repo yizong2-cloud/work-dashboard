@@ -629,6 +629,9 @@ section {
 .tl-dot.tl-urgent {
   background: var(--danger);
 }
+.tl-dot.tl-deurgent {
+  background: #9ca3af;
+}
 .tl-dot.tl-nudge {
   background: var(--warn);
 }
@@ -683,6 +686,10 @@ section {
 .tl-type.tl-urgent {
   background: var(--danger-weak);
   color: var(--danger);
+}
+.tl-type.tl-deurgent {
+  background: #f3f4f6;
+  color: #4b5563;
 }
 .tl-type.tl-nudge {
   background: var(--warn-weak);

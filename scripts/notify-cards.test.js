@@ -90,6 +90,17 @@ test('task_update：加急事件 → 红色卡片 + 加急标题', () => {
   assert.match(JSON.stringify(card), /Leader 要求本周内完成/)
 })
 
+test('task_update：取消加急 → 蓝色「任务取消加急」卡片（不与加急混淆）', () => {
+  const card = buildCard(
+    ev('task_update', { task_id: 't-1', type: 'deurgent', content: '优先级恢复', created_by: 'Leader' }),
+    TASK, BASE,
+  )
+  assert.ok(card)
+  assert.equal(headerOf(card).template, 'blue')
+  assert.equal(headerOf(card).subtitle.content, '任务取消加急')
+  assert.match(JSON.stringify(card), /优先级恢复/)
+})
+
 test('task_nudged：催进度 → 橙色卡片 + 深链接', () => {
   const card = buildCard(
     ev('task_nudged', { task_id: 't-1', type: 'nudge', content: '这个周五前能完成吗？', created_by: 'Leader' }),

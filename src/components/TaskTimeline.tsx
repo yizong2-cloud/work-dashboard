@@ -12,6 +12,7 @@ const TYPE_META: Record<UpdateType, { label: string; className: string }> = {
   note: { label: '说明', className: 'tl-note' },
   completed: { label: '完成', className: 'tl-completed' },
   urgent: { label: '加急', className: 'tl-urgent' },
+  deurgent: { label: '取消', className: 'tl-deurgent' },
   nudge: { label: '催办', className: 'tl-nudge' },
 }
 

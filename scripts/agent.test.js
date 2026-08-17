@@ -228,7 +228,32 @@ test('update --priority urgent：加急合法，非法优先级被拒', () => {
   const g = run('get', id)
   assert.match(g.stdout, /加急/)
   assert.match(g.stdout, /urgent/)
+  // 加急走 [urgent] 时间线（与飞书红色卡片一致），非普通 note
+  assert.match(g.stdout, /\[urgent\]/)
   const bad = run('update', id, '--priority', 'super')
   assert.ok(!bad.ok, '非法优先级应失败')
   assert.match(bad.stderr, /非法优先级/)
+})
+
+test('update 取消加急：urgent → high 走 [deurgent] 时间线', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '取消加急任务X')
+  const id = extractId(c.stdout)
+  run('update', id, '--priority', 'urgent')
+  const d = run('update', id, '--priority', 'high', '--note', '已处理完')
+  assert.ok(d.ok, d.stderr)
+  const g = run('get', id)
+  assert.match(g.stdout, /\[deurgent\]/)
+  assert.match(g.stdout, /已处理完/)
+  assert.match(g.stdout, /\(planned high/)
+})
+
+test('nudge 已完成任务被拒绝', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '已完成任务X')
+  const id = extractId(c.stdout)
+  run('complete', id)
+  const n = run('nudge', id, '--note', '还在吗')
+  assert.ok(!n.ok, '已完成任务不应被催进度')
+  assert.match(n.stderr, /无需催进度/)
 })

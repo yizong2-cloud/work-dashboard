@@ -34,7 +34,7 @@ export interface TaskService {
   setStatus(id: string, status: TaskStatus, content?: string): Promise<Task>
 
   /** 调整预计完成日期，自动记录 old/new */
-  setSchedule(id: string, expectedEndDate: string, content?: string): Promise<Task>
+  setSchedule(id: string, expectedEndDate: string, content?: string, author?: string): Promise<Task>
 
   /** 标记阻塞（必须给原因），自动追加 blocked 时间线 */
   setBlocked(id: string, reason: string): Promise<Task>
@@ -51,7 +51,7 @@ export interface TaskService {
   /** Leader 留言：作为特殊 note 写入时间线，保留独立作者 */
   addComment(id: string, author: string, content: string): Promise<TaskUpdate>
 
-  /** 加急 / 取消加急（priority → urgent / high），自动追加 urgent 时间线 */
+  /** 加急 / 取消加急（priority → urgent / high），自动追加 urgent/deurgent 时间线 */
   setUrgent(id: string, urgent: boolean, content?: string, author?: string): Promise<Task>
 
   /** Leader 催进度：追加 nudge 时间线 + 飞书通知，不改任何任务属性 */
@@ -100,7 +100,7 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
       })
     },
 
-    async setSchedule(id, expectedEndDate, content) {
+    async setSchedule(id, expectedEndDate, content, author) {
       const before = await db.getTask(id)
       if (!before) throw new Error(`任务不存在: ${id}`)
       return db.applyTaskUpdate(id, { expected_end_date: expectedEndDate }, {
@@ -108,7 +108,7 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
         content: content?.trim() || '调整预计完成日期。',
         old_expected_end_date: before.expected_end_date,
         new_expected_end_date: expectedEndDate,
-        created_by: who(),
+        created_by: author ?? who(),
       })
     },
 
@@ -167,7 +167,7 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
 
     async setUrgent(id, urgent, content, author) {
       return db.applyTaskUpdate(id, { priority: urgent ? 'urgent' : 'high' }, {
-        type: 'urgent',
+        type: urgent ? 'urgent' : 'deurgent',
         content: content?.trim() || (urgent ? '标记为加急。' : '取消加急。'),
         created_by: author ?? who(),
       })

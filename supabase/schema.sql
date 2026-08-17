@@ -44,6 +44,9 @@ begin
   alter table public.tasks add constraint tasks_completed_actual_ck check (status <> 'completed' or actual_end_date is not null);
   alter table public.tasks drop constraint if exists tasks_blocked_reason_ck;
   alter table public.tasks add constraint tasks_blocked_reason_ck check (status <> 'blocked' or btrim(block_reason) <> '');
+  -- 兼容两个约束名：create table 内联约束自动命名 tasks_priority_check（旧库残留），
+  -- 以及此前迁移添加的 tasks_priority_ck；两者都 drop 后重建为含 urgent 的单一约束。
+  alter table public.tasks drop constraint if exists tasks_priority_check;
   alter table public.tasks drop constraint if exists tasks_priority_ck;
   alter table public.tasks add constraint tasks_priority_ck check (priority in ('urgent','high','normal','low'));
 end $$;
@@ -53,7 +56,7 @@ create table if not exists public.task_updates (
   id                    uuid primary key default gen_random_uuid(),
   task_id               uuid not null references public.tasks(id) on delete cascade,
   type                  text not null default 'note'
-                        check (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','nudge')),
+                        check (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','deurgent','nudge')),
   content               text not null default '',
   old_expected_end_date date,
   new_expected_end_date date,
@@ -69,7 +72,7 @@ do $$
 begin
   alter table public.task_updates drop constraint if exists task_updates_type_check;
   alter table public.task_updates add constraint task_updates_type_check check
-    (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','nudge'));
+    (type in ('progress','status_change','schedule_change','blocked','unblocked','interrupt','note','completed','urgent','deurgent','nudge'));
 end $$;
 
 -- ---------------- updated_at 自动维护 ----------------

@@ -22,7 +22,8 @@ export type UpdateType =
   | 'interrupt'       // 临时插入
   | 'note'            // 普通说明
   | 'completed'       // 标记完成
-  | 'urgent'          // 加急 / 取消加急（priority 变化）
+  | 'urgent'          // 加急（priority 变化）
+  | 'deurgent'        // 取消加急（priority 变化）
   | 'nudge'           // Leader 催进度
 
 export interface Task {

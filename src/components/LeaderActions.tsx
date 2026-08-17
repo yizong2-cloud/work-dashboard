@@ -51,7 +51,7 @@ export function LeaderActions({ task, service, onNotify }: {
       else if (action === 'nudge') await service.nudge(task.id, trimmed || undefined, 'Leader')
       else if (action === 'schedule') {
         if (!date) throw new Error('请选择日期')
-        await service.setSchedule(task.id, date, trimmed || undefined)
+        await service.setSchedule(task.id, date, trimmed || undefined, 'Leader')
       }
       onNotify(ACTION_META[action].done)
       setAction(null)

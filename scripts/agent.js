@@ -270,8 +270,21 @@ async function opUpdate(op) {
   }
   // 原子写入：字段变更 + 变更摘要时间线（一次完成）
   const changed = Object.keys(patch).join('、')
-  const content = op.note ? `${op.note}（变更字段：${changed}）` : `更新字段：${changed}`
-  const task = await store.applyTaskUpdate(id, patch, { type: 'note', content, created_by: who })
+  let type = 'note'
+  let content = op.note ? `${op.note}（变更字段：${changed}）` : `更新字段：${changed}`
+  // 优先级变化按方向记 urgent/deurgent 类型（时间线与飞书卡片随之区分）
+  if (patch.priority !== undefined) {
+    const before = await store.getTask(id)
+    const wasUrgent = !!before && before.priority === 'urgent'
+    if (patch.priority === 'urgent' && !wasUrgent) {
+      type = 'urgent'
+      content = op.note ? op.note : '标记为加急。'
+    } else if (patch.priority !== 'urgent' && wasUrgent) {
+      type = 'deurgent'
+      content = op.note ? op.note : '取消加急。'
+    }
+  }
+  const task = await store.applyTaskUpdate(id, patch, { type, content, created_by: who })
   human(`✅ 任务 ${id} 已更新（字段: ${changed}）`)
   human(renderTask(task))
   return task
@@ -364,6 +377,11 @@ async function opNudge(op) {
   if (dryRun) {
     human(`[dry-run] 任务 ${id} 催进度: ${note}`)
     return null
+  }
+  const task = await store.getTask(id)
+  if (!task) fail(`任务不存在: ${id}`)
+  if (task.status === 'completed' || task.status === 'cancelled') {
+    fail(`任务已${task.status === 'completed' ? '完成' : '取消'}，无需催进度`)
   }
   const update = await store.addUpdate({
     task_id: id,

@@ -77,7 +77,7 @@ export function eventTitle(type: string): string {
     {
       progress: '任务进度更新', status_change: '任务状态更新', schedule_change: '任务排期调整',
       blocked: '任务出现阻塞', unblocked: '任务解除阻塞', interrupt: '新增临时任务',
-      completed: '任务已经完成', note: '任务有新进展', urgent: '任务加急', nudge: '进度催办',
+      completed: '任务已经完成', note: '任务有新进展', urgent: '任务加急', deurgent: '任务取消加急', nudge: '进度催办',
     } as Record<string, string>
   )[type] || '任务内容更新'
 }
@@ -85,6 +85,7 @@ export function eventTitle(type: string): string {
 function taskTone(type: string, status: string): string {
   if (type === 'blocked' || status === 'blocked') return 'red'
   if (type === 'urgent' || status === 'urgent') return 'red'
+  if (type === 'deurgent') return 'blue'
   if (type === 'completed' || status === 'completed') return 'green'
   if (type === 'schedule_change' || type === 'nudge') return 'orange'
   if (type === 'note') return 'purple'
