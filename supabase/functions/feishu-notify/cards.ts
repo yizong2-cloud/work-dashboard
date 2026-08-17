@@ -110,9 +110,20 @@ export function buildTaskCard(event: OutboxEvent, task: TaskSummary, baseUrl: st
   if (task.status === 'blocked' && task.block_reason) {
     elements.push({ tag: 'markdown', content: `**阻塞原因**\n<font color='red'>${escapeMarkdown(trimText(task.block_reason, 300))}</font>` })
   }
+  // 档位 A 智能跳转：按钮文案/动作按任务状态变化，逾期/催办直接进快速更新弹窗
+  const todayStr = (() => {
+    const t = new Date()
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  })()
+  const isOverdue = task.status !== 'completed' && task.status !== 'cancelled'
+    && !!task.expected_end_date && task.expected_end_date < todayStr
+  const actionUrl = isOverdue || type === 'nudge'
+    ? `${deepLink(baseUrl, task.id)}?action=progress`
+    : deepLink(baseUrl, task.id)
+  const actionLabel = isOverdue ? '⚠️ 去更新进度' : '查看任务详情'
   elements.push({
     tag: 'action',
-    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看任务详情' }, url: deepLink(baseUrl, task.id) }],
+    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: actionLabel }, url: actionUrl }],
   })
   elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: `${String(event.payload.created_by || 'Agent')} · ${formatTime(String(event.payload.created_at || ''))}` }] })
   return card
@@ -211,9 +222,106 @@ export function buildNudgeCard(event: OutboxEvent, task: TaskSummary, baseUrl: s
   })
   elements.push({
     tag: 'action',
-    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看任务并更新进度' }, url: deepLink(baseUrl, task.id) }],
+    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看任务并更新进度' }, url: `${deepLink(baseUrl, task.id)}?action=progress` }],
   })
   elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: `${by} 催办 · ${formatTime(String(event.payload.created_at || ''))}` }] })
+  return card
+}
+
+// ---- 工作日日报（send_daily_report 定时生成，Leader 全局视角）----
+
+interface DailyItem {
+  task_id: string
+  title: string
+  progress: number
+  expected_end_date?: string | null
+  current_status?: string
+  block_reason?: string
+}
+
+function daysFromToday(dateStr: string): number {
+  const today = new Date()
+  const target = new Date(`${dateStr}T00:00:00`)
+  return Math.round((target.getTime() - today.getTime()) / 86400000)
+}
+
+function dailyItemLines(items: DailyItem[], baseUrl: string, suffix?: (it: DailyItem) => string): string[] {
+  return items.map((it) => {
+    const link = `[${escapeMarkdown(trimText(it.title, 24))}](${deepLink(baseUrl, it.task_id)})`
+    return `· ${link} · ${it.progress}%${suffix ? ` · ${suffix(it)}` : ''}`
+  })
+}
+
+export function buildDailyCard(event: OutboxEvent, baseUrl: string): Record<string, unknown> {
+  const p = event.payload
+  const dateStr = String(p.date || '')
+  const overdue = (p.overdue || []) as DailyItem[]
+  const week = (p.week || []) as DailyItem[]
+  const urgent = (p.urgent || []) as DailyItem[]
+  const blocked = (p.blocked || []) as DailyItem[]
+  const unscheduled = (p.unscheduled || []) as DailyItem[]
+  const feedbackOpen = Number(p.feedback_open ?? 0)
+  const updatesToday = Number(p.updates_today ?? 0)
+  const activeCount = Number(p.active_count ?? 0)
+  const plannedCount = Number(p.planned_count ?? 0)
+
+  const dateLabel = (() => {
+    try {
+      const d = new Date(`${dateStr}T00:00:00`)
+      return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', weekday: 'short' }).format(d)
+    } catch {
+      return dateStr || ''
+    }
+  })()
+
+  const hasRisk = overdue.length > 0 || urgent.length > 0 || blocked.length > 0
+  const card = baseCard(hasRisk ? 'orange' : 'blue', `Workboard · 日报 ${dateLabel}`)
+  const elements = card.elements as Array<Record<string, unknown>>
+
+  elements.push({
+    tag: 'markdown',
+    content: `**进行中** ${activeCount} · **待开始** ${plannedCount} · **今日更新** ${updatesToday} · **待回应反馈** ${feedbackOpen}`,
+  })
+
+  if (overdue.length > 0) {
+    elements.push({
+      tag: 'markdown',
+      content: `🔴 **已逾期（${overdue.length}）**\n${dailyItemLines(overdue, baseUrl, (it) => `逾期 ${Math.abs(daysFromToday(String(it.expected_end_date)))} 天`).join('\n')}`,
+    })
+  }
+  if (urgent.length > 0) {
+    elements.push({
+      tag: 'markdown',
+      content: `🔥 **加急中（${urgent.length}）**\n${dailyItemLines(urgent, baseUrl, (it) => it.expected_end_date ? `预计 ${it.expected_end_date}` : '未排期').join('\n')}`,
+    })
+  }
+  if (blocked.length > 0) {
+    elements.push({
+      tag: 'markdown',
+      content: `⛔ **阻塞（${blocked.length}）**\n${dailyItemLines(blocked, baseUrl, (it) => trimText(it.block_reason || '', 18)).join('\n')}`,
+    })
+  }
+  if (week.length > 0) {
+    elements.push({
+      tag: 'markdown',
+      content: `🟡 **本周到期（${week.length}）**\n${dailyItemLines(week, baseUrl, (it) => `预计 ${it.expected_end_date}`).join('\n')}`,
+    })
+  }
+  if (unscheduled.length > 0) {
+    elements.push({
+      tag: 'markdown',
+      content: `🟠 **未排期（${unscheduled.length}）**\n${dailyItemLines(unscheduled, baseUrl, (it) => trimText(it.current_status || '暂无说明', 18)).join('\n')}`,
+    })
+  }
+  if (overdue.length === 0 && urgent.length === 0 && blocked.length === 0 && week.length === 0 && unscheduled.length === 0) {
+    elements.push({ tag: 'markdown', content: '✅ 无逾期 · 无加急 · 无阻塞 · 本周无到期 · 活跃任务均已排期' })
+  }
+
+  elements.push({
+    tag: 'action',
+    actions: [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看完整看板' }, url: `${(baseUrl || '').replace(/\/?$/, '/')}#/` }],
+  })
+  elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: 'Workboard 定时日报 · 工作日 19:30' }] })
   return card
 }
 

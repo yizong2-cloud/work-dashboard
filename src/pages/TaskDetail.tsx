@@ -63,6 +63,13 @@ export function TaskDetail() {
     void refresh()
   }, [refresh])
 
+  // 飞书卡片智能跳转（档位 A）：?action=progress → 自动打开快速更新弹窗
+  const autoProgress = searchParams.get('action') === 'progress'
+  useEffect(() => {
+    if (autoProgress) setQuick(true)
+    // 仅挂载时触发一次（用户每次从卡片进入都会重新挂载，行为符合预期）
+  }, [autoProgress])
+
   const timelineUpdates = useMemo(() => updates.filter((update) => !isComment(update)), [updates])
 
   // 待处理催办数：最新时间线连续 nudge 的条数（>0 时 LeaderActions 显示「取消催办」）

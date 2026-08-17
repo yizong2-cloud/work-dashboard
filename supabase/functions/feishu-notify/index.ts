@@ -1,12 +1,14 @@
 // ============================================================
 // feishu-notify Edge Function（任务二改造）
-// 入口：Supabase Database Webhook 监听 notification_outbox 的 INSERT/UPDATE
+// 入口 A：Supabase Database Webhook 监听 notification_outbox 的 INSERT/UPDATE
 // 流程：验签 → 幂等 claim（pending→sending）→ 加载任务/原反馈 → 建卡 → 发飞书 → 回写状态
+// 入口 B：send_daily_report()（pg_cron 工作日 19:30）直接 POST 的 daily_report 汇总
+// 流程：验签 → 建日报卡 → 发飞书（无 outbox 状态机）
 // 失败：状态置 failed（可审计），由 public.retry_failed_notifications() 重新触发（webhook 监听 UPDATE）
 // 卡片构建逻辑在 ./cards.ts（纯函数，可本地单测）
 // ============================================================
 
-import { buildCard, type OriginalFeedback, type OutboxEvent, type TaskSummary } from './cards.ts'
+import { buildCard, buildDailyCard, type OriginalFeedback, type OutboxEvent, type TaskSummary } from './cards.ts'
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' }
 
@@ -27,8 +29,25 @@ Deno.serve(async (request) => {
   try {
     verifyWebhook(request)
     const payload = await request.json() as DatabaseWebhookPayload
+
+    // ---- 入口 B：日报汇总（send_daily_report 定时调用）----
+    if (payload.table === 'daily_report') {
+      if (!payload.record?.payload) return response({ ok: false, reason: 'daily_report missing payload' }, 400)
+      const baseUrl = Deno.env.get('DASHBOARD_BASE_URL') || 'https://yizong-boop.github.io/work-dashboard/'
+      const event: OutboxEvent = { id: 'daily', event_type: 'daily_report', payload: payload.record.payload }
+      try {
+        const card = buildDailyCard(event, baseUrl)
+        const channel = await sendFeishu(card)
+        return response({ ok: true, channel, event: 'daily_report' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`[feishu-notify] daily report failed: ${message}`)
+        return response({ ok: false, error: message }, 200)
+      }
+    }
+
     if (payload.table !== 'notification_outbox' || !payload.record) {
-      return response({ skipped: true, reason: 'Only notification_outbox is supported' })
+      return response({ skipped: true, reason: 'Only notification_outbox or daily_report is supported' })
     }
     const record = payload.record
     const event: OutboxEvent = {

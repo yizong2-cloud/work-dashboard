@@ -756,3 +756,105 @@ grant select on public.task_feedback_messages to anon, authenticated;
 grant select on public.task_plan_blocks       to anon, authenticated;
 grant select on public.task_plan_block_changes to anon, authenticated;
 grant usage on schema public to anon, authenticated;
+
+-- ============================================================
+-- 工作日日报（产品：Leader 每天 19:30 收到全局风险汇总卡，回应
+-- 「未排期的我咋知道啥时候完成」——未排期任务在日报里直接列出原因）
+-- ============================================================
+
+create or replace function public.send_daily_report()
+returns int
+language plpgsql
+security definer
+as $$
+declare v_ep public.webhook_endpoint;
+  v_overdue jsonb; v_week jsonb; v_urgent jsonb; v_blocked jsonb; v_unscheduled jsonb;
+  v_feedback int; v_updates int; v_active int; v_planned int;
+  v_payload jsonb;
+begin
+  select * into v_ep from public.webhook_endpoint where id = 1;
+  if v_ep is null or v_ep.url = '' then
+    return 0;
+  end if;
+
+  -- 已逾期：预计完成 < 今天 且未完成
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'task_id', id, 'title', title, 'progress', progress,
+           'expected_end_date', expected_end_date, 'current_status', current_status)
+           order by expected_end_date), '[]'::jsonb)
+    into v_overdue
+    from public.tasks
+   where status not in ('completed','cancelled')
+     and expected_end_date is not null
+     and expected_end_date < CURRENT_DATE;
+
+  -- 本周到期（今天起未来 7 天）
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'task_id', id, 'title', title, 'progress', progress,
+           'expected_end_date', expected_end_date, 'current_status', current_status)
+           order by expected_end_date), '[]'::jsonb)
+    into v_week
+    from public.tasks
+   where status not in ('completed','cancelled')
+     and expected_end_date between CURRENT_DATE and CURRENT_DATE + 6;
+
+  -- 加急中
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'task_id', id, 'title', title, 'progress', progress,
+           'expected_end_date', expected_end_date) order by title), '[]'::jsonb)
+    into v_urgent
+    from public.tasks
+   where priority = 'urgent' and status not in ('completed','cancelled');
+
+  -- 阻塞中
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'task_id', id, 'title', title, 'progress', progress,
+           'block_reason', block_reason) order by title), '[]'::jsonb)
+    into v_blocked
+    from public.tasks
+   where status = 'blocked';
+
+  -- 未排期（进行中但无预计完成日期）——Leader 核心痛点
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'task_id', id, 'title', title, 'progress', progress,
+           'current_status', current_status) order by title), '[]'::jsonb)
+    into v_unscheduled
+    from public.tasks
+   where status = 'in_progress' and expected_end_date is null;
+
+  -- 待回应反馈
+  select count(*) into v_feedback
+    from public.task_feedback_threads
+   where status <> 'resolved';
+
+  -- 今日更新 / 活跃任务 / 待开始
+  select count(*) into v_updates from public.task_updates
+   where created_at >= date_trunc('day', now());
+  select count(*) into v_active from public.tasks where status = 'in_progress';
+  select count(*) into v_planned from public.tasks where status = 'planned';
+
+  v_payload := jsonb_build_object(
+    'kind', 'daily', 'date', CURRENT_DATE,
+    'overdue', v_overdue, 'week', v_week, 'urgent', v_urgent,
+    'blocked', v_blocked, 'unscheduled', v_unscheduled,
+    'feedback_open', v_feedback, 'updates_today', v_updates,
+    'active_count', v_active, 'planned_count', v_planned
+  );
+
+  perform net.http_post(
+    url := v_ep.url,
+    -- record 结构与 outbox 一致：{id, event_type, payload}，Edge Function 统一解析
+    body := jsonb_build_object('type', 'INSERT', 'table', 'daily_report', 'record',
+             jsonb_build_object('id', 'daily-report', 'event_type', 'daily_report', 'payload', v_payload)),
+    headers := jsonb_build_object('content-type', 'application/json', 'x-dashboard-secret', v_ep.secret),
+    timeout_milliseconds := 30000
+  );
+  return 1;
+end;
+$$;
+
+grant execute on function public.send_daily_report() to service_role;
+
+-- 调度：工作日（周一~五）19:30 北京时间。pg_cron 按数据库时区（UTC）解释，
+-- 11:30 UTC = 19:30 北京。同名 job 幂等（cron.schedule 同名即更新）。
+select cron.schedule('workboard-daily-report', '30 11 * * 1-5', 'select public.send_daily_report()');

@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCard, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
+import { buildCard, buildDailyCard, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
 
 const BASE = 'https://yizong-boop.github.io/work-dashboard/'
 const TASK = {
@@ -90,6 +90,18 @@ test('task_update：加急事件 → 红色卡片 + 加急标题', () => {
   assert.match(JSON.stringify(card), /Leader 要求本周内完成/)
 })
 
+test('task_update：逾期任务按钮变「去更新进度」并带 action 参数', () => {
+  const overdueTask = { ...TASK, expected_end_date: '2020-01-01' }
+  const card = buildCard(
+    ev('task_update', { task_id: 't-1', type: 'note', content: '还在弄', created_by: 'Agent' }),
+    overdueTask, BASE,
+  )
+  const json = JSON.stringify(card)
+  assert.match(json, /去更新进度/)
+  assert.match(json, /action=progress/)
+  assert.doesNotMatch(json, /查看任务详情/)
+})
+
 test('task_update：取消加急 → 蓝色「任务取消加急」卡片（不与加急混淆）', () => {
   const card = buildCard(
     ev('task_update', { task_id: 't-1', type: 'deurgent', content: '优先级恢复', created_by: 'Leader' }),
@@ -123,4 +135,42 @@ test('卡片深链接不泄露 webhook/密钥（URL 仅为看板站点）', () =
   const card = buildCard(ev('feedback_created', { thread_id: 'ft-9', body: 'x', author_name: 'Leader' }), TASK, BASE)
   const json = JSON.stringify(card)
   assert.doesNotMatch(json, /hook|secret|token|service_role|eyJ/i)
+})
+
+test('buildDailyCard：各风险区块 + 每条深链可点', () => {
+  const card = buildDailyCard(ev('daily_report', {
+    date: '2026-08-17',
+    overdue: [{ task_id: 't-1', title: '过期任务A', progress: 40, expected_end_date: '2026-08-15' }],
+    week: [{ task_id: 't-2', title: '本周任务B', progress: 70, expected_end_date: '2026-08-20' }],
+    urgent: [{ task_id: 't-3', title: '加急任务C', progress: 30 }],
+    blocked: [{ task_id: 't-4', title: '阻塞任务D', progress: 10, block_reason: '等美术资源' }],
+    unscheduled: [{ task_id: 't-5', title: '未排期任务E', progress: 0, current_status: '等设计稿' }],
+    feedback_open: 2, updates_today: 9, active_count: 10, planned_count: 1,
+  }), BASE)
+  const json = JSON.stringify(card)
+  assert.ok(card)
+  assert.equal(headerOf(card).template, 'orange')
+  assert.match(json, /日报 8\/17/)
+  assert.match(json, /已逾期（1）/)
+  assert.match(json, /逾期 \d+ 天/)
+  assert.match(json, /本周到期（1）/)
+  assert.match(json, /加急中（1）/)
+  assert.match(json, /阻塞（1）/)
+  assert.match(json, /未排期（1）/)
+  assert.match(json, /等设计稿/)
+  assert.match(json, /进行中\*\* 10 · \*\*待开始\*\* 1 · \*\*今日更新\*\* 9 · \*\*待回应反馈\*\* 2/)
+  // 每条风险可点击深链到任务
+  assert.match(json, /#\/task\/t-1/)
+  assert.match(json, /#\/task\/t-5/)
+  assert.match(json, /查看完整看板/)
+})
+
+test('buildDailyCard：无风险 → 蓝色 + 平安描述', () => {
+  const card = buildDailyCard(ev('daily_report', {
+    date: '2026-08-17',
+    overdue: [], week: [], urgent: [], blocked: [], unscheduled: [],
+    feedback_open: 0, updates_today: 0, active_count: 0, planned_count: 0,
+  }), BASE)
+  assert.equal(headerOf(card).template, 'blue')
+  assert.match(JSON.stringify(card), /无逾期 · 无加急 · 无阻塞/)
 })
