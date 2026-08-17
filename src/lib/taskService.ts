@@ -46,7 +46,7 @@ export interface TaskService {
   completeTask(id: string, content?: string): Promise<Task>
 
   /** 追加一条任意类型的时间线（note / interrupt / progress 说明等） */
-  addNote(id: string, type: UpdateType, content: string): Promise<TaskUpdate>
+  addNote(id: string, type: UpdateType, content: string, author?: string): Promise<TaskUpdate>
 
   /** Leader 留言：作为特殊 note 写入时间线，保留独立作者 */
   addComment(id: string, author: string, content: string): Promise<TaskUpdate>
@@ -142,13 +142,13 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
       })
     },
 
-    async addNote(id, type, content) {
+    async addNote(id, type, content, author) {
       if (!content || !content.trim()) throw new Error('进展内容不能为空')
       return db.addUpdate({
         task_id: id,
         type,
         content: content.trim(),
-        created_by: who(),
+        created_by: author ?? who(),
       })
     },
 

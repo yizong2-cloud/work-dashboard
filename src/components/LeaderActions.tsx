@@ -5,23 +5,26 @@ import { todayISO } from '../lib/format'
 
 // ============================================================
 // LeaderActions —— 协作操作区（Leader 专属操作，免登录谁都能点）
-// 加急 / 取消加急 / 催进度 / 调整排期
+// 加急 / 取消加急 / 催进度 / 取消催办 / 调整排期
 // 所有操作：写入任务时间线 + 触发飞书通知，全程留痕。
 // ============================================================
 
-type ActionKind = 'urgent' | 'deurgent' | 'nudge' | 'schedule' | null
+type ActionKind = 'urgent' | 'deurgent' | 'nudge' | 'unnudge' | 'schedule' | null
 
 const ACTION_META: Record<Exclude<ActionKind, null>, { title: string; noteLabel: string; confirm: string; done: string }> = {
   urgent: { title: '标记为加急', noteLabel: '为什么加急？（可选，会同步给负责人）', confirm: '确认加急', done: '已标记为加急，负责人会收到飞书提醒' },
   deurgent: { title: '取消加急', noteLabel: '取消原因？（可选）', confirm: '确认取消加急', done: '已取消加急' },
   nudge: { title: '提醒负责人更新进度', noteLabel: '想提醒什么？（可选）', confirm: '发送提醒', done: '已发送进度提醒，负责人会收到飞书通知' },
+  unnudge: { title: '取消催办', noteLabel: '取消原因？（可选，会留痕）', confirm: '确认取消催办', done: '已取消催办，任务上的闹钟会消失' },
   schedule: { title: '调整预计完成日期', noteLabel: '调整原因？（可选，留痕用）', confirm: '确认调整', done: '已调整预计完成日期' },
 }
 
-export function LeaderActions({ task, service, onNotify }: {
+export function LeaderActions({ task, service, onNotify, pendingNudges }: {
   task: Task
   service: TaskService
   onNotify: (message: string) => void
+  /** 待处理催办数（最新时间线是 nudge 才算），>0 时显示「取消催办」 */
+  pendingNudges: number
 }) {
   const [action, setAction] = useState<ActionKind>(null)
   const [note, setNote] = useState('')
@@ -49,6 +52,9 @@ export function LeaderActions({ task, service, onNotify }: {
       if (action === 'urgent') await service.setUrgent(task.id, true, trimmed || undefined, 'Leader')
       else if (action === 'deurgent') await service.setUrgent(task.id, false, trimmed || undefined, 'Leader')
       else if (action === 'nudge') await service.nudge(task.id, trimmed || undefined, 'Leader')
+      else if (action === 'unnudge') {
+        await service.addNote(task.id, 'note', trimmed ? `已取消催办：${trimmed}` : '已取消催办。', 'Leader')
+      }
       else if (action === 'schedule') {
         if (!date) throw new Error('请选择日期')
         await service.setSchedule(task.id, date, trimmed || undefined, 'Leader')
@@ -77,6 +83,7 @@ export function LeaderActions({ task, service, onNotify }: {
           <button className="btn btn-danger btn-sm" onClick={() => open('urgent')}>🔥 加急</button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={() => open('nudge')}>⏰ 催进度</button>
+        {pendingNudges > 0 && <button className="btn btn-ghost btn-sm" onClick={() => open('unnudge')}>🧹 取消催办</button>}
         <button className="btn btn-ghost btn-sm" onClick={() => open('schedule')}>📅 调整排期</button>
       </div>
 

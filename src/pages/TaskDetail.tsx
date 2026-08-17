@@ -65,6 +65,14 @@ export function TaskDetail() {
 
   const timelineUpdates = useMemo(() => updates.filter((update) => !isComment(update)), [updates])
 
+  // 待处理催办数：最新时间线连续 nudge 的条数（>0 时 LeaderActions 显示「取消催办」）
+  const pendingNudges = useMemo(() => {
+    const sorted = [...updates].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    let count = 0
+    for (let i = sorted.length - 1; i >= 0 && sorted[i].type === 'nudge'; i--) count++
+    return count
+  }, [updates])
+
   function notify(message: string) {
     setToast(message)
     window.setTimeout(() => setToast(''), 3000)
@@ -154,7 +162,7 @@ export function TaskDetail() {
         </section>
 
         <aside className="detail-sidebar">
-          <LeaderActions task={task} service={service} onNotify={notify} />
+          <LeaderActions task={task} service={service} onNotify={notify} pendingNudges={pendingNudges} />
           <FeedbackPanel
             taskId={task.id}
             service={feedback}
