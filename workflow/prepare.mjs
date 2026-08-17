@@ -107,9 +107,6 @@ function main() {
   } else {
     steps.push({ name: 'Codex 摘要', ok: false, detail: codexRes.stderr.slice(0, 200) })
   }
-  if (!steps.some((s) => s.name === 'Codex 摘要')) {
-    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个会话` })
-  }
 
   // ---- 3. DSH 摘要（增量窗口 + 详情）----
   const dshArgs = [path.join(ROOT, 'scripts', 'dsh-summary.js'), '--days', String(DAYS), '--json']
@@ -124,9 +121,6 @@ function main() {
     }
   } else {
     steps.push({ name: 'DSH 摘要', ok: false, detail: dshRes.stderr.slice(0, 200) })
-  }
-  if (!steps.some((s) => s.name === 'DSH 摘要')) {
-    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个会话` })
   }
 
   // ---- 4. 当前看板 ----
@@ -157,6 +151,14 @@ function main() {
   let dshDetail = []
   try { codexDetail = JSON.parse(codexDetailRes.stdout) } catch { codexDetail = [] }
   try { dshDetail = JSON.parse(dshDetailRes.stdout) } catch { dshDetail = [] }
+
+  // 摘要步骤报告（增量数 + 三日窗口 detail 数；增量可能为 0 但窗口内仍有长会话内容）
+  if (!steps.some((s) => s.name === 'Codex 摘要')) {
+    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（三日窗口共 ${codexDetail.length} 个，含跨窗口长会话）` })
+  }
+  if (!steps.some((s) => s.name === 'DSH 摘要')) {
+    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个增量（三日窗口共 ${dshDetail.length} 个，含跨窗口长会话）` })
+  }
 
   // ---- 打包 context ----
   const ctx = {
