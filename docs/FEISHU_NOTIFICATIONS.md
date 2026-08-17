@@ -26,16 +26,20 @@ task_feedback_messages / threads        task_updates
         飞书私有工作群（卡片，按钮深链接回网站对应线程）
 ```
 
-## 通知规则
+## 通知规则（2026-08-17 起：事件分层 + Agent 显式声明推送意图，无时间窗口）
 
-| 事件 | 触发 | 卡片 | 噪音 |
+| 事件 | 触发 | 卡片 | 投递 |
 | --- | --- | --- | --- |
 | `feedback_created` | Leader 在网站发起反馈（线程首条消息） | 「💬 发起了新反馈」+ 任务名 + 正文；按钮**查看反馈并回复** → `#/task/:id?thread=:thread` | 即时 |
 | `feedback_replied` | 负责人在线程下回复 | 回复摘要 + **原反馈摘要**（上下文完整）；按钮同上 | 即时 |
-| `feedback_resolved` | 线程被标记解决 / 重新打开 | 低噪音状态卡（绿/橙） | 低频 |
-| `task_update`（blocked/unblocked/completed/schedule_change/interrupt/urgent） | 任务关键变化（含**加急**，红色卡片「任务加急」） | 现有任务简报卡；按钮**查看任务详情** | 即时 |
-| `task_nudged` | Leader 在任务详情页点「催进度」（或 CLI `nudge`） | 橙色「⏰ 有人催进度了」卡 + 附言；按钮**查看任务并更新进度** | 即时 |
-| `task_update_progress`（普通进度） | 任意 progress 时间线 | **聚合摘要**「任务进度更新（N 条）」（数据库触发器把 30 分钟内同一任务的 progress 合并为一条，防止 Agent 批量更新刷屏） | 聚合 |
+| `feedback_resolved` | 线程被标记解决 / 重新打开 | 低噪音状态卡（绿/橙） | 即时 |
+| `task_update`（blocked/unblocked/completed/schedule_change/interrupt/urgent/deurgent/**progress 单条**） | 任务关键变化 + 普通进度 | 任务简报卡（**单条进度也秒推**，不再等窗口）；按钮**查看任务详情**（逾期任务变「去更新进度」） | 即时 |
+| `task_nudged` | Leader 点「催进度」（或 CLI `nudge`） | 橙色「⏰ 有人催进度了」卡 + 附言 | 即时 |
+| `task_update_progress`（**批量合并卡**） | Agent `batch` 命令 / `--merge 批号` 的批量进度 | 聚合摘要「任务进度更新（N 条）」，批末 `flush_merge` **立即投递**（不延迟；未 flush 由 cron 2 分钟兜底） | 批末即发 |
+| `note`（备注） | CLI `note`（默认 `silent`） | **不即时推送**，只写时间线、进 19:30 日报汇总；`--notify` 可强制即时 | 静默 |
+| 历史补记 | CLI `--at` 回填 | 只写时间线，**永不推送**（触发器忽略时间早于当前 10 分钟的记录） | 静默 |
+
+**推送意图由 Agent 显式声明**（`task_updates.notify_mode`）：`immediate` 秒推 / `merge` 同批合并 / `silent` 静默——不再用时间窗口猜测是否批量。
 
 ## 已部署内容（2026-08-16）
 
