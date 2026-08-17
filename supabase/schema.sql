@@ -61,8 +61,24 @@ create table if not exists public.task_updates (
   old_expected_end_date date,
   new_expected_end_date date,
   created_at            timestamptz not null default now(),
-  created_by            text not null default ''
+  created_by            text not null default '',
+  -- 推送意图（Agent 显式声明，无时间窗口）：
+  --   immediate 单条秒推（默认）；merge 合并进同批聚合卡（batch 命令用，flush_merge 投递）；
+  --   silent 只写时间线不推送（note 备注/历史补记）。
+  notify_mode           text not null default 'immediate'
+                        check (notify_mode in ('immediate','merge','silent')),
+  merge_key             text
 );
+
+-- 对已存在的表补充新列（create table if not exists 不追加列）
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='task_updates' and column_name='notify_mode') then
+    alter table public.task_updates add column notify_mode text not null default 'immediate';
+    alter table public.task_updates add column merge_key text;
+  end if;
+end $$;
 
 create index if not exists task_updates_task_id_idx on public.task_updates (task_id);
 create index if not exists tasks_status_idx on public.tasks (status);
@@ -102,7 +118,9 @@ create or replace function public.apply_task_update(
   p_content text default '',
   p_old_date date default null,
   p_new_date date default null,
-  p_created_by text default 'agent'
+  p_created_by text default 'agent',
+  p_notify_mode text default 'immediate',
+  p_merge_key text default null
 ) returns public.tasks
 language plpgsql
 security definer
@@ -129,14 +147,14 @@ begin
     raise exception '任务不存在: %', p_task_id;
   end if;
 
-  insert into public.task_updates (task_id, type, content, old_expected_end_date, new_expected_end_date, created_at, created_by)
-  values (p_task_id, p_type, p_content, p_old_date, p_new_date, now(), p_created_by);
+  insert into public.task_updates (task_id, type, content, old_expected_end_date, new_expected_end_date, created_at, created_by, notify_mode, merge_key)
+  values (p_task_id, p_type, p_content, p_old_date, p_new_date, now(), p_created_by, p_notify_mode, p_merge_key);
 
   return v_task;
 end;
 $$;
 
-grant execute on function public.apply_task_update(uuid, jsonb, text, text, date, date, text) to anon, authenticated;
+grant execute on function public.apply_task_update(uuid, jsonb, text, text, date, date, text, text, text) to anon, authenticated;
 
 -- ---------------- 原子创建 RPC（创建任务 + 初始时间线 一次事务） ----------------
 create or replace function public.create_task_with_note(
@@ -385,19 +403,23 @@ security definer
 as $$
 declare v_existing uuid;
 begin
-  -- 历史补记（CLI note/schedule 等 --at 回填，或批量拆分补时间线）：
-  -- 时间远早于当前说明不是「此刻发生」的事件，只入时间线、不触发实时推送。
+  -- 历史补记（--at 回填 / 批量拆分补时间线）：不是「此刻发生」的事件，只入时间线不推送。
   if new.created_at < now() - interval '10 minutes' then
     return new;
   end if;
 
-  if new.type = 'progress' then
+  -- silent（note 备注默认）：只写时间线，不推送。
+  if new.notify_mode = 'silent' then
+    return new;
+  end if;
+
+  -- merge（Agent 批量声明）：合并进同 merge_key 的聚合卡（pending，等待 flush_merge 一次性投递）。
+  if new.notify_mode = 'merge' and new.merge_key is not null then
     select id into v_existing
       from public.notification_outbox
      where event_type = 'task_update_progress'
        and status = 'pending'
-       and (payload->>'task_id') = new.task_id::text
-       and created_at > now() - interval '30 minutes'
+       and payload->>'merge_key' = new.merge_key
      order by created_at desc
      limit 1;
     if v_existing is not null then
@@ -409,14 +431,29 @@ begin
        where id = v_existing;
       return new;
     end if;
+    insert into public.notification_outbox (event_type, source_key, payload)
+    values (
+      'task_update_progress',
+      new.id::text,
+      jsonb_build_object(
+        'task_id', new.task_id::text,
+        'type', 'progress',
+        'content', new.content,
+        'created_by', new.created_by,
+        'created_at', new.created_at,
+        'merge_key', new.merge_key,
+        'count', 1,
+        'latest', new.content
+      )
+    );
+    return new;
   end if;
+
+  -- immediate（默认）与其他：单条立即投递。progress 不再有 30 分钟窗口，
+  -- 单条进度秒推；批量由 Agent 显式声明 merge。
   insert into public.notification_outbox (event_type, source_key, payload)
   values (
-    case
-      when new.type = 'progress' then 'task_update_progress'
-      when new.type = 'nudge' then 'task_nudged'
-      else 'task_update'
-    end,
+    case when new.type = 'nudge' then 'task_nudged' else 'task_update' end,
     new.id::text,
     jsonb_build_object(
       'task_id', new.task_id::text,
@@ -511,13 +548,12 @@ begin
   if v_ep is null or v_ep.url = '' then
     return 0;
   end if;
+  -- 兜底投递：所有 pending 超过 2 分钟的行（含 merge 聚合卡——Agent 未 flush 时由这里兜底；
+  -- 正常单条 immediate 由 webhook 实时投递，不走这里）。
   for v_row in
     select * from public.notification_outbox
      where status = 'pending'
-       and (
-         (event_type = 'task_update_progress' and created_at <= now() - interval '30 minutes')
-         or (event_type <> 'task_update_progress' and created_at <= now() - interval '2 minutes')
-       )
+       and created_at <= now() - interval '2 minutes'
      order by created_at
      limit 20
   loop
@@ -534,6 +570,44 @@ end;
 $$;
 
 grant execute on function public.deliver_pending_notifications() to service_role;
+
+-- ---- merge 批量立即投递：Agent 批量命令结束后调用，把该批的聚合卡一次性发出 ----
+create or replace function public.flush_merge(p_merge_key text)
+returns int
+language plpgsql
+security definer
+as $$
+declare v_ep public.webhook_endpoint;
+declare v_row public.notification_outbox;
+declare v_count int := 0;
+begin
+  if p_merge_key is null or p_merge_key = '' then
+    return 0;
+  end if;
+  select * into v_ep from public.webhook_endpoint where id = 1;
+  if v_ep is null or v_ep.url = '' then
+    return 0;
+  end if;
+  for v_row in
+    select * from public.notification_outbox
+     where event_type = 'task_update_progress'
+       and status = 'pending'
+       and payload->>'merge_key' = p_merge_key
+     order by created_at
+  loop
+    perform net.http_post(
+      url := v_ep.url,
+      body := jsonb_build_object('type', 'INSERT', 'table', 'notification_outbox', 'record', to_jsonb(v_row)),
+      headers := jsonb_build_object('content-type', 'application/json', 'x-dashboard-secret', v_ep.secret),
+      timeout_milliseconds := 30000
+    );
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+
+grant execute on function public.flush_merge(text) to service_role;
 
 -- ---- 失败重试：把 failed（且未超次数）的行重新置为 pending（webhook 监听 UPDATE 会重新投递）----
 create or replace function public.retry_failed_notifications(max_attempts int default 5)

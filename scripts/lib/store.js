@@ -111,6 +111,8 @@ function createLocalStore() {
         new_expected_end_date: input.new_expected_end_date ?? null,
         created_at: input.created_at ?? now(),
         created_by: input.created_by ?? 'agent',
+        notify_mode: input.notify_mode ?? 'immediate',
+        merge_key: input.merge_key ?? null,
       }
       db.updates.push(update)
       saveLocal(db)
@@ -138,6 +140,9 @@ function createLocalStore() {
       })
       saveLocal(db)
       return task
+    },
+    async flushMerge() {
+      return 0 // 本地模式无推送
     },
     async deleteTask(id) {
       const db = loadLocal()
@@ -318,7 +323,9 @@ function createSupabaseStore(env) {
         old_expected_end_date: input.old_expected_end_date ?? null,
         new_expected_end_date: input.new_expected_end_date ?? null,
         created_by: input.created_by ?? 'agent',
+        notify_mode: input.notify_mode ?? 'immediate',
       }
+      if (input.merge_key) payload.merge_key = input.merge_key
       if (input.created_at) payload.created_at = input.created_at
       const { data, error } = await client.from('task_updates').insert(payload).select().single()
       if (error) throw new Error(error.message)
@@ -337,9 +344,17 @@ function createSupabaseStore(env) {
         p_old_date: update.old_expected_end_date ?? null,
         p_new_date: update.new_expected_end_date ?? null,
         p_created_by: update.created_by ?? 'agent',
+        p_notify_mode: update.notify_mode ?? 'immediate',
+        p_merge_key: update.merge_key ?? null,
       })
       if (error) throw new Error(error.message)
       return data
+    },
+    async flushMerge(mergeKey) {
+      if (!mergeKey) return 0
+      const { data, error } = await client.rpc('flush_merge', { p_merge_key: mergeKey })
+      if (error) throw new Error(error.message)
+      return data ?? 0
     },
     async deleteTask(id) {
       const { error } = await client.from('tasks').delete().eq('id', id)

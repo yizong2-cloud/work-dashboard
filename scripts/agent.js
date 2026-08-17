@@ -182,7 +182,12 @@ async function opProgress(op) {
   const task = await store.applyTaskUpdate(
     id,
     { progress: to },
-    { type: 'progress', content: note, created_by: who },
+    {
+      type: 'progress', content: note, created_by: who,
+      // Agent 批量声明：--merge 批号 → 本批合并成一条聚合卡（batch 命令自动带）
+      notify_mode: op.merge ? 'merge' : 'immediate',
+      merge_key: op.merge ? String(op.merge) : undefined,
+    },
   )
   human(`✅ 任务 ${id} 进度已更新为 ${to}%`)
   human(renderTask(task))
@@ -364,6 +369,8 @@ async function opNote(op) {
     type,
     content,
     created_by: who,
+    // note 备注默认静默（只进日报，不即时推）；--notify 强制单条推送
+    notify_mode: op.notify ? 'immediate' : 'silent',
     ...(at ? { created_at: at } : {}),
   })
   human(`✅ 已记录 [${type}]${at ? ` @${at}` : ''}`)
@@ -477,6 +484,8 @@ async function opBatch(op) {
   }
   const items = Array.isArray(spec) ? spec : spec.ops
   if (!Array.isArray(items)) fail('批处理文件须为数组或 { ops: [...] }')
+  // 批号：批内 progress 自动合并成一条聚合卡（Agent 批量 = 防刷屏场景），批末 flush 立即投递
+  const batchId = `${new Date().toISOString().replace(/[:.]/g, '-')}`
   const results = []
   for (const item of items) {
     const opName = item.op
@@ -485,6 +494,7 @@ async function opBatch(op) {
       continue
     }
     try {
+      if (opName === 'progress' && item.merge === undefined) item.merge = batchId
       const r = await ops[opName](item)
       results.push({ op: opName, ok: true, id: r?.id ?? item.id ?? null })
     } catch (e) {
@@ -492,6 +502,8 @@ async function opBatch(op) {
     }
   }
   const failed = results.filter((r) => !r.ok)
+  // 批末 flush：把本批 progress 聚合卡立即发出（失败由兜底 cron 补投）
+  try { await store.flushMerge(batchId) } catch { /* 兜底 */ }
   if (jsonOut) return results
   for (const r of results) human(`${r.ok ? '✅' : '❌'} ${r.op}${r.id ? ` (${r.id})` : ''}${r.message ? ' — ' + r.message : ''}`)
   human(`批处理完成：${results.length - failed.length}/${results.length} 成功`)
@@ -533,8 +545,11 @@ function opHelp() {
   block <id> --reason "原因"                    标记阻塞（必填原因）
   unblock <id> [--note]                         解除阻塞
   complete <id> [--note]                        标记完成（进度=100，记录实际完成日）
-  note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"]   
-                                       追加时间线（progress/interrupt/note/...；--at 回填历史时间）
+  note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"] [--notify]
+                                       追加时间线（默认静默只进日报，--notify 强制即时推送；
+                                       --at 回填历史时间）
+  progress <id> --to 70 [--merge 批号] 更新进度（默认秒推；--merge 合并进指定批的聚合卡，
+                                       由 batch 命令自动携带）
   nudge <id> [--note "附言"]           催进度（记录时间线 + 飞书通知任务负责人）
   delete <id>                                   删除任务（含时间线）
   batch --file ops.json                         批量执行（数组或 {ops: [...]}）
