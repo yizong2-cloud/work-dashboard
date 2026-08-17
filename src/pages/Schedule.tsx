@@ -6,12 +6,15 @@ import { useTaskService } from '../hooks/useTaskService'
 import { validatePlanDates } from '../lib/planRules'
 import { buildMonthCalendar, buildScheduleEntries, type ScheduleEntry } from '../lib/scheduleView'
 import { buildDailyReport } from '../lib/dailyReport'
+import { taskColorClass } from '../lib/taskColor'
+import { ScheduleWeek } from '../components/ScheduleWeek'
+import { TaskQuickCard } from '../components/TaskQuickCard'
 import { shortDate, todayISO } from '../lib/format'
 
 const WORKING_MASCOT = `${import.meta.env.BASE_URL}mascots/mascot-working.png`
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-type ScheduleViewMode = 'calendar' | 'today'
+type ScheduleViewMode = 'week' | 'calendar' | 'today'
 
 function dateParts(iso: string) {
   const [year, month, day] = iso.split('-').map(Number)
@@ -76,10 +79,6 @@ function updateTypeLabel(type: UpdateType): string {
   return labels[type]
 }
 
-function colorIndex(taskId: string): number {
-  return [...taskId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4
-}
-
 export function Schedule() {
   const navigate = useNavigate()
   const db = getDB()
@@ -88,7 +87,7 @@ export function Schedule() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [blocks, setBlocks] = useState<PlanBlock[]>([])
   const [allUpdates, setAllUpdates] = useState<TaskUpdate[]>([])
-  const [viewMode, setViewMode] = useState<ScheduleViewMode>('calendar')
+  const [viewMode, setViewMode] = useState<ScheduleViewMode>('week')
   const [monthStart, setMonthStart] = useState(() => startOfMonth(todayISO()))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -105,6 +104,7 @@ export function Schedule() {
   const [adjFrom, setAdjFrom] = useState('')
   const [adjTo, setAdjTo] = useState('')
   const [adjNote, setAdjNote] = useState('')
+  const [activeTask, setActiveTask] = useState<import('../types').Task | null>(null)
 
   const { rangeStart, rangeEnd, weeks } = useMemo(() => buildMonthCalendar(monthStart), [monthStart])
   const today = todayISO()
@@ -250,11 +250,13 @@ export function Schedule() {
       <header className="dashboard-intro schedule-intro">
         <div>
           <span className="eyebrow">Plan & Report</span>
-          <h1>{viewMode === 'calendar' ? '工作月历' : '今日动态'}</h1>
+          <h1>{viewMode === 'week' ? '本周排期' : viewMode === 'calendar' ? '工作月历' : '今日动态'}</h1>
           <p>
-            {viewMode === 'calendar'
-              ? '月历只回答“什么时候准备做什么”，未排期任务不会出现在日历中。'
-              : '今日动态只回答“今天实际推进了什么”，数据来自当天任务时间线。'}
+            {viewMode === 'week'
+              ? '本周视图回答“这周到底做什么、会不会撞期”：本周承诺 + 每日计划块 + 未排期/风险一览。'
+              : viewMode === 'calendar'
+                ? '月历回答“什么时候准备做什么”，未排期任务不会出现在日历中。'
+                : '今日动态只回答“今天实际推进了什么”，数据来自当天任务时间线。'}
           </p>
         </div>
         <div className="schedule-mascot-frame" aria-hidden="true">
@@ -262,6 +264,10 @@ export function Schedule() {
         </div>
         <div className="intro-actions schedule-actions">
           <div className="schedule-view-tabs" role="tablist" aria-label="日程视图">
+            <button
+              className={`btn btn-sm ${viewMode === 'week' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setViewMode('week')}
+            >本周</button>
             <button
               className={`btn btn-sm ${viewMode === 'calendar' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setViewMode('calendar')}
@@ -281,7 +287,16 @@ export function Schedule() {
         </div>
       </header>
 
-      {viewMode === 'calendar' ? (
+      {viewMode === 'week' ? (
+        <ScheduleWeek
+          tasks={tasks}
+          blocks={blocks}
+          db={db}
+          onQuickProgress={(taskId) => navigate(`/task/${taskId}?action=progress`)}
+          onOpenTask={(taskId) => navigate(`/task/${taskId}`)}
+          onPlanned={() => void refresh()}
+        />
+      ) : viewMode === 'calendar' ? (
         <>
           <section className="calendar-summary-strip" aria-label="本月排期摘要">
             <div><span>当前月份</span><strong>{monthLabel(monthStart)}</strong></div>
@@ -361,11 +376,11 @@ export function Schedule() {
                           return (
                             <div
                               key={`${weekStart}:${entry.id}`}
-                              className={`month-entry month-color-${colorIndex(entry.task.id)} is-${entry.source.replace('_', '-')} ${done ? 'is-done' : ''} ${changed ? 'is-changed' : ''}`}
+                              className={`month-entry task-color-line-${taskColorClass(entry.task.id)} is-${entry.source.replace('_', '-')} ${done ? 'is-done' : ''} ${changed ? 'is-changed' : ''}`}
                               style={weekPosition(entry, weekStart, weekEnd)}
                               title={`${entry.task.title} · ${entry.startDate} ~ ${entry.endDate}${entry.source === 'plan_block' ? ` · ${entry.label}` : ''}`}
                             >
-                              <button className="month-entry-main" onClick={() => navigate(`/task/${entry.task.id}`)}>
+                              <button className="month-entry-main" onClick={() => setActiveTask(entry.task)}>
                                 <strong>{entry.task.title}</strong>
                                 <small>{entry.source === 'plan_block' ? entry.label : `${shortDate(entry.startDate)}—${shortDate(entry.endDate)}`}</small>
                               </button>
@@ -429,6 +444,18 @@ export function Schedule() {
             </div>
           </div>
         </div>
+      )}
+
+      {activeTask && (
+        <TaskQuickCard
+          task={activeTask}
+          blocks={blocks}
+          db={db}
+          onQuickProgress={(taskId) => navigate(`/task/${taskId}?action=progress`)}
+          onOpenTask={(taskId) => navigate(`/task/${taskId}`)}
+          onClose={() => setActiveTask(null)}
+          onChanged={() => void refresh()}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}

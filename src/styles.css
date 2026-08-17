@@ -3428,3 +3428,93 @@ h3,
   font-size: 0.7rem;
   color: var(--muted);
 }
+/* ===== 任务稳定颜色（taskColor.ts）===== */
+.task-color-line-sunset{background:#f973161f;border:1px solid #f9731699;color:#1f2937;}
+.task-color-line-ocean{background:#0ea5e91f;border:1px solid #0ea5e999;color:#1f2937;}
+.task-color-line-forest{background:#22c55e1f;border:1px solid #22c55e99;color:#1f2937;}
+.task-color-line-grape{background:#8b5cf61f;border:1px solid #8b5cf699;color:#1f2937;}
+.task-color-line-gold{background:#d4a1061f;border:1px solid #d4a10699;color:#1f2937;}
+.task-color-line-coral{background:#f43f5e1f;border:1px solid #f43f5e99;color:#1f2937;}
+.task-color-line-sky{background:#06b6d41f;border:1px solid #06b6d499;color:#1f2937;}
+.task-color-line-lime{background:#65a30d1f;border:1px solid #65a30d99;color:#1f2937;}
+.task-color-line-rose{background:#ec48991f;border:1px solid #ec489999;color:#1f2937;}
+.task-color-line-slate{background:#64748b1f;border:1px solid #64748b99;color:#1f2937;}
+.task-color-line-teal{background:#0d94881f;border:1px solid #0d948899;color:#1f2937;}
+.task-color-line-amber{background:#d354001f;border:1px solid #d3540099;color:#1f2937;}
+.task-color-solid-sunset{background:#f97316;border:1px solid #f97316;color:#fff;}
+.task-color-solid-ocean{background:#0ea5e9;border:1px solid #0ea5e9;color:#fff;}
+.task-color-solid-forest{background:#22c55e;border:1px solid #22c55e;color:#fff;}
+.task-color-solid-grape{background:#8b5cf6;border:1px solid #8b5cf6;color:#fff;}
+.task-color-solid-gold{background:#d4a106;border:1px solid #d4a106;color:#fff;}
+.task-color-solid-coral{background:#f43f5e;border:1px solid #f43f5e;color:#fff;}
+.task-color-solid-sky{background:#06b6d4;border:1px solid #06b6d4;color:#fff;}
+.task-color-solid-lime{background:#65a30d;border:1px solid #65a30d;color:#fff;}
+.task-color-solid-rose{background:#ec4899;border:1px solid #ec4899;color:#fff;}
+.task-color-solid-slate{background:#64748b;border:1px solid #64748b;color:#fff;}
+.task-color-solid-teal{background:#0d9488;border:1px solid #0d9488;color:#fff;}
+.task-color-solid-amber{background:#d35400;border:1px solid #d35400;color:#fff;}
+.task-color-bar-sunset{border-left:4px solid #f97316;}
+.task-color-bar-ocean{border-left:4px solid #0ea5e9;}
+.task-color-bar-forest{border-left:4px solid #22c55e;}
+.task-color-bar-grape{border-left:4px solid #8b5cf6;}
+.task-color-bar-gold{border-left:4px solid #d4a106;}
+.task-color-bar-coral{border-left:4px solid #f43f5e;}
+.task-color-bar-sky{border-left:4px solid #06b6d4;}
+.task-color-bar-lime{border-left:4px solid #65a30d;}
+.task-color-bar-rose{border-left:4px solid #ec4899;}
+.task-color-bar-slate{border-left:4px solid #64748b;}
+.task-color-bar-teal{border-left:4px solid #0d9488;}
+.task-color-bar-amber{border-left:4px solid #d35400;}
+
+/* ===== 本周视图 ===== */
+.week-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 18px;margin-bottom:14px;}
+.week-summary-item{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:#f8fafc;}
+.week-summary-item span{font-size:.68rem;color:var(--muted);}
+.week-summary-item strong{font-size:1.25rem;}
+.week-summary-item.is-risk strong{color:var(--danger);}
+.week-summary-item.is-warn strong{color:var(--warn);}
+.week-layout{display:grid;grid-template-columns:minmax(240px,0.9fr) minmax(0,2fr);gap:14px;align-items:start;}
+.week-task-pool{padding:18px;}
+.week-promise-list{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:7px;}
+.week-promise-list li{display:flex;align-items:stretch;gap:6px;}
+.task-color-bar{flex:1;display:flex;flex-direction:column;gap:2px;text-align:left;padding:8px 10px;border-radius:8px;background:#f8fafc;border:1px solid var(--border);cursor:pointer;}
+.task-color-bar:hover{border-color:var(--primary);}
+.task-color-bar.is-blocked,.task-color-bar.is-urgent{border-color:var(--danger);}
+.task-chip-title{font-size:.82rem;font-weight:600;color:var(--text);}
+.task-chip-meta{font-size:.68rem;color:var(--muted);}
+.task-chip-quick{align-self:center;border:1px solid var(--border);background:var(--card);border-radius:8px;padding:4px 8px;font-size:.68rem;color:var(--primary);cursor:pointer;}
+.task-chip-quick:hover{background:var(--primary-weak);}
+.week-timeline{padding:18px;overflow-x:auto;}
+.week-grid{display:grid;grid-template-columns:52px repeat(7,minmax(84px,1fr));gap:2px;}
+.week-head,.week-body-title,.week-day{padding:6px;}
+.week-head{text-align:left;display:flex;flex-direction:column;}
+.week-head strong{font-size:.74rem;color:var(--muted);}
+.week-head span{font-size:.9rem;font-weight:700;}
+.week-head.is-today strong,.week-head.is-today span{color:var(--primary);}
+.week-body-title{font-size:.7rem;color:var(--muted);align-self:center;}
+.week-day{min-height:120px;border:1px solid var(--border);border-radius:8px;background:#fcfcfd;display:flex;flex-direction:column;gap:4px;}
+.week-day.is-today{border-color:var(--primary);background:var(--primary-weak);}
+.week-day-empty{flex:1;}
+.week-plan{text-align:left;padding:6px 8px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;gap:1px;}
+.week-plan:hover{filter:brightness(.95);}
+.week-plan.is-done{opacity:.55;}
+.week-plan.is-done::after{content:'✓';align-self:flex-end;font-weight:700;}
+.week-plan-title{font-size:.74rem;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.week-plan small{font-size:.6rem;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.week-overload{font-size:.6rem;color:var(--danger);font-weight:700;}
+.week-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:.7rem;color:var(--muted);}
+.week-legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:4px;}
+.legend-plan-dark{background:#2563eb;}
+.legend-risk-line{border:1px solid var(--danger);}
+/* 就地操作卡 */
+.week-quick-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;}
+.week-quick-facts div{display:flex;flex-direction:column;gap:2px;padding:8px 10px;background:#f8fafc;border-radius:8px;}
+.week-quick-facts span{font-size:.66rem;color:var(--muted);}
+.week-quick-facts strong{font-size:.9rem;}
+.week-block-reason{color:var(--danger);font-size:.78rem;}
+.week-quick-actions{display:flex;gap:8px;flex-wrap:wrap;}
+@media (max-width:900px){
+  .week-layout{grid-template-columns:1fr;}
+  .week-summary{grid-template-columns:repeat(2,1fr);}
+  .week-grid{grid-template-columns:44px repeat(7,minmax(70px,1fr));}
+}
