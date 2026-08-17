@@ -74,7 +74,9 @@ function main() {
   const steps = []
 
   // ---- 1. 飞书增量导出 ----
-  const feishuRes = run(FEISHU_BIN, ['--incremental', '--markdown'], 300000)
+  // --refresh-chats：强制重扫会话列表。否则 --incremental 复用 .state.json 里缓存的
+  // updateTime（快照陈旧），会漏掉期间收到新消息、但上次快照不活跃的会话（如高琦 8/17）。
+  const feishuRes = run(FEISHU_BIN, ['--incremental', '--markdown', '--refresh-chats'], 300000)
   const feishuFile = latestFile(DAILY_DIR, /^range_.*\.md$/)
   let feishuText = '（无飞书增量文件）'
   if (feishuFile) {
