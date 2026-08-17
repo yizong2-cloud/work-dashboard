@@ -84,11 +84,21 @@ export function Dashboard() {
     return map
   }, [allUpdates])
 
-  // 被催进度计数（type === 'nudge'，Leader 催办留痕）
-  const nudgesByTask = useMemo(() => {
-    const map = new Map<string, number>()
+  // 待处理催办：仅当任务最新一条时间线是 nudge（Leader 催了但尚未回应）时显示。
+  // 负责人一旦更新任务（进度/备注等），最新时间线不再是 nudge，闹钟自动消失。
+  const pendingNudgesByTask = useMemo(() => {
+    const byTask = new Map<string, TaskUpdate[]>()
     for (const update of allUpdates) {
-      if (update.type === 'nudge') map.set(update.task_id, (map.get(update.task_id) ?? 0) + 1)
+      const arr = byTask.get(update.task_id) ?? []
+      arr.push(update)
+      byTask.set(update.task_id, arr)
+    }
+    const map = new Map<string, number>()
+    for (const [taskId, updates] of byTask) {
+      const sorted = [...updates].sort((a, b) => a.created_at.localeCompare(b.created_at))
+      let count = 0
+      for (let i = sorted.length - 1; i >= 0 && sorted[i].type === 'nudge'; i--) count++
+      if (count > 0) map.set(taskId, count)
     }
     return map
   }, [allUpdates])
@@ -316,7 +326,7 @@ export function Dashboard() {
             <article className="work-row" key={task.id}>
               <span className={`work-rail rail-${statusTone(task)}`} />
               <button className="work-main" onClick={() => navigate(`/task/${task.id}`)}>
-                <span className="work-title-line"><strong>{task.title}</strong>{task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}{task.priority === 'urgent' && <span className="tag tag-urgent">🔥 加急</span>}{nudgesByTask.get(task.id) ? <span className="nudge-count" title="被催过进度">⏰ ×{nudgesByTask.get(task.id)}</span> : null}</span>
+                <span className="work-title-line"><strong>{task.title}</strong>{task.is_interrupt_task && <span className="tag tag-interrupt">临时</span>}{task.priority === 'urgent' && <span className="tag tag-urgent">🔥 加急</span>}{pendingNudgesByTask.get(task.id) ? <span className="nudge-count" title="Leader 催了进度，尚未回应；更新任务后自动消失">⏰ ×{pendingNudgesByTask.get(task.id)}</span> : null}</span>
                 <span className="work-status-text">{task.current_status || '尚未填写当前情况'}</span>
               </button>
               <div className="work-progress"><TaskProgress progress={task.progress} overdue={isOverdue(task)} size="sm" /></div>
