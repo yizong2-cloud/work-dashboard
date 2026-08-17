@@ -43,6 +43,13 @@ function dayStamp(offsetDays) {
   return d.toISOString().slice(0, 10)
 }
 
+/** 日期字符串加减 N 天（UTC，保持 YYYY-MM-DD） */
+function addDaysISO(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
 function collectSessionFiles(sinceISO) {
   const files = []
   if (!fs.existsSync(SESSIONS_ROOT)) return files
@@ -104,8 +111,10 @@ function summarizeSession(file) {
   let linesRead = 0
   let truncated = false
   let fileBytes = 0
+  let fileMtime = 0
   try {
     fileBytes = fs.statSync(file).size
+    fileMtime = fs.statSync(file).mtimeMs
   } catch {
     return null
   }
@@ -195,6 +204,8 @@ function summarizeSession(file) {
     file,
     start: bjStart,
     startUtc: startTs,
+    lastTs,           // 最后一条消息时间（UTC ISO）
+    fileMtime,        // 文件最后写入时间（ms）——长会话跨窗口仍在写时用于增量判断
     durationMin: durMin,
     cwd: meta.cwd,
     originator: meta.originator,
@@ -265,12 +276,18 @@ const since = args.all ? '0000-01-01' : args.sinceTime ? args.sinceTime.slice(0,
 const sinceMs = args.sinceTime ? new Date(args.sinceTime).getTime() : 0
 console.error(`[codex-summary] 扫描 ${since.slice(0, 10)} 之后的 Codex 会话…`)
 
-const files = collectSessionFiles(since.slice(0, 10))
+const files = collectSessionFiles(addDaysISO(since.slice(0, 10), -2))
 let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
-  // 增量模式：只保留开始时间晚于 sinceTime 的新会话
-  .filter((s) => !sinceMs || (s.startUtc && new Date(s.startUtc).getTime() > sinceMs))
+  // 增量模式：会话在窗口内有「任何」活动才算增量——开始时间、最后一条消息、
+  // 或文件仍被写入（长会话跨窗口持续干活，start 早于窗口也必须纳入）。
+  .filter((s) => {
+    if (!sinceMs) return true
+    const startMs = s.startUtc ? new Date(s.startUtc).getTime() : 0
+    const lastMs = s.lastTs ? new Date(s.lastTs).getTime() : 0
+    return startMs > sinceMs || lastMs > sinceMs || (s.fileMtime && s.fileMtime > sinceMs)
+  })
   .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
 
 if (args.detail) {

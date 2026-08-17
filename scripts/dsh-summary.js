@@ -75,8 +75,10 @@ function isSystemText(text) {
 
 function summarizeSession(file) {
   let size = 0
+  let fileMtime = 0
   try {
     size = fs.statSync(file).size
+    fileMtime = fs.statSync(file).mtimeMs
   } catch {
     return null
   }
@@ -92,6 +94,7 @@ function summarizeSession(file) {
 
   const meta = { cwd: '', start: 0, id: '' }
   const userMsgs = []
+  let lastTsMs = 0
   for (const raw of buf.split('\n')) {
     if (!raw.trim()) continue
     let e
@@ -101,6 +104,8 @@ function summarizeSession(file) {
       continue
     }
     const type = e.type
+    const ts = e.createdAt || e.data?.createdAt || 0
+    if (typeof ts === 'number' && ts > lastTsMs) lastTsMs = ts
     if (type === 'session' && !meta.cwd) {
       meta.cwd = e.cwd || ''
       meta.start = e.createdAt || 0
@@ -120,6 +125,8 @@ function summarizeSession(file) {
   return {
     file,
     start: meta.start ? new Date(meta.start + 8 * 3600 * 1000).toISOString() : '',
+    lastTsMs,           // 最后一条事件时间（UTC ms）——增量判断用
+    fileMtime,          // 压缩文件最后写入（ms）——跨窗口长会话仍被写入时兜底
     cwd: meta.cwd,
     sessionId: meta.id,
     userMsgs,
@@ -167,8 +174,13 @@ let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
   .filter((s) => !since || (s.start && s.start.slice(0, 10) >= since))
-  // 增量模式：只保留开始时间晚于 sinceTime（start 已是北京时间，需换算回比较）
-  .filter((s) => !sinceMs || (new Date(s.start).getTime() - 8 * 3600 * 1000) > sinceMs)
+  // 增量模式：会话在窗口内有「任何」活动才算增量——开始时间、最后一条事件、
+  // 或文件仍被写入（跨窗口长会话）。start 已是北京时间，比较前换算回 UTC。
+  .filter((s) => {
+    if (!sinceMs) return true
+    const startMs = new Date(s.start).getTime() - 8 * 3600 * 1000
+    return startMs > sinceMs || (s.lastTsMs && s.lastTsMs > sinceMs) || (s.fileMtime && s.fileMtime > sinceMs)
+  })
   .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
 
 if (args.detail) {
