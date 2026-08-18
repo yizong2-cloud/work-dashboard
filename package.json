@@ -21,6 +21,7 @@
     "decision:export": "node --experimental-strip-types scripts/decision.js export",
     "decision:close": "node --experimental-strip-types scripts/decision.js close",
     "decision:open": "node --experimental-strip-types scripts/decision.js open",
+    "decision:clarify": "node --experimental-strip-types scripts/decision.js clarify",
     "dashboard:prepare": "node workflow/prepare.mjs",
     "dashboard:apply": "node workflow/apply.mjs",
     "dashboard:verify": "node workflow/verify.mjs",

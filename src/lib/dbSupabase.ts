@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DB } from './db'
 import type {
   DecisionAnswer,
+  DecisionClarification,
   DecisionForm,
   DecisionFormDetail,
   DecisionFormPayload,
@@ -331,6 +332,10 @@ export function createSupabaseDB(client: SupabaseClient): DB {
           sort_order: q.sort_order,
           title: q.title,
           context: q.context,
+          group_name: q.group_name ?? '待确认事项',
+          source_excerpt: q.source_excerpt ?? '',
+          conversion_note: q.conversion_note ?? '',
+          resolution_status: q.resolution_status ?? 'pending',
           type: q.type,
           required: q.required,
           allow_other: q.allow_other,
@@ -380,6 +385,13 @@ export function createSupabaseDB(client: SupabaseClient): DB {
         answers: answersByRId.get(r.id) ?? [],
       }))
 
+      const { data: clarifications, error: clarificationErr } = await client
+        .from('decision_clarifications')
+        .select('*')
+        .eq('form_id', form.id)
+        .order('created_at', { ascending: false })
+      if (clarificationErr) throw new Error(clarificationErr.message)
+
       return {
         id: form.id,
         slug: form.slug,
@@ -395,6 +407,7 @@ export function createSupabaseDB(client: SupabaseClient): DB {
         response_count: formattedResponses.length,
         questions: formattedQuestions,
         responses: formattedResponses,
+        clarifications: (clarifications ?? []) as DecisionClarification[],
       } as DecisionFormDetail
     },
 
@@ -403,6 +416,11 @@ export function createSupabaseDB(client: SupabaseClient): DB {
         p_payload: payload as unknown as Record<string, unknown>,
       })
       if (error) throw new Error(error.message)
+      const { error: enrichError } = await client.rpc('enrich_decision_form', {
+        p_form_slug: payload.slug,
+        p_payload: payload as unknown as Record<string, unknown>,
+      })
+      if (enrichError) throw new Error(`表单已创建，但依据补齐失败: ${enrichError.message}`)
       return data as { id: string; slug: string }
     },
 
@@ -415,6 +433,20 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       })
       if (error) throw new Error(error.message)
       return data as DecisionResponse
+    },
+
+    async appendDecisionClarification(input) {
+      const { data, error } = await client.rpc('append_decision_clarification', {
+        p_form_slug: input.slug,
+        p_question_code: input.questionCode,
+        p_kind: input.kind,
+        p_content: input.content,
+        p_source_channel: input.sourceChannel ?? 'feishu',
+        p_source_url: input.sourceUrl ?? '',
+        p_created_by: input.createdBy ?? 'agent',
+      })
+      if (error) throw new Error(error.message)
+      return data as DecisionClarification
     },
 
     async closeDecisionForm(slug: string) {

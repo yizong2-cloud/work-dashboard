@@ -7,6 +7,7 @@ import type { DB } from './db'
 import { newId } from './db'
 import type {
   DecisionAnswer,
+  DecisionClarification,
   DecisionForm,
   DecisionFormDetail,
   DecisionFormPayload,
@@ -37,6 +38,7 @@ interface LocalStore {
   decisionOptions: DecisionOption[]
   decisionResponses: DecisionResponse[]
   decisionAnswers: DecisionAnswer[]
+  decisionClarifications: DecisionClarification[]
 }
 
 function load(): LocalStore {
@@ -58,6 +60,7 @@ function load(): LocalStore {
           decisionOptions: parsed.decisionOptions ?? seed.decisionOptions,
           decisionResponses: parsed.decisionResponses ?? seed.decisionResponses,
           decisionAnswers: parsed.decisionAnswers ?? seed.decisionAnswers,
+          decisionClarifications: parsed.decisionClarifications ?? [],
         }
       }
     }
@@ -472,6 +475,9 @@ export function createLocalDB(): DB {
             answers,
           }
         })
+      const clarifications = store.decisionClarifications
+        .filter((entry) => entry.form_id === form.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
       return {
         ...form,
@@ -479,6 +485,7 @@ export function createLocalDB(): DB {
         response_count: responses.length,
         questions,
         responses,
+        clarifications,
       } as DecisionFormDetail
     },
 
@@ -539,6 +546,10 @@ export function createLocalDB(): DB {
           sort_order: qIdx,
           title: qp.title.trim(),
           context: qp.context?.trim() ?? '',
+          group_name: qp.group_name?.trim() || '待确认事项',
+          source_excerpt: qp.source_excerpt?.trim() ?? '',
+          conversion_note: qp.conversion_note?.trim() ?? '',
+          resolution_status: 'pending',
           type: qp.type,
           required: qp.required ?? true,
           allow_other: qp.allow_other ?? false,
@@ -603,6 +614,40 @@ export function createLocalDB(): DB {
         ...newResponse,
         answers: newAnswers,
       }
+    },
+
+    async appendDecisionClarification(input) {
+      const store = load()
+      const form = store.decisionForms.find((item) => item.slug === input.slug.trim())
+      if (!form) throw new Error(`表单不存在: ${input.slug}`)
+      const question = store.decisionQuestions.find(
+        (item) => item.form_id === form.id && item.code === input.questionCode.trim(),
+      )
+      if (!question) throw new Error(`题目不存在: ${input.questionCode}`)
+      const content = input.content.trim()
+      if (!content) throw new Error('澄清内容不能为空')
+      const entry: DecisionClarification = {
+        id: newId('dc'),
+        form_id: form.id,
+        question_id: question.id,
+        kind: input.kind,
+        content,
+        source_channel: input.sourceChannel?.trim() || 'feishu',
+        source_url: input.sourceUrl?.trim() || '',
+        created_by: input.createdBy?.trim() || 'agent',
+        created_at: now(),
+      }
+      store.decisionClarifications.push(entry)
+      question.resolution_status = input.kind === 'decision'
+        ? 'decided'
+        : input.kind === 'change'
+          ? 'changed'
+          : question.resolution_status === 'decided'
+            ? 'decided'
+            : 'clarified'
+      form.updated_at = now()
+      save(store)
+      return entry
     },
 
     async closeDecisionForm(slug: string) {

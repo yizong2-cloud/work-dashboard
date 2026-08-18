@@ -1074,12 +1074,35 @@ create table if not exists public.decision_answers (
 create index if not exists decision_answers_response_id_idx on public.decision_answers (response_id);
 create index if not exists decision_answers_question_id_idx on public.decision_answers (question_id);
 
+-- ---------------- 5.1 决策可追溯记录 ----------------
+alter table public.decision_questions
+  add column if not exists group_name text not null default '待确认事项',
+  add column if not exists source_excerpt text not null default '',
+  add column if not exists conversion_note text not null default '',
+  add column if not exists resolution_status text not null default 'pending'
+    check (resolution_status in ('pending', 'clarified', 'decided', 'changed'));
+
+create table if not exists public.decision_clarifications (
+  id uuid primary key default gen_random_uuid(),
+  form_id uuid not null references public.decision_forms(id) on delete cascade,
+  question_id uuid not null references public.decision_questions(id) on delete cascade,
+  kind text not null check (kind in ('clarification', 'decision', 'change')),
+  content text not null check (btrim(content) <> ''),
+  source_channel text not null default 'feishu',
+  source_url text not null default '',
+  created_by text not null default 'agent',
+  created_at timestamptz not null default now()
+);
+create index if not exists decision_clarifications_form_question_idx
+  on public.decision_clarifications(form_id, question_id, created_at desc);
+
 -- ---------------- 6. RLS：匿名可读，写入只走受校验的 RPC ----------------
 alter table public.decision_forms enable row level security;
 alter table public.decision_questions enable row level security;
 alter table public.decision_options enable row level security;
 alter table public.decision_responses enable row level security;
 alter table public.decision_answers enable row level security;
+alter table public.decision_clarifications enable row level security;
 
 drop policy if exists "decision_forms_all" on public.decision_forms;
 drop policy if exists "decision_questions_all" on public.decision_questions;
@@ -1091,15 +1114,19 @@ drop policy if exists "decision_questions_read" on public.decision_questions;
 drop policy if exists "decision_options_read" on public.decision_options;
 drop policy if exists "decision_responses_read" on public.decision_responses;
 drop policy if exists "decision_answers_read" on public.decision_answers;
+drop policy if exists "decision_clarifications_read" on public.decision_clarifications;
 create policy "decision_forms_read" on public.decision_forms for select using (true);
 create policy "decision_questions_read" on public.decision_questions for select using (true);
 create policy "decision_options_read" on public.decision_options for select using (true);
 create policy "decision_responses_read" on public.decision_responses for select using (true);
 create policy "decision_answers_read" on public.decision_answers for select using (true);
+create policy "decision_clarifications_read" on public.decision_clarifications for select using (true);
 revoke all on public.decision_forms, public.decision_questions, public.decision_options,
   public.decision_responses, public.decision_answers from anon, authenticated;
+revoke all on public.decision_clarifications from anon, authenticated;
 grant select on public.decision_forms, public.decision_questions, public.decision_options,
   public.decision_responses, public.decision_answers to anon, authenticated;
+grant select on public.decision_clarifications to anon, authenticated;
 
 -- ---------------- 7. 原子创建表单 RPC: create_decision_form ----------------
 create or replace function public.create_decision_form(p_payload jsonb)
@@ -1457,3 +1484,66 @@ end;
 $$;
 
 grant execute on function public.open_decision_form(text) to anon, authenticated, service_role;
+
+-- ---------------- 10. 决策依据补齐与外部澄清同步 ----------------
+create or replace function public.enrich_decision_form(p_form_slug text, p_payload jsonb)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_form public.decision_forms;
+  v_q jsonb;
+  v_question public.decision_questions;
+  v_idx int;
+begin
+  select * into v_form from public.decision_forms where slug = btrim(p_form_slug);
+  if v_form is null then raise exception '表单不存在: %', p_form_slug; end if;
+  if p_payload is null or jsonb_typeof(p_payload->'questions') <> 'array' then raise exception 'payload 缺少 questions 数组'; end if;
+  if p_payload ? 'source_document' then
+    update public.decision_forms set source_document = p_payload->>'source_document', updated_at = now() where id = v_form.id;
+  end if;
+  for v_idx in 0 .. jsonb_array_length(p_payload->'questions') - 1 loop
+    v_q := p_payload->'questions'->v_idx;
+    select * into v_question from public.decision_questions where form_id = v_form.id and code = btrim(coalesce(v_q->>'code', ''));
+    if v_question is null then raise exception '题目不存在，无法补齐依据: %', v_q->>'code'; end if;
+    update public.decision_questions set
+      group_name = coalesce(nullif(btrim(v_q->>'group_name'), ''), '待确认事项'),
+      source_excerpt = coalesce(v_q->>'source_excerpt', ''),
+      conversion_note = coalesce(v_q->>'conversion_note', '')
+      where id = v_question.id;
+  end loop;
+end;
+$$;
+grant execute on function public.enrich_decision_form(text, jsonb) to anon, authenticated, service_role;
+
+create or replace function public.append_decision_clarification(
+  p_form_slug text, p_question_code text, p_kind text, p_content text,
+  p_source_channel text default 'feishu', p_source_url text default '', p_created_by text default 'agent'
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_form public.decision_forms;
+  v_question public.decision_questions;
+  v_entry public.decision_clarifications;
+  v_status text;
+begin
+  select * into v_form from public.decision_forms where slug = btrim(p_form_slug);
+  if v_form is null then raise exception '表单不存在: %', p_form_slug; end if;
+  select * into v_question from public.decision_questions where form_id = v_form.id and code = btrim(p_question_code);
+  if v_question is null then raise exception '题目不存在: %', p_question_code; end if;
+  if p_kind not in ('clarification', 'decision', 'change') then raise exception '澄清类型非法: %', p_kind; end if;
+  if btrim(coalesce(p_content, '')) = '' then raise exception '澄清内容不能为空'; end if;
+  insert into public.decision_clarifications (form_id, question_id, kind, content, source_channel, source_url, created_by)
+  values (v_form.id, v_question.id, p_kind, btrim(p_content), coalesce(nullif(btrim(p_source_channel), ''), 'feishu'), btrim(coalesce(p_source_url, '')), coalesce(nullif(btrim(p_created_by), ''), 'agent'))
+  returning * into v_entry;
+  v_status := case when p_kind = 'decision' then 'decided' when p_kind = 'change' then 'changed' when v_question.resolution_status = 'decided' then 'decided' else 'clarified' end;
+  update public.decision_questions set resolution_status = v_status where id = v_question.id;
+  update public.decision_forms set updated_at = now() where id = v_form.id;
+  return to_jsonb(v_entry);
+end;
+$$;
+grant execute on function public.append_decision_clarification(text, text, text, text, text, text, text) to anon, authenticated, service_role;

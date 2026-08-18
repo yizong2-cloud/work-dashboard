@@ -282,6 +282,20 @@ test('formatShanghaiTime：正确格式化北京时间', () => {
   assert.match(formatted, /2026-08-19 14:32 \(Asia\/Shanghai\)/)
 })
 
+test('formatDecisionMarkdown：导出按题携带原文依据与最新澄清', () => {
+  const form = {
+    id: 'trace-form', slug: 'trace-form', title: '可追溯决策', summary: '', source_document: null,
+    status: 'open', created_by: 'agent', created_at: '2026-08-19T00:00:00.000Z', closed_at: null, updated_at: '2026-08-19T00:00:00.000Z',
+    questions: [{ id: 'trace-q', form_id: 'trace-form', code: 'T1', sort_order: 0, title: '选择方向', context: '存在两个方向', source_excerpt: '会议中对两个方向存在分歧。', conversion_note: '转为单选。', type: 'single_choice', required: true, allow_other: false, recommended_option_id: null, options: [{ id: 'trace-a', question_id: 'trace-q', code: 'A', label: '方向 A', detail: '', sort_order: 0 }] }],
+    clarifications: [{ id: 'trace-c', form_id: 'trace-form', question_id: 'trace-q', kind: 'decision', content: '按方向 A 执行。', source_channel: 'feishu', source_url: '', created_by: 'agent', created_at: '2026-08-19T01:00:00.000Z' }],
+    responses: [{ id: 'trace-r', form_id: 'trace-form', respondent_name: '', respondent_note: '', submitted_at: '2026-08-19T02:00:00.000Z', answers: [{ id: 'trace-answer', response_id: 'trace-r', question_id: 'trace-q', selected_option_ids: ['trace-a'], text_answer: '', other_text: '' }] }],
+  }
+  const md = formatDecisionMarkdown(form)
+  assert.match(md, /原文依据：会议中对两个方向存在分歧/)
+  assert.match(md, /最新拍板：按方向 A 执行/)
+  assert.match(md, /澄清来源：feishu/)
+})
+
 test('formatDecisionMarkdown：0 份反馈时输出清晰空提示，不虚构答案', () => {
   const formDetail = {
     id: 'f-1',

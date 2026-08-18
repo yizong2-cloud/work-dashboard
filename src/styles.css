@@ -4117,6 +4117,31 @@ h3,
   gap: 18px;
 }
 
+.decision-question-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px 0;
+  color: var(--primary-strong);
+}
+
+.decision-question-group-line {
+  width: 4px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--primary);
+}
+
+.decision-question-group h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.decision-question-group span:last-child {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .decision-question-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -4201,12 +4226,79 @@ h3,
   white-space: nowrap;
 }
 
+.q-resolution-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.q-resolution-clarified { color: #8a5a11; background: #fdf1dd; }
+.q-resolution-decided { color: #21634a; background: #e9f7ef; }
+.q-resolution-changed { color: #8a3c55; background: #f8eaf0; }
+
 .q-context-desc {
   font-size: 0.88rem;
   color: var(--muted);
   margin: -4px 0 0;
   line-height: 1.5;
 }
+
+.q-evidence-box {
+  border: 1px solid #e4ddef;
+  border-radius: 10px;
+  background: #fbf9fe;
+}
+
+.q-evidence-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--primary-strong);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.q-evidence-toggle span { flex: 1; }
+
+.q-evidence-content {
+  padding: 0 12px 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.q-evidence-content blockquote {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid #cfc2e4;
+  background: rgba(255,255,255,0.72);
+  white-space: pre-wrap;
+}
+
+.q-evidence-content blockquote strong { display: block; color: var(--text); margin-bottom: 3px; }
+.q-conversion-note { margin: 10px 0 0; }
+
+.q-clarification-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f1f8f3;
+  color: #21634a;
+}
+
+.q-clarification-callout p { margin: 2px 0 4px; color: var(--text); }
+.q-clarification-callout small { color: var(--muted); }
 
 .q-input-row {
   margin-top: 4px;

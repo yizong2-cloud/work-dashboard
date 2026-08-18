@@ -8,6 +8,8 @@
 
 import type {
   DecisionAnswerInput,
+  DecisionClarification,
+  DecisionClarificationKind,
   DecisionForm,
   DecisionFormDetail,
   DecisionFormPayload,
@@ -109,6 +111,16 @@ export interface DB {
     answers: DecisionAnswerInput[],
     respondentNote?: string,
   ): Promise<DecisionResponse>
+  /** 由 Agent 将飞书等渠道的正式澄清同步回具体决策题 */
+  appendDecisionClarification(input: {
+    slug: string
+    questionCode: string
+    kind: DecisionClarificationKind
+    content: string
+    sourceChannel?: string
+    sourceUrl?: string
+    createdBy?: string
+  }): Promise<DecisionClarification>
   /** 关闭决策表单 */
   closeDecisionForm(slug: string): Promise<void>
   /** 重新开放决策表单 */

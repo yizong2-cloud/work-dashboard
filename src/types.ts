@@ -180,6 +180,8 @@ export interface PlanBlockChange {
 export type DecisionFormStatus = 'draft' | 'open' | 'closed'
 
 export type DecisionQuestionType = 'single_choice' | 'multiple_choice' | 'free_text' | 'confirmation'
+export type DecisionQuestionResolution = 'pending' | 'clarified' | 'decided' | 'changed'
+export type DecisionClarificationKind = 'clarification' | 'decision' | 'change'
 
 export interface DecisionForm {
   id: string
@@ -214,6 +216,13 @@ export interface DecisionQuestion {
   sort_order: number
   title: string
   context: string
+  /** 表单中的分组标题，例如“星芒方案” */
+  group_name?: string
+  /** 与当前题直接相关的原文摘录，不要求填写者先读完整文档 */
+  source_excerpt?: string
+  /** Agent 如何把原文转换为本题与候选项 */
+  conversion_note?: string
+  resolution_status?: DecisionQuestionResolution
   type: DecisionQuestionType
   required: boolean
   allow_other: boolean
@@ -223,6 +232,19 @@ export interface DecisionQuestion {
   /** 前端/导出展示用，或由 recommended_option_id 关联查出 */
   recommended_option_code?: string | null
   options: DecisionOption[]
+}
+
+/** 从飞书等讨论渠道同步回来的、会影响理解或结论的正式记录 */
+export interface DecisionClarification {
+  id: string
+  form_id: string
+  question_id: string
+  kind: DecisionClarificationKind
+  content: string
+  source_channel: string
+  source_url: string
+  created_by: string
+  created_at: string
 }
 
 export interface DecisionAnswer {
@@ -247,6 +269,7 @@ export interface DecisionResponse {
 export interface DecisionFormDetail extends DecisionForm {
   questions: DecisionQuestion[]
   responses: DecisionResponse[]
+  clarifications: DecisionClarification[]
 }
 
 /** Agent 导入 Payload 契约结构 */
@@ -260,6 +283,9 @@ export interface DecisionQuestionPayload {
   code: string
   title: string
   context?: string
+  group_name?: string
+  source_excerpt?: string
+  conversion_note?: string
   type: DecisionQuestionType
   required?: boolean
   allow_other?: boolean

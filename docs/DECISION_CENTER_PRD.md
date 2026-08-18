@@ -108,6 +108,16 @@ v1 的成功标准不是做投票社区，而是让一个复杂的 PM 决策单�
 4. 每次提交都生成一份独立反馈，不覆盖其他人的结果；反馈自动保存到决策收件箱。v1 不提供修改已提交反馈；需要调整时重新提交一份新反馈并在备注中说明。
 5. 已关闭表单只读，不能再提交。
 
+### 5.4 可追溯依据与飞书澄清
+
+决策中心不替代飞书讨论。沟通原则是：**聊在飞书，定在决策中心**。
+
+- 每份导入 payload 必须保留完整 `source_document`；填写者默认只看结构化题面。
+- 每题可选携带 `group_name`、`source_excerpt`、`conversion_note`。页面按分组阅读，填写者可原地展开“原文依据与转换说明”，无需在长文中反复查找。
+- 飞书中的闲聊不入库；只有改变选项含义、补充关键依据、正式拍板或变更的内容，由 Agent 用 `decision:clarify` 同步。
+- 澄清记录按题追加，类型为 `clarification`、`decision`、`change`；页面显示最新记录和题目状态，但不静默改写旧记录。
+- 若选项语义本身变化，必须记为 `change`，并在后续导出中保留变更说明；不能把已有反馈伪装成基于新口径填写。
+
 ## 6. 创建、导入与生命周期
 
 ### 6.1 Agent 导入契约
@@ -194,6 +204,7 @@ v1 中 `decision:create` 创建后默认直接 `open`，以服务“生成即给
 | `decision_options` | `id`、`question_id`、`code`、`label`、`detail`、`sort_order` |
 | `decision_responses` | `id`、`form_id`、`respondent_name`、`respondent_note`、`submitted_at` |
 | `decision_answers` | `id`、`response_id`、`question_id`、`selected_option_ids`（JSON 数组）、`text_answer`、`other_text` |
+| `decision_clarifications` | `id`、`form_id`、`question_id`、`kind`、`content`、`source_channel`、`source_url`、`created_by`、`created_at` |
 
 约束：表单 slug 全局唯一；同一表单的题号唯一；同题选项 code 唯一；答案必须属于其答卷的表单；关闭表单后拒绝新增答卷。
 
@@ -201,6 +212,7 @@ v1 中 `decision:create` 创建后默认直接 `open`，以服务“生成即给
 
 - `create_decision_form(payload jsonb)`：创建表单、题目、选项，整个过程原子执行。
 - `submit_decision_response(form_slug text, respondent_name text, answers jsonb, respondent_note text)`：校验表单开放状态、必答题和选项归属，并原子写答卷与答案。
+- `append_decision_clarification(...)`：由 Agent 将飞书等外部渠道的正式澄清、拍板或变更追加到指定题目。
 
 导出可以由只读查询服务实现，但格式化逻辑应为一个可测试的纯函数，CLI 和前端共用，避免同一答卷导出两种不同语义。
 
@@ -214,6 +226,7 @@ v1 中 `decision:create` 创建后默认直接 `open`，以服务“生成即给
 
 - 沿用 Workboard 的纸张感、低饱和紫/粉与圆角系统；不要引入问卷平台式高饱和大色块。
 - 题目卡信息层级清楚：`D1` 编号 → 标题 → 背景 → 选项 → 补充输入。
+- 长表单按决策主题分组；原文依据与澄清采用渐进展开，不用完整原文压迫填写流程。
 - 推荐项使用小型“推荐”标签和轻背景区分；选中态清晰但不以红/绿暗示对错。
 - 长背景默认折叠，展开后不丢失阅读位置。
 - 移动端每题单列，选项整块可点，底部固定显示“已回答 X/Y”与提交按钮。
@@ -232,6 +245,7 @@ v1 中 `decision:create` 创建后默认直接 `open`，以服务“生成即给
 7. `decision:export --format markdown/json` 的结果与页面导出使用同一格式化规则；无答卷时得到明确的空结果，而非报错或虚构答案。
 8. 失败导入（重复 slug、重复题号、引用不存在的推荐选项、非法题型）不会产生残留数据。
 9. 创建与提交 RPC 的原子性、表单关闭拦截、导出格式化、必填校验均有自动测试；现有看板测试与生产构建继续通过。
+10. 每题可显示原文依据、转换说明和最新澄清；`decision:clarify` 追加的内容会同时出现在页面和 Agent 导出中。
 
 ### 人工体验验收
 

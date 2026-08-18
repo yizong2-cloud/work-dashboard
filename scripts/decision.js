@@ -8,6 +8,7 @@
 //   npm run decision:export -- --slug <slug> [--format markdown|json] [--respondent <name>]
 //   npm run decision:close -- --slug <slug>
 //   npm run decision:open -- --slug <slug>
+//   npm run decision:clarify -- --slug <slug> --question <code> --content <text>
 // ============================================================
 
 import fs from 'node:fs'
@@ -172,6 +173,34 @@ async function handleOpen() {
   }
 }
 
+async function handleClarify() {
+  const slug = args.slug
+  const questionCode = args.question
+  const content = args.content
+  if (!slug || slug === true) fail('缺少参数 --slug')
+  if (!questionCode || questionCode === true) fail('缺少参数 --question（题目编号，如 H3）')
+  if (!content || content === true) fail('缺少参数 --content（飞书中的正式澄清/拍板结论）')
+  const kind = String(args.kind || 'clarification')
+  if (!['clarification', 'decision', 'change'].includes(kind)) {
+    fail('非法 --kind，可选 clarification / decision / change')
+  }
+  try {
+    const entry = await store.appendDecisionClarification({
+      slug: String(slug),
+      questionCode: String(questionCode),
+      content: String(content),
+      kind,
+      sourceChannel: typeof args.source === 'string' ? args.source : 'feishu',
+      sourceUrl: typeof args['source-url'] === 'string' ? args['source-url'] : '',
+      createdBy: typeof args.by === 'string' ? args.by : 'agent',
+    })
+    if (jsonOut) console.log(JSON.stringify(entry))
+    else console.log(`✔ 已同步 ${questionCode} 的${kind === 'decision' ? '拍板' : kind === 'change' ? '变更' : '澄清'}`)
+  } catch (err) {
+    fail(`同步澄清失败: ${err.message}`)
+  }
+}
+
 async function handleList() {
   const forms = await store.listDecisionForms()
   if (jsonOut) {
@@ -209,6 +238,9 @@ async function main() {
     case 'open':
       await handleOpen()
       break
+    case 'clarify':
+      await handleClarify()
+      break
     case 'list':
       await handleList()
       break
@@ -220,6 +252,7 @@ async function main() {
   npm run decision:export -- --slug <slug> [--format markdown|json] [--respondent <name>]
   npm run decision:close -- --slug <slug>
   npm run decision:open -- --slug <slug>
+  npm run decision:clarify -- --slug <slug> --question <code> --content <text> [--kind clarification|decision|change] [--source-url <feishu-url>]
   npm run decision:list
 `)
       break

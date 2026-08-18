@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getDB } from '../lib/dbFactory'
 import { createDecisionService } from '../lib/decisionService'
@@ -25,6 +25,7 @@ import {
   Sparkles,
   FileText,
   RotateCcw,
+  MessageSquareText,
 } from 'lucide-react'
 
 export function DecisionFormPage() {
@@ -36,6 +37,7 @@ export function DecisionFormPage() {
 
   // 展开完整背景
   const [showSourceDoc, setShowSourceDoc] = useState(false)
+  const [expandedEvidence, setExpandedEvidence] = useState<Record<string, boolean>>({})
 
   // 决策反馈填写状态
   const [identityType, setIdentityType] = useState<'none' | 'pm' | 'operations' | 'custom'>('none')
@@ -623,8 +625,13 @@ export function DecisionFormPage() {
           </div>
 
           {/* 题目列表 */}
-          {form.questions.map((q: DecisionQuestion) => {
+          {form.questions.map((q: DecisionQuestion, index) => {
             const hasError = !!validationErrors[q.id]
+            const groupName = q.group_name || '待确认事项'
+            const startsGroup = index === 0 || (form.questions[index - 1].group_name || '待确认事项') !== groupName
+            const questionClarifications = (form.clarifications || []).filter((entry) => entry.question_id === q.id)
+            const latestClarification = questionClarifications[0]
+            const hasEvidence = !!(q.source_excerpt || q.conversion_note || latestClarification)
             const aState = answersState[q.id] || {
               selected_option_ids: [],
               text_answer: '',
@@ -633,8 +640,15 @@ export function DecisionFormPage() {
             }
 
             return (
+              <Fragment key={q.id}>
+                {startsGroup && (
+                  <div className="decision-question-group">
+                    <span className="decision-question-group-line" />
+                    <h2>{groupName}</h2>
+                    <span>{form.questions.filter((item) => (item.group_name || '待确认事项') === groupName).length} 个待确认项</span>
+                  </div>
+                )}
               <div
-                key={q.id}
                 id={`question-${q.id}`}
                 className={`decision-question-card ${hasError ? 'card-error' : ''}`}
               >
@@ -651,9 +665,44 @@ export function DecisionFormPage() {
                   ) : (
                     <span className="q-optional-tag">选填</span>
                   )}
+                  {q.resolution_status && q.resolution_status !== 'pending' && (
+                    <span className={`q-resolution-tag q-resolution-${q.resolution_status}`}>
+                      {q.resolution_status === 'decided' ? '已拍板' : q.resolution_status === 'changed' ? '已变更' : '已澄清'}
+                    </span>
+                  )}
                 </div>
 
                 {q.context && <p className="q-context-desc">{q.context}</p>}
+
+                {hasEvidence && (
+                  <div className="q-evidence-box">
+                    <button
+                      type="button"
+                      className="q-evidence-toggle"
+                      onClick={() => setExpandedEvidence((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
+                    >
+                      <FileText size={14} />
+                      <span>{latestClarification ? '查看最新澄清与原文依据' : '查看原文依据与转换说明'}</span>
+                      {expandedEvidence[q.id] ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    </button>
+                    {expandedEvidence[q.id] && (
+                      <div className="q-evidence-content">
+                        {latestClarification && (
+                          <div className="q-clarification-callout">
+                            <MessageSquareText size={14} />
+                            <div>
+                              <strong>{latestClarification.kind === 'decision' ? '最新拍板' : latestClarification.kind === 'change' ? '最新变更' : '最新澄清'}</strong>
+                              <p>{latestClarification.content}</p>
+                              <small>来自 {latestClarification.source_channel || '外部讨论'} · {formatShanghaiTime(latestClarification.created_at)}</small>
+                            </div>
+                          </div>
+                        )}
+                        {q.source_excerpt && <blockquote><strong>原文依据</strong>{q.source_excerpt}</blockquote>}
+                        {q.conversion_note && <p className="q-conversion-note"><strong>转换说明：</strong>{q.conversion_note}</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 推荐理由说明 */}
                 {q.recommended_reason && (
@@ -958,6 +1007,7 @@ export function DecisionFormPage() {
 
                 {hasError && <p className="error-hint">{validationErrors[q.id]}</p>}
               </div>
+              </Fragment>
             )
           })}
 

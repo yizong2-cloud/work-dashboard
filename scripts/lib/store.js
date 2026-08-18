@@ -42,6 +42,7 @@ function loadLocal() {
       decisionOptions: [],
       decisionResponses: [],
       decisionAnswers: [],
+      decisionClarifications: [],
     }
   }
   try {
@@ -58,6 +59,7 @@ function loadLocal() {
         decisionOptions: parsed.decisionOptions ?? [],
         decisionResponses: parsed.decisionResponses ?? [],
         decisionAnswers: parsed.decisionAnswers ?? [],
+        decisionClarifications: parsed.decisionClarifications ?? [],
       }
     }
   } catch {
@@ -344,6 +346,9 @@ function createLocalStore() {
             answers,
           }
         })
+      const clarifications = (db.decisionClarifications || [])
+        .filter((entry) => entry.form_id === form.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
       return {
         ...form,
@@ -351,6 +356,7 @@ function createLocalStore() {
         response_count: responses.length,
         questions,
         responses,
+        clarifications,
       }
     },
 
@@ -411,6 +417,10 @@ function createLocalStore() {
           sort_order: qIdx,
           title: qp.title.trim(),
           context: qp.context?.trim() ?? '',
+          group_name: qp.group_name?.trim() || '待确认事项',
+          source_excerpt: qp.source_excerpt?.trim() ?? '',
+          conversion_note: qp.conversion_note?.trim() ?? '',
+          resolution_status: 'pending',
           type: qp.type,
           required: qp.required ?? true,
           allow_other: qp.allow_other ?? false,
@@ -482,6 +492,29 @@ function createLocalStore() {
         ...newResponse,
         answers: newAnswers,
       }
+    },
+
+    async appendDecisionClarification(input) {
+      const db = loadLocal()
+      const form = (db.decisionForms || []).find((item) => item.slug === input.slug.trim())
+      if (!form) throw new Error(`表单不存在: ${input.slug}`)
+      const question = (db.decisionQuestions || []).find(
+        (item) => item.form_id === form.id && item.code === input.questionCode.trim(),
+      )
+      if (!question) throw new Error(`题目不存在: ${input.questionCode}`)
+      const content = input.content.trim()
+      if (!content) throw new Error('澄清内容不能为空')
+      db.decisionClarifications = db.decisionClarifications || []
+      const entry = {
+        id: crypto.randomUUID(), form_id: form.id, question_id: question.id,
+        kind: input.kind, content, source_channel: input.sourceChannel || 'feishu',
+        source_url: input.sourceUrl || '', created_by: input.createdBy || 'agent', created_at: now(),
+      }
+      db.decisionClarifications.push(entry)
+      question.resolution_status = input.kind === 'decision' ? 'decided' : input.kind === 'change' ? 'changed' : 'clarified'
+      form.updated_at = now()
+      saveLocal(db)
+      return entry
     },
 
     async closeDecisionForm(slug) {
@@ -820,6 +853,10 @@ function createSupabaseStore(env) {
           sort_order: q.sort_order,
           title: q.title,
           context: q.context,
+          group_name: q.group_name ?? '待确认事项',
+          source_excerpt: q.source_excerpt ?? '',
+          conversion_note: q.conversion_note ?? '',
+          resolution_status: q.resolution_status ?? 'pending',
           type: q.type,
           required: q.required,
           allow_other: q.allow_other,
@@ -866,6 +903,13 @@ function createSupabaseStore(env) {
         answers: answersByRId.get(r.id) ?? [],
       }))
 
+      const { data: clarifications, error: clarificationErr } = await client
+        .from('decision_clarifications')
+        .select('*')
+        .eq('form_id', form.id)
+        .order('created_at', { ascending: false })
+      if (clarificationErr) throw new Error(clarificationErr.message)
+
       return {
         id: form.id,
         slug: form.slug,
@@ -881,6 +925,7 @@ function createSupabaseStore(env) {
         response_count: formattedResponses.length,
         questions: formattedQuestions,
         responses: formattedResponses,
+        clarifications: clarifications ?? [],
       }
     },
 
@@ -889,6 +934,11 @@ function createSupabaseStore(env) {
         p_payload: payload,
       })
       if (error) throw new Error(error.message)
+      const { error: enrichError } = await client.rpc('enrich_decision_form', {
+        p_form_slug: payload.slug,
+        p_payload: payload,
+      })
+      if (enrichError) throw new Error(`表单已创建，但依据补齐失败: ${enrichError.message}`)
       return data
     },
 
@@ -898,6 +948,20 @@ function createSupabaseStore(env) {
         p_respondent_name: respondentName,
         p_answers: answers,
         p_respondent_note: respondentNote ?? '',
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
+
+    async appendDecisionClarification(input) {
+      const { data, error } = await client.rpc('append_decision_clarification', {
+        p_form_slug: input.slug,
+        p_question_code: input.questionCode,
+        p_kind: input.kind,
+        p_content: input.content,
+        p_source_channel: input.sourceChannel ?? 'feishu',
+        p_source_url: input.sourceUrl ?? '',
+        p_created_by: input.createdBy ?? 'agent',
       })
       if (error) throw new Error(error.message)
       return data

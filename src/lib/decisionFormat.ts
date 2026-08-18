@@ -63,6 +63,15 @@ export function formatDecisionMarkdown(
 
   if (responses.length === 0) {
     lines.push('\n> 尚未收到任何决策反馈。')
+    const clarifications = form.clarifications || []
+    if (clarifications.length > 0) {
+      lines.push('\n## 已同步的澄清与拍板')
+      for (const entry of clarifications) {
+        const question = form.questions.find((q) => q.id === entry.question_id)
+        lines.push(`- ${question ? `${question.code}：` : ''}${entry.kind === 'decision' ? '拍板' : entry.kind === 'change' ? '变更' : '澄清'} ${entry.content}`)
+        lines.push(`  来源：${entry.source_channel || '外部讨论'} · ${formatShanghaiTime(entry.created_at)}`)
+      }
+    }
     return lines.join('\n')
   }
 
@@ -88,6 +97,16 @@ export function formatDecisionMarkdown(
 
     for (const q of form.questions || []) {
       lines.push(`\n## ${q.code}. ${q.title}`)
+
+      if (q.context) lines.push(`- 决策背景：${q.context}`)
+      if (q.source_excerpt) lines.push(`- 原文依据：${q.source_excerpt}`)
+      const latestClarification = (form.clarifications || [])
+        .filter((entry) => entry.question_id === q.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+      if (latestClarification) {
+        lines.push(`- 最新${latestClarification.kind === 'decision' ? '拍板' : latestClarification.kind === 'change' ? '变更' : '澄清'}：${latestClarification.content}`)
+        lines.push(`- 澄清来源：${latestClarification.source_channel || '外部讨论'} · ${formatShanghaiTime(latestClarification.created_at)}`)
+      }
 
       const ans = answersByQId.get(q.id)
       if (!ans) {
@@ -178,8 +197,12 @@ export function formatDecisionJson(
       code: q.code,
       title: q.title,
       type: q.type,
+      group_name: q.group_name ?? '待确认事项',
       required: q.required,
       context: q.context,
+      source_excerpt: q.source_excerpt ?? '',
+      conversion_note: q.conversion_note ?? '',
+      resolution_status: q.resolution_status ?? 'pending',
       recommended_option_code: q.recommended_option_code ?? null,
       recommended_reason: q.recommended_reason ?? '',
       options: (q.options || []).map((o) => ({
@@ -222,6 +245,16 @@ export function formatDecisionJson(
         }),
       }
     }),
+    clarifications: (form.clarifications || []).map((entry) => ({
+      question_id: entry.question_id,
+      kind: entry.kind,
+      content: entry.content,
+      source_channel: entry.source_channel,
+      source_url: entry.source_url || null,
+      created_by: entry.created_by,
+      created_at: entry.created_at,
+      created_at_shanghai: formatShanghaiTime(entry.created_at),
+    })),
   }
 
   return JSON.stringify(structured, null, 2)

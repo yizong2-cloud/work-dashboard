@@ -4,6 +4,7 @@
 
 import type {
   DecisionAnswer,
+  DecisionClarification,
   DecisionForm,
   DecisionOption,
   DecisionQuestion,
@@ -396,6 +397,7 @@ export const seedDecisionOptions: DecisionOption[] = [
 // 初始默认 0 份答卷（无预设硬编码姓名），供干净验收与填答
 export const seedDecisionResponses: DecisionResponse[] = []
 export const seedDecisionAnswers: DecisionAnswer[] = []
+export const seedDecisionClarifications: DecisionClarification[] = []
 
 export function buildSeed(): {
   tasks: Task[]
@@ -405,6 +407,7 @@ export function buildSeed(): {
   decisionOptions: DecisionOption[]
   decisionResponses: DecisionResponse[]
   decisionAnswers: DecisionAnswer[]
+  decisionClarifications: DecisionClarification[]
 } {
   return {
     tasks: seedTasks,
@@ -414,5 +417,6 @@ export function buildSeed(): {
     decisionOptions: seedDecisionOptions,
     decisionResponses: seedDecisionResponses,
     decisionAnswers: seedDecisionAnswers,
+    decisionClarifications: seedDecisionClarifications,
   }
 }

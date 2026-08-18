@@ -7,6 +7,8 @@ import type {
   DecisionForm,
   DecisionFormDetail,
   DecisionFormPayload,
+  DecisionClarification,
+  DecisionClarificationKind,
   DecisionResponse,
   DecisionSubmissionInput,
 } from '../types'
@@ -23,6 +25,17 @@ export interface DecisionService {
 
   /** 提交答卷（原子写入） */
   submitResponse(slug: string, submission: DecisionSubmissionInput): Promise<DecisionResponse>
+
+  /** 同步来自飞书等外部沟通渠道的正式澄清，不承载站内聊天 */
+  appendClarification(input: {
+    slug: string
+    questionCode: string
+    kind: DecisionClarificationKind
+    content: string
+    sourceChannel?: string
+    sourceUrl?: string
+    createdBy?: string
+  }): Promise<DecisionClarification>
 
   /** 关闭决策表单（停止收集新答卷） */
   closeForm(slug: string): Promise<void>
@@ -50,6 +63,10 @@ export function createDecisionService(db: DB): DecisionService {
 
     async submitResponse(slug: string, submission: DecisionSubmissionInput) {
       return db.submitDecisionResponse(slug, submission.respondent_name, submission.answers, submission.respondent_note)
+    },
+
+    async appendClarification(input) {
+      return db.appendDecisionClarification(input)
     },
 
     async closeForm(slug: string) {
