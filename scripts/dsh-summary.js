@@ -181,7 +181,9 @@ let sessions = files
     const startMs = new Date(s.start).getTime() - 8 * 3600 * 1000
     return startMs > sinceMs || (s.lastTsMs && s.lastTsMs > sinceMs) || (s.fileMtime && s.fileMtime > sinceMs)
   })
-  .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
+    // 排序按「文件最后写入(mtime)」降序：DSH 会话的 createdAt/lastTs 可能不随续写更新（长会话会徽事件时间戳停在
+  // 创建日），只有 mtime 反映真实活动。must按 start/lastTs 排序会漏掉近期仍在干的 long 会话（如 8/18 更新 8/14 开的会话）。
+  .sort((a, b) => (b.fileMtime || 0) - (a.fileMtime || 0))
 
 if (args.detail) {
   sessions = sessions.slice(0, 5)

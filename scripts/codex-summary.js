@@ -296,7 +296,8 @@ let sessions = files
     const lastMs = s.lastTs ? new Date(s.lastTs).getTime() : 0
     return startMs > sinceMs || lastMs > sinceMs || (s.fileMtime && s.fileMtime > sinceMs)
   })
-  .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
+    // 排序按「文件最后写入(mtime)」降序：反映真实活动（长会话 start/lastTs 可能陈旧）；detail 取前 N 时按此不漏近期会话
+  .sort((a, b) => (b.fileMtime || 0) - (a.fileMtime || 0))
 
 if (args.detail) {
   // 详细模式：每会话完整用户请求（放宽截断），最多 5 个最近会话
