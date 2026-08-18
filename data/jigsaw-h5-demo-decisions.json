@@ -1,0 +1,219 @@
+{
+  "slug": "jigsaw-h5-demo-decisions",
+  "title": "Jigsaw H5 Demo：产品待确认决策单",
+  "summary": "请确认 H5 Demo 的范围、星芒与高亮方案、最后一块反馈及演示交互。填写结果可直接导出给开发 Agent 开工。",
+  "source_document": "# Jigsaw H5 Demo —— 需要产品经理确认的问题\n\n来源：8 月 12 日 PRD 与 8 月 17 日评审讨论中尚未收敛或存在表述冲突的内容。目标是在开发 H5 Demo 前确认候选方案与最终结论，避免 Demo 做偏。\n\n本表单将原文前 15 个独立问题转换为可决策的题目；原文最后的 10 问简版仅作摘要，不重复出题。",
+  "created_by": "decision-form-agent",
+  "questions": [
+    {
+      "code": "H1",
+      "title": "首版 H5 是否只做动效、不接正式音效？",
+      "context": "H5 的主要目标是验证拼接反馈动效；音效仍在调整。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "先隔离动效验证，避免未收敛的音效拖慢首版 Demo。",
+      "options": [
+        { "code": "A", "label": "首版只做动效，不接正式音效", "detail": "先验证星芒与高亮的视觉反馈。" },
+        { "code": "B", "label": "首版同时接入临时或正式音效", "detail": "在 Demo 中一并验证视听整体感受。" }
+      ]
+    },
+    {
+      "code": "H2",
+      "title": "首版 H5 需要覆盖哪些拼接事件？",
+      "context": "普通拼接重点包括 1+1、1+N、多块+多块、中间补洞；单张归位、边框/区域/整图完成已有方案或不是本轮重点。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "先覆盖普通拼接，能以最低成本验证本轮核心动效。",
+      "options": [
+        { "code": "A", "label": "只验证普通拼接场景", "detail": "覆盖 1+1、1+N、多块+多块、中间补洞/复杂拼接。" },
+        { "code": "B", "label": "完整模拟 L1～L4 六种事件", "detail": "同时纳入单张归位、边框/区域/整图完成等全部事件。" }
+      ]
+    },
+    {
+      "code": "H3",
+      "title": "星芒“扩散”采用哪种表现方式？",
+      "context": "原文既有“从拼接位置向外扩散”，也有“原地闪烁、用位置与时间差营造扩散感”的理解，并讨论过边缘粒子发散。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "原地闪现，用位置与时间差营造扩散感", "detail": "小星芒先在拼接缝闪烁，外围大星芒稍晚出现。" },
+        { "code": "B", "label": "星芒从拼接边实际向外位移", "detail": "包含有明确运动轨迹的粒子发散。" },
+        { "code": "C", "label": "两种都做，现场比较后定案", "detail": "增加 Demo 工作量，换取直接对比。" }
+      ]
+    },
+    {
+      "code": "H4",
+      "title": "外围大星芒“1.5 倍范围”以什么为基准？",
+      "context": "会议中对范围基准有分歧；若未定，开发会将其作为可调参数。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "以移动块/移动组合的 Bounding Box 为基准", "detail": "范围跟随本次被移动的对象。" },
+        { "code": "B", "label": "以连接后整体组合的 Bounding Box 为基准", "detail": "范围跟随拼接后的完整组合。" },
+        { "code": "C", "label": "以拼接边距离为基准", "detail": "以本次连接缝为中心定义范围。" },
+        { "code": "D", "label": "首版做成可调参数，暂不固化基准", "detail": "现场调参后再确定正式产品口径。" }
+      ]
+    },
+    {
+      "code": "H5",
+      "title": "H5 需要制作哪些星芒候选方案？",
+      "context": "评审总结过边缘灯带+粒子、两层星芒、四层星芒三套方案。",
+      "type": "multiple_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "边缘灯带 + 粒子", "detail": "强调拼接边与粒子反馈。" },
+        { "code": "B", "label": "两层星芒", "detail": "内外两层、以节奏差建立层次。" },
+        { "code": "C", "label": "四层星芒", "detail": "更丰富的分层与延迟表现。" }
+      ]
+    },
+    {
+      "code": "H6",
+      "title": "首版星芒分布采用哪种随机规则？",
+      "context": "纯随机可能造成一边过密、一边过空或整体杂乱。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "完全随机", "detail": "实现最简单，但分布不可控。" },
+        { "code": "B", "label": "有最小间距的随机", "detail": "避免星芒过度聚集。" },
+        { "code": "C", "label": "均匀分区后每区随机", "detail": "先保证空间覆盖，再保留随机感。" },
+        { "code": "D", "label": "固定模板 + 少量随机扰动", "detail": "可控性最高，仍避免每次完全一样。" },
+        { "code": "E", "label": "以上方案均做成参数，现场比较", "detail": "首版以比较为目的，不先锁定规则。" }
+      ]
+    },
+    {
+      "code": "H7",
+      "title": "正式高亮方向采用整组覆盖、局部波浪，还是两套对比？",
+      "context": "原 PRD 写覆盖整个反馈对象；评审担心连接到大组合时范围过大，更倾向本次操作周围传播 1～2 块。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "局部波浪控制反馈范围，更符合评审中对大组合场景的担忧。",
+      "options": [
+        { "code": "A", "label": "局部波浪高亮", "detail": "只在本次操作周围传播 1～2 块。" },
+        { "code": "B", "label": "整组覆盖高亮", "detail": "从最后放置块中心覆盖整个反馈对象。" },
+        { "code": "C", "label": "两套都做，现场比较", "detail": "保留两种路径后再定正式方向。" }
+      ]
+    },
+    {
+      "code": "H8",
+      "title": "波浪高亮需要优先比较哪些传播方式？",
+      "context": "会议提出左右、上下左右、按邻接距离逐圈，以及连续 Overlay 四种思路。",
+      "type": "multiple_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "Horizontal（只左右传播）", "detail": "沿拼接横向扩散。" },
+        { "code": "B", "label": "Cross（上下左右传播）", "detail": "四向相邻块传播。" },
+        { "code": "C", "label": "Distance（按邻接距离逐圈传播）", "detail": "按图结构距离层层扩散。" },
+        { "code": "D", "label": "连续 Overlay 覆盖", "detail": "不逐块点亮，使用连续高亮面。" }
+      ]
+    },
+    {
+      "code": "H9",
+      "title": "高亮“外延 2 块”应如何定义？",
+      "context": "该表述可能指邻接层级、额外亮块总数、各方向上限，或直接对齐竞品规则。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "从移动块开始，最多经过 2 个邻接层级", "detail": "按图结构层级计算。" },
+        { "code": "B", "label": "最多只额外亮 2 个拼图块", "detail": "总数固定，不强调方向。" },
+        { "code": "C", "label": "每个方向最多亮 2 块", "detail": "在左右/上下方向分别限制。" },
+        { "code": "D", "label": "按竞品实际规则", "detail": "以竞品逆向结果为唯一口径。" }
+      ]
+    },
+    {
+      "code": "H10",
+      "title": "连续圆形/柔光 Overlay 扩散是否保留为候选方案？",
+      "context": "原 PRD 明确提出从中心放射性扩散的半透明高亮面；评审后来更倾向逐块波浪。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "保留 Overlay，与逐块波浪一起比较", "detail": "Demo 同时展示连续与离散两条路径。" },
+        { "code": "B", "label": "不保留 Overlay，只做逐块波浪", "detail": "按评审倾向收敛，减少 Demo 工作量。" }
+      ]
+    },
+    {
+      "code": "H11",
+      "title": "最后一块拼上时，普通拼接反馈如何处理？",
+      "context": "最后一块既有普通拼接反馈，后续又有整图扫光，可能形成连续两遍扫光。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "不播普通反馈，直接进入整图完成反馈", "detail": "避免连续两遍相似扫光。" },
+        { "code": "B", "label": "保留普通反馈，但去掉其中扫光", "detail": "保留拼接确认感，同时让完成页承担扫光。" },
+        { "code": "C", "label": "保留全部普通反馈，再调整完成页", "detail": "以完成页差异化解决重复感。" },
+        { "code": "D", "label": "Demo 做 ON/OFF 对比后决定", "detail": "先通过演示验证节奏问题。" }
+      ]
+    },
+    {
+      "code": "H12",
+      "title": "完成页的“纹理消失”是否提前到最后一块阶段验证？",
+      "context": "一种意见希望合并扫光；另一种意见认为会破坏完成页独有的仪式感。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "提前到最后一块阶段，在 Demo 中验证", "detail": "尝试与最后一块反馈合并。" },
+        { "code": "B", "label": "不提前，保留给完成页", "detail": "保护完成页的独有仪式感。" },
+        { "code": "C", "label": "尚未定，Demo 做两种对比", "detail": "通过实际节奏决定。" }
+      ]
+    },
+    {
+      "code": "H13",
+      "title": "Demo 是否需要使用真实拼图图片/齿形？",
+      "context": "建议先用简单方格/彩色块，明确固定块、移动块和新拼接边，优先验证动效逻辑。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "首版先把动效逻辑看清楚，避免真实素材与齿形实现干扰验证。",
+      "options": [
+        { "code": "A", "label": "简单方格/彩色块即可", "detail": "清晰标识固定块、移动块和新拼接边。" },
+        { "code": "B", "label": "必须使用真实拼图图片与拼图齿形", "detail": "直接验证接近正式产品的视觉效果。" }
+      ]
+    },
+    {
+      "code": "H14",
+      "title": "Demo 是否需要真实拖拽拼接？",
+      "context": "为降低成本，建议选择 Case 后点击 Play 自动模拟移动块归位，而不是实现完整拖拽判定。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "当前目标是比较反馈动效，不是验证完整拼图交互；自动演示能明显缩短开发周期。",
+      "options": [
+        { "code": "A", "label": "选择 Case + 点击 Play 自动演示即可", "detail": "自动模拟移动块归位与对应反馈。" },
+        { "code": "B", "label": "必须支持鼠标拖拽拼接", "detail": "需要实现拖拽、命中与归位判定。" }
+      ]
+    },
+    {
+      "code": "H15",
+      "title": "现场还需要开放哪些可调参数？",
+      "context": "已默认开放星芒数量、大小、层间延迟、范围、随机程度、是否位移，以及高亮传播范围、层间延迟、强度、Fade、传播方式。请选择额外需要开放的参数。",
+      "type": "multiple_choice",
+      "required": false,
+      "allow_other": true,
+      "options": [
+        { "code": "A", "label": "颜色", "detail": "主色/层级颜色可调。" },
+        { "code": "B", "label": "Glow 强度", "detail": "发光感可调。" },
+        { "code": "C", "label": "Blur", "detail": "柔化程度可调。" },
+        { "code": "D", "label": "粒子形状", "detail": "星形、圆点等形状可调。" },
+        { "code": "E", "label": "每层独立数量", "detail": "各星芒层数量可独立控制。" },
+        { "code": "F", "label": "每层独立尺寸", "detail": "各星芒层尺寸可独立控制。" },
+        { "code": "G", "label": "每层独立 Delay", "detail": "各星芒层延迟可独立控制。" }
+      ]
+    }
+  ]
+}
