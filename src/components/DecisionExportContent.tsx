@@ -78,10 +78,10 @@ export function DecisionExportContent({ form, onAfterCopy }: DecisionExportConte
             onChange={(e) => setSelectedRespondent(e.target.value)}
             disabled={!hasResponses}
           >
-            <option value="all">全部答卷 ({form.responses?.length ?? 0} 份)</option>
+            <option value="all">全部反馈 ({form.responses?.length ?? 0} 份)</option>
             {respondents.map((r, idx) => (
               <option key={r.id} value={r.id}>
-                {r.name}（第 {idx + 1} 份 · {new Date(r.submittedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}）
+                {r.name.trim() || '未填写身份'}（第 {idx + 1} 份 · {new Date(r.submittedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}）
               </option>
             ))}
           </select>
@@ -111,7 +111,7 @@ export function DecisionExportContent({ form, onAfterCopy }: DecisionExportConte
       {!hasResponses && (
         <div className="export-empty-banner">
           <AlertCircle size={18} />
-          <span>尚未收到任何答卷提交。决策人提交答卷后，此处将自动呈现结论。</span>
+          <span>尚未收到任何决策反馈。对方提交后，结果会自动保存并在这里呈现。</span>
         </div>
       )}
 

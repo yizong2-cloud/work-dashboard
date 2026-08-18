@@ -48,6 +48,7 @@ export function DecisionCenter() {
     if (filter === 'closed') return f.status === 'closed'
     return true
   })
+  const formsWithResponses = forms.filter((f) => (f.response_count ?? 0) > 0)
 
   const handleCopyLink = async (slug: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -89,7 +90,7 @@ export function DecisionCenter() {
               决策中心
             </h1>
             <p className="decision-page-desc">
-              面向 Agent 协作的结构化拍板入口：发起决策表单、收集确定结论、一键导出供 Agent 消费。
+              面向 Agent 协作的结构化拍板入口：反馈提交后自动沉淀，一键查看与导出供 Agent 消费。
             </p>
           </div>
           <div className="decision-header-actions">
@@ -108,9 +109,36 @@ export function DecisionCenter() {
         {/* 内部协作免责提醒 */}
         <div className="decision-notice-banner">
           <ShieldAlert size={16} className="text-amber" />
-          <span>内部协作链接：持有链接即可查看和填写；请勿在表单与答卷中包含敏感机密信息。</span>
+          <span>内部协作链接：持有链接即可查看和填写；提交结果会自动保存到决策中心，请勿填写敏感信息。</span>
         </div>
       </div>
+
+      <section className="decision-inbox" aria-labelledby="decision-inbox-title">
+        <div className="decision-inbox-heading">
+          <div>
+            <h2 id="decision-inbox-title">决策收件箱</h2>
+            <p>他人提交的反馈会自动保存在这里；打开后即可查看、复制或导出给 Agent。</p>
+          </div>
+          <span className="tag tag-demo">{formsWithResponses.length} 个有反馈的表单</span>
+        </div>
+        {formsWithResponses.length === 0 ? (
+          <p className="decision-inbox-empty">暂未收到反馈。分享表单后，对方提交即可在此查看。</p>
+        ) : (
+          <div className="decision-inbox-list">
+            {formsWithResponses.map((form) => (
+              <button
+                type="button"
+                key={form.id}
+                className="decision-inbox-item"
+                onClick={() => navigate(`/decisions/${form.slug}/export`)}
+              >
+                <span className="decision-inbox-item-title">{form.title}</span>
+                <span className="decision-inbox-item-meta">已收到 {form.response_count} 份反馈 · 查看结果</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* 筛选标签栏 */}
       <div className="decision-filter-bar">
@@ -179,7 +207,7 @@ export function DecisionCenter() {
                       {form.question_count ?? 0} 题
                     </span>
                     <span className="tag tag-demo">
-                      {form.response_count ?? 0} 份答卷
+                      {form.response_count ?? 0} 份反馈
                     </span>
                   </div>
                   <button
@@ -218,14 +246,14 @@ export function DecisionCenter() {
                     to={`/decisions/${form.slug}`}
                     className="btn btn-primary btn-sm decision-action-fill"
                   >
-                    <ExternalLink size={14} /> {isOpen ? '进入填答' : isClosed ? '查看表单' : '查看草稿'}
+                    <ExternalLink size={14} /> {isOpen ? '提交反馈' : isClosed ? '查看表单' : '查看草稿'}
                   </Link>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
                     onClick={(e) => handleOpenExport(form.slug, e)}
                     disabled={(form.response_count ?? 0) === 0}
-                    title={(form.response_count ?? 0) === 0 ? '尚未收到答卷，暂无法导出' : '导出答卷结论'}
+                    title={(form.response_count ?? 0) === 0 ? '尚未收到反馈，暂无法导出' : '查看并导出反馈'}
                   >
                     <Download size={14} /> 导出结果
                   </button>

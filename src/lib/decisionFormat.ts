@@ -24,9 +24,9 @@ export function formatShanghaiTime(isoString: string): string {
 }
 
 export interface DecisionExportOptions {
-  /** 仅导出指定 ID 的答卷 */
+  /** 仅导出指定 ID 的反馈 */
   responseId?: string
-  /** 仅导出指定答卷人 */
+  /** 仅导出指定提交身份的反馈 */
   respondentName?: string
 }
 
@@ -59,10 +59,10 @@ export function formatDecisionMarkdown(
   if (form.created_by) {
     lines.push(`- 发起人：${form.created_by}`)
   }
-  lines.push(`- 答卷总数：${form.responses?.length ?? 0} 份（本次导出 ${responses.length} 份）`)
+  lines.push(`- 已收反馈：${form.responses?.length ?? 0} 份（本次导出 ${responses.length} 份）`)
 
   if (responses.length === 0) {
-    lines.push('\n> 尚未收到任何答卷提交。')
+    lines.push('\n> 尚未收到任何决策反馈。')
     return lines.join('\n')
   }
 
@@ -76,7 +76,7 @@ export function formatDecisionMarkdown(
   for (let i = 0; i < responses.length; i++) {
     const resp = responses[i]
     lines.push('\n---\n')
-    lines.push(`- 答卷人：${resp.respondent_name}`)
+    lines.push(`- 提交身份：${resp.respondent_name.trim() || '未填写'}`)
     lines.push(`- 提交时间：${formatShanghaiTime(resp.submitted_at)}`)
     if (resp.respondent_note?.trim()) {
       lines.push(`- 整体说明：${resp.respondent_note.trim()}`)
@@ -196,6 +196,7 @@ export function formatDecisionJson(
 
       return {
         id: resp.id,
+        submitter_identity: resp.respondent_name.trim() || null,
         respondent_name: resp.respondent_name,
         respondent_note: resp.respondent_note,
         submitted_at: resp.submitted_at,

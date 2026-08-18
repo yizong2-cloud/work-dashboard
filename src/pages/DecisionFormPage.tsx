@@ -37,8 +37,9 @@ export function DecisionFormPage() {
   // 展开完整背景
   const [showSourceDoc, setShowSourceDoc] = useState(false)
 
-  // 答卷填写表单状态
-  const [respondentName, setRespondentName] = useState('')
+  // 决策反馈填写状态
+  const [identityType, setIdentityType] = useState<'none' | 'pm' | 'operations' | 'custom'>('none')
+  const [customIdentity, setCustomIdentity] = useState('')
   const [respondentNote, setRespondentNote] = useState('')
   // 题目作答映射：questionId -> { selected_option_ids, text_answer, other_text, is_other_selected }
   const [answersState, setAnswersState] = useState<
@@ -78,7 +79,7 @@ export function DecisionFormPage() {
         setError(`未找到决策表单: ${slug}`)
       } else {
         setForm(data)
-        // 初始化答卷答案结构
+        // 初始化反馈答案结构
         const initialAnswers: typeof answersState = {}
         for (const q of data.questions) {
           initialAnswers[q.id] = {
@@ -206,16 +207,22 @@ export function DecisionFormPage() {
     }
   }
 
-  // 提交答卷
+  // 提交反馈
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form || form.status !== 'open') return
 
     const errors: Record<string, string> = {}
 
-    const cleanName = respondentName.trim()
-    if (!cleanName) {
-      errors.respondent_name = '请填写您的姓名或角色（必填）'
+    const cleanName = identityType === 'pm'
+      ? 'PM'
+      : identityType === 'operations'
+        ? '运营'
+        : identityType === 'custom'
+          ? customIdentity.trim()
+          : ''
+    if (identityType === 'custom' && !cleanName) {
+      errors.respondent_name = '选择“自定义”后，请填写提交身份'
     }
 
     const payloadAnswers: DecisionAnswerInput[] = []
@@ -276,7 +283,7 @@ export function DecisionFormPage() {
         answers: payloadAnswers,
       })
 
-      // 重新拉取最新表单数据（更新答卷数）
+      // 重新拉取最新表单数据（更新反馈数）
       const updated = await service.getForm(form.slug)
       if (updated) setForm(updated)
 
@@ -289,7 +296,7 @@ export function DecisionFormPage() {
     }
   }
 
-  // 复制自己的答卷 Markdown（复用统一导出纯函数，确保 100% 格式一致且保留整体说明）
+  // 复制本次决策结果（复用统一导出纯函数，确保格式与 Agent 导出一致）
   const handleCopyMyAnswer = async () => {
     if (!form || !submittedResponse) return
     const text = formatDecisionMarkdown(form, { responseId: submittedResponse.id })
@@ -311,7 +318,8 @@ export function DecisionFormPage() {
 
   const handleResetForNewResponse = () => {
     setSubmittedResponse(null)
-    setRespondentName('')
+    setIdentityType('none')
+    setCustomIdentity('')
     setRespondentNote('')
     const initialAnswers: typeof answersState = {}
     if (form) {
@@ -379,7 +387,7 @@ export function DecisionFormPage() {
               {isOpen ? '收集中' : isClosed ? '已关闭' : '草稿'}
             </span>
             <span className="tag tag-normal">共 {form.questions.length} 道决策题</span>
-            <span className="tag tag-demo">已收到 {form.responses?.length ?? 0} 份答卷</span>
+            <span className="tag tag-demo">已收到 {form.responses?.length ?? 0} 份反馈</span>
           </div>
 
           <div className="decision-header-btn-group">
@@ -388,7 +396,7 @@ export function DecisionFormPage() {
               className="btn btn-secondary btn-sm"
               onClick={() => setIsExportOpen(true)}
               disabled={!hasResponses}
-              title={!hasResponses ? '尚未收到提交答卷，暂无法导出' : '导出答卷结论给 Agent'}
+              title={!hasResponses ? '尚未收到决策反馈，暂无法导出' : '查看反馈并导出给 Agent'}
             >
               <Download size={15} /> 导出给 Agent
             </button>
@@ -465,7 +473,7 @@ export function DecisionFormPage() {
           <AlertCircle size={18} />
           <div>
             <strong>表单当前为草稿状态</strong>
-            <p>本决策表单尚未发布开放，当前为只读预览模式，暂不支持提交答卷。</p>
+            <p>本决策表单尚未发布开放，当前为只读预览模式，暂不支持提交反馈。</p>
           </div>
         </div>
       )}
@@ -476,7 +484,7 @@ export function DecisionFormPage() {
           <Lock size={18} />
           <div>
             <strong>表单已关闭</strong>
-            <p>本决策表单已停止接收新答卷，当前为只读查阅与导出模式。</p>
+            <p>本决策表单已停止接收新反馈，当前为只读查阅与导出模式。</p>
           </div>
         </div>
       )}
@@ -488,9 +496,12 @@ export function DecisionFormPage() {
             <div className="submitted-icon">
               <CheckCircle2 size={48} className="text-success" />
             </div>
-            <h2>决策答卷已提交！</h2>
+            <h2>决策反馈已提交！</h2>
             <p className="submitted-meta">
-              答卷人：<strong>{submittedResponse.respondent_name}</strong> · 提交时间：{formatShanghaiTime(submittedResponse.submitted_at)}
+              提交身份：<strong>{submittedResponse.respondent_name.trim() || '未填写'}</strong> · 提交时间：{formatShanghaiTime(submittedResponse.submitted_at)}
+            </p>
+            <p className="submitted-receipt">
+              已自动保存到决策中心；发起人可在「决策收件箱」查看和导出，无需再转发。
             </p>
 
             <div className="submitted-actions">
@@ -501,11 +512,11 @@ export function DecisionFormPage() {
               >
                 {myAnswerCopied ? (
                   <>
-                    <Check size={16} /> 已复制我的答卷 Markdown
+                    <Check size={16} /> 已复制本次决策结果
                   </>
                 ) : (
                   <>
-                    <Copy size={16} /> 复制我的答卷 Markdown
+                    <Copy size={16} /> 复制本次决策结果
                   </>
                 )}
               </button>
@@ -514,54 +525,86 @@ export function DecisionFormPage() {
                 className="btn btn-secondary"
                 onClick={() => setIsExportOpen(true)}
               >
-                <Download size={16} /> 导出全部答卷给 Agent
+                <Download size={16} /> 查看全部反馈并导出
               </button>
               <button
                 type="button"
                 className="btn btn-ghost"
                 onClick={handleResetForNewResponse}
               >
-                <RotateCcw size={15} /> 再提交一份新答卷
+                <RotateCcw size={15} /> 再提交一份反馈
               </button>
             </div>
           </div>
         </div>
       ) : (
-        /* 填答表单主体 */
+        /* 决策反馈表单主体 */
         <form onSubmit={handleSubmit} className="decision-form-body">
-          {/* 答卷人信息卡片 */}
+          {/* 提交身份与整体说明 */}
           <div
             className={`decision-question-card ${validationErrors.respondent_name ? 'card-error' : ''}`}
             id="input-respondent-name"
           >
             <div className="q-card-header">
               <label className="q-title-label">
-                <span className="required-star">*</span> 答卷人姓名 / 角色
+                提交身份 <span className="q-optional-tag">选填</span>
               </label>
             </div>
             <p className="q-context-desc">
-              请填写您的真实姓名或产品角色（例如：商雯祺 / 拼图 PM），便于后续 Agent 与团队识别结论出处。
+              默认不署名也可以提交。如需标注结论来源，选择您的角色；选择“自定义”后再填写具体身份。
             </p>
-            <div className="q-input-row">
-              <input
-                type="text"
-                className="text-input"
-                placeholder="请填写姓名或角色（必填）"
-                value={respondentName}
-                onChange={(e) => {
-                  setRespondentName(e.target.value)
-                  if (validationErrors.respondent_name) {
-                    setValidationErrors((prev) => {
-                      const next = { ...prev }
-                      delete next.respondent_name
-                      return next
-                    })
-                  }
-                }}
-                disabled={isReadOnly}
-                maxLength={50}
-              />
+            <div className="identity-choice-row" role="radiogroup" aria-label="提交身份">
+              {[
+                ['none', '不填写'],
+                ['pm', 'PM'],
+                ['operations', '运营'],
+                ['custom', '自定义'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={identityType === value}
+                  className={`identity-choice ${identityType === value ? 'identity-choice-selected' : ''}`}
+                  onClick={() => {
+                    setIdentityType(value as typeof identityType)
+                    if (validationErrors.respondent_name) {
+                      setValidationErrors((prev) => {
+                        const next = { ...prev }
+                        delete next.respondent_name
+                        return next
+                      })
+                    }
+                  }}
+                  disabled={isReadOnly}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+            {identityType === 'custom' && (
+              <div className="q-input-row">
+                <input
+                  type="text"
+                  className="text-input"
+                  placeholder="请输入自定义身份，例如：增长负责人"
+                  value={customIdentity}
+                  onChange={(e) => {
+                    setCustomIdentity(e.target.value)
+                    if (validationErrors.respondent_name) {
+                      setValidationErrors((prev) => {
+                        const next = { ...prev }
+                        delete next.respondent_name
+                        return next
+                      })
+                    }
+                  }}
+                  disabled={isReadOnly}
+                  maxLength={50}
+                  autoFocus
+                />
+              </div>
+            )}
             {validationErrors.respondent_name && (
               <p className="error-hint">{validationErrors.respondent_name}</p>
             )}
@@ -924,7 +967,7 @@ export function DecisionFormPage() {
               <div className="bottom-bar-inner">
                 <div className="bottom-progress-info">
                   <span>
-                    已回答 <strong>{answeredCount}</strong> / {form.questions.length} 题
+                    已完成 <strong>{answeredCount}</strong> / {form.questions.length} 题
                   </span>
                   <div className="progress-mini-bar">
                     <div
@@ -945,7 +988,7 @@ export function DecisionFormPage() {
                     className="btn btn-primary btn-lg"
                     disabled={submitting}
                   >
-                    {submitting ? '正在提交...' : '提交决策答卷'}
+                    {submitting ? '正在提交...' : '提交决策反馈'}
                   </button>
                 </div>
               </div>

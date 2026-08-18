@@ -152,15 +152,13 @@ export function validateDecisionSubmission(
   }
 
   if (form.status === 'closed') {
-    errors.form = '该决策表单已关闭，不再接收新答卷'
+    errors.form = '该决策表单已关闭，不再接收新反馈'
     return { valid: false, errors }
   }
 
-  const name = submission.respondent_name?.trim()
-  if (!name) {
-    errors.respondent_name = '请填写您的姓名或角色（必填）'
-  } else if (name.length > 50) {
-    errors.respondent_name = '姓名或角色过长（最多 50 字）'
+  const identity = submission.respondent_name?.trim()
+  if (identity && identity.length > 50) {
+    errors.respondent_name = '提交身份过长（最多 50 字）'
   }
 
   const answersByQuestionId = new Map<string, DecisionSubmissionInput['answers'][0]>()

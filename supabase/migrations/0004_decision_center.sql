@@ -321,11 +321,8 @@ begin
   p_respondent_name := btrim(coalesce(p_respondent_name, ''));
   v_clean_note := btrim(coalesce(p_respondent_note, ''));
 
-  if p_respondent_name = '' then
-    raise exception '答卷人姓名不能为空';
-  end if;
   if length(p_respondent_name) > 50 then
-    raise exception '答卷人姓名过长（最多 50 字）';
+    raise exception '提交身份过长（最多 50 字）';
   end if;
 
   select * into v_form from public.decision_forms where slug = p_form_slug;

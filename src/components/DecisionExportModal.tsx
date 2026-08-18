@@ -19,7 +19,7 @@ export function DecisionExportModal({ form, isOpen, onClose }: DecisionExportMod
       >
         <div className="modal-header">
           <div>
-            <h3 className="modal-title">导出答卷给 Agent</h3>
+            <h3 className="modal-title">导出决策结果给 Agent</h3>
             <p className="modal-subtitle">
               生成可直接供执行 Agent 引用的 Markdown 决策结论或结构化 JSON
             </p>

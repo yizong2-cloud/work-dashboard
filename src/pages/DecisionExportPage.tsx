@@ -77,13 +77,13 @@ export function DecisionExportPage() {
       <div className="decision-form-header-card">
         <div className="decision-form-header-top">
           <div>
-            <h1 className="decision-form-title">导出答卷结论给 Agent</h1>
+            <h1 className="decision-form-title">查看并导出决策结果</h1>
             <p className="decision-form-summary">
               表单：<strong>{form.title}</strong>（<code>{form.slug}</code>）
             </p>
           </div>
           <Link to={`/decisions/${form.slug}`} className="btn btn-secondary btn-sm">
-            返回填答页
+            返回表单页
           </Link>
         </div>
 

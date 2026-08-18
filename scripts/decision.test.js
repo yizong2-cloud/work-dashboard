@@ -263,6 +263,18 @@ test('validateDecisionSubmission：草稿与关闭拦截、单选题多选/混�
   })
   assert.equal(validRes.valid, true)
   assert.equal(Object.keys(validRes.errors).length, 0)
+
+  // 8. 提交身份是选填；匿名反馈仍须完整遵守题目规则
+  const anonymousRes = validateDecisionSubmission(formDetail, {
+    respondent_name: '',
+    answers: [
+      { question_id: 'q-single-no-other', selected_option_ids: ['opt-1-a'] },
+      { question_id: 'q-free-text', text_answer: '匿名结论' },
+      { question_id: 'q-confirm', text_answer: 'confirmed' },
+    ],
+  })
+  assert.equal(anonymousRes.valid, true)
+  assert.equal(anonymousRes.errors.respondent_name, undefined)
 })
 
 test('formatShanghaiTime：正确格式化北京时间', () => {
@@ -270,7 +282,7 @@ test('formatShanghaiTime：正确格式化北京时间', () => {
   assert.match(formatted, /2026-08-19 14:32 \(Asia\/Shanghai\)/)
 })
 
-test('formatDecisionMarkdown：0 份答卷时输出清晰空提示，不虚构答案', () => {
+test('formatDecisionMarkdown：0 份反馈时输出清晰空提示，不虚构答案', () => {
   const formDetail = {
     id: 'f-1',
     slug: 'empty-form',
@@ -287,7 +299,7 @@ test('formatDecisionMarkdown：0 份答卷时输出清晰空提示，不虚构�
   }
   const md = formatDecisionMarkdown(formDetail)
   assert.match(md, /# 空表单测试 — 决策结果/)
-  assert.match(md, /尚未收到任何答卷提交/)
+  assert.match(md, /尚未收到任何决策反馈/)
 })
 
 test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷人筛选一致', () => {
@@ -361,18 +373,18 @@ test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷�
 
   // 全部导出
   const mdAll = formatDecisionMarkdown(formDetail)
-  assert.match(mdAll, /答卷总数：2 份/)
-  assert.match(mdAll, /答卷人：商雯祺/)
+  assert.match(mdAll, /已收反馈：2 份/)
+  assert.match(mdAll, /提交身份：商雯祺/)
   assert.match(mdAll, /整体说明：与竞品一致/)
-  assert.match(mdAll, /答卷人：李四/)
+  assert.match(mdAll, /提交身份：李四/)
   assert.match(mdAll, /## D1\. 连击如何累计和中断/)
   assert.match(mdAll, /A（按竞品 5.0.21 源码口径）/)
   assert.match(mdAll, /其他（自定义方案）/)
 
   // 指定答卷人导出
   const mdFilter = formatDecisionMarkdown(formDetail, { respondentName: '商雯祺' })
-  assert.match(mdFilter, /答卷人：商雯祺/)
-  assert.doesNotMatch(mdFilter, /答卷人：李四/)
+  assert.match(mdFilter, /提交身份：商雯祺/)
+  assert.doesNotMatch(mdFilter, /提交身份：李四/)
 
   // JSON 导出
   const jsonStr = formatDecisionJson(formDetail, { respondentName: '商雯祺' })
