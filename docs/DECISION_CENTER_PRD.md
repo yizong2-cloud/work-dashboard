@@ -117,6 +117,7 @@ v1 的成功标准不是做投票社区，而是让一个复杂的 PM 决策单�
 - 飞书中的闲聊不入库；只有改变选项含义、补充关键依据、正式拍板或变更的内容，由 Agent 用 `decision:clarify` 同步。
 - 澄清记录按题追加，类型为 `clarification`、`decision`、`change`；页面显示最新记录和题目状态，但不静默改写旧记录。
 - 若选项语义本身变化，必须记为 `change`，并在后续导出中保留变更说明；不能把已有反馈伪装成基于新口径填写。
+- 已创建表单如需补齐完整原文或按题依据，Agent 使用 `decision:enrich --slug <slug> --file <payload.json> --source-file <original.md>`；该操作只补齐资料，不改写既有反馈。
 
 ## 6. 创建、导入与生命周期
 

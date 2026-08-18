@@ -9,6 +9,7 @@
 //   npm run decision:close -- --slug <slug>
 //   npm run decision:open -- --slug <slug>
 //   npm run decision:clarify -- --slug <slug> --question <code> --content <text>
+//   npm run decision:enrich -- --slug <slug> --file <decision.json> --source-file <original.md>
 // ============================================================
 
 import fs from 'node:fs'
@@ -201,6 +202,23 @@ async function handleClarify() {
   }
 }
 
+async function handleEnrich() {
+  const slug = args.slug
+  if (!slug || slug === true) fail('缺少参数 --slug')
+  const payload = loadPayloadFromFile(args.file)
+  if (typeof args['source-file'] === 'string') {
+    const sourcePath = path.resolve(process.cwd(), args['source-file'])
+    if (!fs.existsSync(sourcePath)) fail(`原始文档不存在: ${sourcePath}`)
+    payload.source_document = fs.readFileSync(sourcePath, 'utf8')
+  }
+  try {
+    await store.enrichDecisionForm(String(slug), payload)
+    console.log(`✔ 已补齐 ${slug} 的完整原文与按题依据`)
+  } catch (err) {
+    fail(`补齐表单依据失败: ${err.message}`)
+  }
+}
+
 async function handleList() {
   const forms = await store.listDecisionForms()
   if (jsonOut) {
@@ -241,6 +259,9 @@ async function main() {
     case 'clarify':
       await handleClarify()
       break
+    case 'enrich':
+      await handleEnrich()
+      break
     case 'list':
       await handleList()
       break
@@ -253,6 +274,7 @@ async function main() {
   npm run decision:close -- --slug <slug>
   npm run decision:open -- --slug <slug>
   npm run decision:clarify -- --slug <slug> --question <code> --content <text> [--kind clarification|decision|change] [--source-url <feishu-url>]
+  npm run decision:enrich -- --slug <slug> --file <decision.json> --source-file <original.md>
   npm run decision:list
 `)
       break

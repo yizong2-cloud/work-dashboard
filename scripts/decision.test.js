@@ -452,6 +452,19 @@ test('存储层：创建表单、多答卷独立提交、关闭拦截全链路',
   const q1Id = form.questions[0].id
   const q2Id = form.questions[1].id
 
+  // 2.1 已创建表单可补齐完整原文和按题依据，不影响既有题目
+  await testStore.enrichDecisionForm('retention-test-1', {
+    source_document: '# 完整原文\n\n这里是补齐后的需求背景。',
+    questions: [
+      { code: 'D1', group_name: '奖励策略', source_excerpt: '原文：奖励翻倍待确认。', conversion_note: '转为单选题。' },
+      { code: 'D2', group_name: '补充说明', source_excerpt: '原文：可补充意见。', conversion_note: '转为选填文本题。' },
+    ],
+  })
+  const enrichedForm = await testStore.getDecisionFormBySlug('retention-test-1')
+  assert.equal(enrichedForm.source_document, '# 完整原文\n\n这里是补齐后的需求背景。')
+  assert.equal(enrichedForm.questions[0].group_name, '奖励策略')
+  assert.equal(enrichedForm.questions[0].conversion_note, '转为单选题。')
+
   // 3. 用户 A 提交答卷
   const resp1 = await testStore.submitDecisionResponse('retention-test-1', '商雯祺', [
     { question_id: q1Id, selected_option_ids: [optAId] },

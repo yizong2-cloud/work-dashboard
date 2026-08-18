@@ -517,6 +517,22 @@ function createLocalStore() {
       return entry
     },
 
+    async enrichDecisionForm(slug, payload) {
+      const db = loadLocal()
+      const form = (db.decisionForms || []).find((item) => item.slug === slug.trim())
+      if (!form) throw new Error(`表单不存在: ${slug}`)
+      if (Object.prototype.hasOwnProperty.call(payload, 'source_document')) form.source_document = payload.source_document
+      for (const sourceQuestion of payload.questions || []) {
+        const question = (db.decisionQuestions || []).find((item) => item.form_id === form.id && item.code === sourceQuestion.code)
+        if (!question) throw new Error(`题目不存在，无法补齐依据: ${sourceQuestion.code}`)
+        question.group_name = sourceQuestion.group_name?.trim() || '待确认事项'
+        question.source_excerpt = sourceQuestion.source_excerpt?.trim() || ''
+        question.conversion_note = sourceQuestion.conversion_note?.trim() || ''
+      }
+      form.updated_at = now()
+      saveLocal(db)
+    },
+
     async closeDecisionForm(slug) {
       const db = loadLocal()
       const cleanSlug = slug.trim()
@@ -965,6 +981,14 @@ function createSupabaseStore(env) {
       })
       if (error) throw new Error(error.message)
       return data
+    },
+
+    async enrichDecisionForm(slug, payload) {
+      const { error } = await client.rpc('enrich_decision_form', {
+        p_form_slug: slug,
+        p_payload: payload,
+      })
+      if (error) throw new Error(error.message)
     },
 
     async closeDecisionForm(slug) {
