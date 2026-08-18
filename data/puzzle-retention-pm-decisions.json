@@ -1,0 +1,157 @@
+{
+  "slug": "puzzle-retention-pm-decisions",
+  "title": "拼图积分与完成激励：PM 待拍板决策单",
+  "summary": "请逐题确认 D1～D10 的产品口径。此表单由原始 PM 决策 Markdown 转换而来，未预填历史结论或答卷。",
+  "source_document": "# 拼图积分与完成激励：PM 待拍板\n\n该表单转自《拼图留存功能-PM待拍板决策单》。目标是在开发开始前收敛积分、连击与完成激励的关键口径。每题提供原文中的候选方案、推荐方案及影响说明；如需采用其他口径，请选择“其他”并补充。\n\n注意：原始文档后来记录过历史确认结果；为测试决策中心的正常收集流程，本表单不预填任何答案，需由决策人重新提交。",
+  "created_by": "decision-form-agent",
+  "questions": [
+    {
+      "code": "D1",
+      "title": "连击如何累计和中断",
+      "context": "策划案只写了“连续正确操作形成连击”，未定义一次操作如何计数及哪些行为断连。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "规则能对齐竞品可感知事件，同时避免把难理解的内部状态直接带入产品规则。",
+      "options": [
+        { "code": "A", "label": "按竞品源码事件口径", "detail": "托盘/空白等无效落点不影响；有效连接或锁定才计入连击；Hint 清零规则由 D2 决定。" },
+        { "code": "B", "label": "按底层事件计数", "detail": "Link 和 Lock 分别 +1；一次操作可能增加两次，失败清零按竞品内部状态实现。" },
+        { "code": "C", "label": "采用其他口径", "detail": "请在“其他，请说明”中明确一次操作、累计与中断规则。" }
+      ]
+    },
+    {
+      "code": "D2",
+      "title": "Hint / 自动放置是否得分、是否中断连击",
+      "context": "策划案未说明 Hint 的得分与 Combo 影响，竞品的辅助操作会影响基础分和连击。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "不让道具刷高分，最高分更能代表主动完成表现。",
+      "options": [
+        { "code": "A", "label": "Hint 不得分，并清零连击", "detail": "防止通过道具刷高分。" },
+        { "code": "B", "label": "Hint 正常得分，但清零连击", "detail": "更接近竞品，辅助操作仍提高基础分。" },
+        { "code": "C", "label": "Hint 不得分，也不影响当前连击", "detail": "保留已有 Combo，但不提供基础得分。" }
+      ]
+    },
+    {
+      "code": "D3",
+      "title": "“清空棋盘 +20”具体指什么",
+      "context": "策划案未定义触发事件；竞品的 Clear Board 不必然等同于完成整幅拼图。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "最符合玩家对“清盘”的理解，规则简单且不依赖散落区的竞品实现细节。",
+      "options": [
+        { "code": "A", "label": "整幅拼图完成时 +20，每局一次", "detail": "将清盘视为最终完成。" },
+        { "code": "B", "label": "散落区 / 待拼区清空时 +20，每局一次", "detail": "更接近竞品；还需补充各规格的散落块阈值。" },
+        { "code": "C", "label": "两种触发都保留", "detail": "请补充两种触发各自的分值。" }
+      ]
+    },
+    {
+      "code": "D4",
+      "title": "Nice / Excellent / Unbelievable 的触发条件",
+      "context": "策划案同时提到“大块拼合或锁定”和“大块锁定”，需要明确三档反馈是否覆盖未锁定连接。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "只使用一次大组锁定，触发口径明确、不会因同组扩张重复播放三档反馈。",
+      "options": [
+        { "code": "A", "label": "只由一次大组锁定触发三档文案", "detail": "组规模取本次新锁定块数，使用策划案各规格阈值。" },
+        { "code": "B", "label": "未锁定的大组连接也触发同一套文案", "detail": "需另行明确组规模和同组连续扩张的重复触发规则。" },
+        { "code": "C", "label": "连接和锁定使用两套不同反馈", "detail": "请另给连接时的触发规则与文案。" }
+      ]
+    },
+    {
+      "code": "D5",
+      "title": "个人最快纪录的首次完成与比较精度",
+      "context": "策划案未说明没有历史纪录时是否展示新纪录；竞品只按整数分钟比较会丢失秒级差异。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "首次完成就能给到积极反馈，同时秒级比较避免 8:59 与 8:01 被当作相同纪录。",
+      "options": [
+        { "code": "A", "label": "首次完成即算纪录；按秒比较、按分钟展示", "detail": "展示分钟向下取整但至少 1 分钟。" },
+        { "code": "B", "label": "首次只建立基线，不展示纪录；后续按秒比较", "detail": "降低首次完成时的纪录反馈。" },
+        { "code": "C", "label": "完全按竞品整数分钟保存和比较", "detail": "首次完成展示纪录，但会损失秒级精度。" }
+      ]
+    },
+    {
+      "code": "D6",
+      "title": "Over x% 与速度激励使用哪套速度基准",
+      "context": "当前完成页使用简化公式，策划案要求完成页和弹窗共用同一个目标速度百分位。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "策划案链接的速度基准表应是唯一真源，避免同一完成结果在不同页面得出不同激励。",
+      "options": [
+        { "code": "A", "label": "使用策划案链接的速度基准表", "detail": "逐项复核 3/4/5/6/8/10/12/15/20 档，并替换当前简化公式。" },
+        { "code": "B", "label": "继续使用当前简化公式", "detail": "开发量小，但不严格复刻策划案引用的分位表。" },
+        { "code": "C", "label": "无法取得目标表时使用竞品逆向表", "detail": "以 Jigsawscapes 5.0.21 已恢复数据作为兜底。" }
+      ]
+    },
+    {
+      "code": "D7",
+      "title": "首版覆盖哪些游戏模式",
+      "context": "普通拼图、Story、Challenge 和历史查看有不同完成页与流程，同时覆盖会增加状态机接入量。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "先覆盖普通单人拼图，减少首版流程分支，后续再按模式扩展。",
+      "options": [
+        { "code": "A", "label": "首版只覆盖普通单人拼图", "detail": "覆盖普通 Library、Daily、Collection 等进入 FirstFinishedActivity 的入口。" },
+        { "code": "B", "label": "普通拼图 + Story", "detail": "同时接入 Story 专属完成页。" },
+        { "code": "C", "label": "普通拼图 + Story + Challenge 全覆盖", "detail": "所有模式同时接入计分、结果页、广告和奖励状态机。" }
+      ]
+    },
+    {
+      "code": "D8",
+      "title": "中途退出再继续时，本局分数如何处理",
+      "context": "需要定义断点续玩是否恢复当前局分数，以及放弃重开时的清零边界。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "与拼图进度恢复一致，且只让完成局参与最高分比较。",
+      "options": [
+        { "code": "A", "label": "断点续玩恢复本局分数；明确重开才清零", "detail": "放弃的局不更新最高分。" },
+        { "code": "B", "label": "每次重新进入游戏页都从 0 分开始", "detail": "实现简单，但与进度恢复体验不一致。" }
+      ]
+    },
+    {
+      "code": "D9",
+      "title": "“今日完成数量”是否统计同一图片的重复完成",
+      "context": "策划案既写“今日第 N 局”，又写“今天完成了哪些拼图”，需要统一计数口径。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "“今日完成 N 局”更贴近用户理解，需要独立的按日完成计数。",
+      "options": [
+        { "code": "A", "label": "每个成功完成的单局都计数，同图重玩也累计", "detail": "今日累计时长也只累计成功完成的单局。" },
+        { "code": "B", "label": "按不同图片计数，同图当天最多一次", "detail": "更接近竞品当前实现。" }
+      ]
+    },
+    {
+      "code": "D10",
+      "title": "AB 首次开启时是否继承历史数据",
+      "context": "开启前没有完整的按规格最快时间和新积分存档，必须定义初始化策略。",
+      "type": "single_choice",
+      "required": true,
+      "allow_other": true,
+      "recommended_option_code": "A",
+      "recommended_reason": "不凭空推算不存在的历史积分；最快纪录从 AB 开启后的首个完成局自然建立。",
+      "options": [
+        { "code": "A", "label": "新积分从 0 开始；最快纪录从 AB 开启后首局建立", "detail": "首次完成是否展示纪录按 D5 的选择执行。" },
+        { "code": "B", "label": "尽可能回填既有本地完成记录的最快时间", "detail": "积分仍从 0 开始。" },
+        { "code": "C", "label": "使用服务端或其他历史来源回填", "detail": "请补充可用的数据来源。" }
+      ]
+    }
+  ]
+}

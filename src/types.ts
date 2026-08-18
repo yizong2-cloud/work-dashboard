@@ -171,3 +171,123 @@ export interface PlanBlockChange {
   changed_at: string
   changed_by: string
 }
+
+// ============================================================
+// 决策中心（Decision Hub）
+// 数据、页面与任务看板解耦，面向 Agent 与决策人流转
+// ============================================================
+
+export type DecisionFormStatus = 'draft' | 'open' | 'closed'
+
+export type DecisionQuestionType = 'single_choice' | 'multiple_choice' | 'free_text' | 'confirmation'
+
+export interface DecisionForm {
+  id: string
+  slug: string
+  title: string
+  summary: string
+  source_document: string | null
+  status: DecisionFormStatus
+  created_by: string
+  created_at: string
+  closed_at: string | null
+  updated_at: string
+  /** 答卷计数（查询列表时附加） */
+  response_count?: number
+  /** 题目计数（查询列表时附加） */
+  question_count?: number
+}
+
+export interface DecisionOption {
+  id: string
+  question_id: string
+  code: string
+  label: string
+  detail: string
+  sort_order: number
+}
+
+export interface DecisionQuestion {
+  id: string
+  form_id: string
+  code: string
+  sort_order: number
+  title: string
+  context: string
+  type: DecisionQuestionType
+  required: boolean
+  allow_other: boolean
+  recommended_option_id: string | null
+  /** 推荐理由说明（PRD 推荐项标识及推荐理由） */
+  recommended_reason?: string
+  /** 前端/导出展示用，或由 recommended_option_id 关联查出 */
+  recommended_option_code?: string | null
+  options: DecisionOption[]
+}
+
+export interface DecisionAnswer {
+  id: string
+  response_id: string
+  question_id: string
+  selected_option_ids: string[]
+  text_answer: string
+  other_text: string
+}
+
+export interface DecisionResponse {
+  id: string
+  form_id: string
+  respondent_name: string
+  respondent_note: string
+  submitted_at: string
+  answers?: DecisionAnswer[]
+}
+
+/** 包含完整题目、选项及答卷的表单聚合数据 */
+export interface DecisionFormDetail extends DecisionForm {
+  questions: DecisionQuestion[]
+  responses: DecisionResponse[]
+}
+
+/** Agent 导入 Payload 契约结构 */
+export interface DecisionOptionPayload {
+  code: string
+  label: string
+  detail?: string
+}
+
+export interface DecisionQuestionPayload {
+  code: string
+  title: string
+  context?: string
+  type: DecisionQuestionType
+  required?: boolean
+  allow_other?: boolean
+  recommended_option_code?: string | null
+  recommended_reason?: string
+  options?: DecisionOptionPayload[]
+}
+
+export interface DecisionFormPayload {
+  slug: string
+  title: string
+  summary?: string
+  source_document?: string | null
+  status?: DecisionFormStatus
+  created_by?: string
+  questions: DecisionQuestionPayload[]
+}
+
+/** 用户填答提交入参 */
+export interface DecisionAnswerInput {
+  question_id: string
+  selected_option_ids?: string[]
+  text_answer?: string
+  other_text?: string
+}
+
+export interface DecisionSubmissionInput {
+  respondent_name: string
+  respondent_note?: string
+  answers: DecisionAnswerInput[]
+}

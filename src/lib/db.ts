@@ -7,6 +7,11 @@
 // ============================================================
 
 import type {
+  DecisionAnswerInput,
+  DecisionForm,
+  DecisionFormDetail,
+  DecisionFormPayload,
+  DecisionResponse,
   FeedbackMessage,
   FeedbackRole,
   FeedbackStatus,
@@ -80,10 +85,34 @@ export interface DB {
     status?: string
     created_by?: string
   }): Promise<PlanBlock>
+  /**
+   * 幂等地把任务安排到指定日：同任务同日已有未完成计划时直接返回；
+   * 否则原子创建计划块并写入静默 task_updates 审计记录。
+   */
+  ensurePlanForDay(input: { task_id: string; date: string; created_by?: string }): Promise<PlanBlock>
   /** 原子调整（更新 + 写变更历史） */
   movePlanBlock(blockId: string, patch: { start_date?: string; end_date?: string }, note: string, by: string): Promise<PlanBlock>
   /** 原子标记完成（写历史） */
   donePlanBlock(blockId: string, note: string, by: string): Promise<PlanBlock>
+
+  // ---- 决策中心（Decision Hub） ----
+  /** 决策表单列表（包含题目与答卷计数） */
+  listDecisionForms(): Promise<DecisionForm[]>
+  /** 决策表单详情（含题目、选项、答卷、答案） */
+  getDecisionFormBySlug(slug: string): Promise<DecisionFormDetail | null>
+  /** 原子创建决策表单 */
+  createDecisionForm(payload: DecisionFormPayload): Promise<{ id: string; slug: string }>
+  /** 原子提交答卷 */
+  submitDecisionResponse(
+    slug: string,
+    respondentName: string,
+    answers: DecisionAnswerInput[],
+    respondentNote?: string,
+  ): Promise<DecisionResponse>
+  /** 关闭决策表单 */
+  closeDecisionForm(slug: string): Promise<void>
+  /** 重新开放决策表单 */
+  openDecisionForm(slug: string): Promise<void>
 }
 
 export function newId(prefix = 't'): string {
