@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildCard, buildDailyCard, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
 
-const BASE = 'https://yizong-boop.github.io/work-dashboard/'
+const BASE = 'https://yizong2-cloud.github.io/work-dashboard/'
 const TASK = {
   id: 't-1', title: '宁静拼图主题系统', status: 'in_progress',
   progress: 65, expected_end_date: '2026-08-19', block_reason: '',
@@ -24,8 +24,8 @@ function headerOf(card) {
 }
 
 test('deepLink：任务详情与反馈线程深链接', () => {
-  assert.equal(deepLink(BASE, 't-1'), 'https://yizong-boop.github.io/work-dashboard/#/task/t-1')
-  assert.equal(deepLink(BASE, 't-1', 'ft-9'), 'https://yizong-boop.github.io/work-dashboard/#/task/t-1?thread=ft-9')
+  assert.equal(deepLink(BASE, 't-1'), 'https://yizong2-cloud.github.io/work-dashboard/#/task/t-1')
+  assert.equal(deepLink(BASE, 't-1', 'ft-9'), 'https://yizong2-cloud.github.io/work-dashboard/#/task/t-1?thread=ft-9')
   assert.equal(deepLink('https://x.github.io/work-dashboard', 't-1'), 'https://x.github.io/work-dashboard/#/task/t-1')
 })
 

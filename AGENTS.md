@@ -7,7 +7,7 @@
 
 **个人工作进度看板**：向 Leader 透明展示个人任务/进度/排期/变化原因的轻量工具。
 - 数据：Supabase（`tasks` / `task_updates`，RLS 全开放，无登录）
-- 前端：React+Vite，GitHub Pages（`https://yizong-boop.github.io/work-dashboard/`）
+- 前端：React+Vite，GitHub Pages（`https://yizong2-cloud.github.io/work-dashboard/`）
 - 维护：**用户用自然语言说「开始更新」，Agent 自动更新**；本人不做手动网页维护
 
 ## 唯一入口

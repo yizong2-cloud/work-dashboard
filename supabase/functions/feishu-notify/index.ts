@@ -33,7 +33,7 @@ Deno.serve(async (request) => {
     // ---- 入口 B：日报汇总（send_daily_report 定时调用）----
     if (payload.table === 'daily_report') {
       if (!payload.record?.payload) return response({ ok: false, reason: 'daily_report missing payload' }, 400)
-      const baseUrl = Deno.env.get('DASHBOARD_BASE_URL') || 'https://yizong-boop.github.io/work-dashboard/'
+      const baseUrl = Deno.env.get('DASHBOARD_BASE_URL') || 'https://yizong2-cloud.github.io/work-dashboard/'
       const event: OutboxEvent = { id: 'daily', event_type: 'daily_report', payload: payload.record.payload }
       try {
         const card = buildDailyCard(event, baseUrl)
@@ -65,7 +65,7 @@ Deno.serve(async (request) => {
       const original = event.event_type === 'feedback_replied'
         ? await loadOriginalFeedback(String(event.payload.thread_id || ''))
         : null
-      const baseUrl = Deno.env.get('DASHBOARD_BASE_URL') || 'https://yizong-boop.github.io/work-dashboard/'
+      const baseUrl = Deno.env.get('DASHBOARD_BASE_URL') || 'https://yizong2-cloud.github.io/work-dashboard/'
       const card = buildCard(event, task, baseUrl, original)
       if (!card) {
         await markStatus(record.id, 'skipped', 'unsupported event type')

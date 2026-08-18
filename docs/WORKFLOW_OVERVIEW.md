@@ -34,7 +34,7 @@
         │ 触发器 ──▶ notification_outbox ──pg_net──▶ feishu-notify Edge Function ──▶ 飞书群卡片
         ▼
    GitHub Pages 静态站（React+Vite，HashRouter）
-        https://yizong-boop.github.io/work-dashboard/
+        https://yizong2-cloud.github.io/work-dashboard/
 ```
 
 ## 2. 核心组件清单
@@ -143,7 +143,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ## 8. 部署与运维
 
 - 数据库：Supabase（Singapore，免费）；`supabase/schema.sql` 幂等执行。
-- 前端：React+Vite + GitHub Actions → GitHub Pages（`yizong-boop.github.io/work-dashboard`）。
+- 前端：React+Vite + GitHub Actions → GitHub Pages（`yizong2-cloud.github.io/work-dashboard`）。
 - Secrets：GitHub Actions 用 SUPABASE_URL/ANON_KEY；本地 `.env` 有 SERVICE_ROLE_KEY（仅本机）。
 - 数据动态生效：改 Supabase 即刷即见，无需重部署。
 - Edge Function：`npx supabase functions deploy feishu-notify --project-ref <ref>`。
