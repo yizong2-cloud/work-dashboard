@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { validateReviewSpec } from './review-packet.mjs'
+import { summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const AGENT = path.join(ROOT, 'scripts', 'agent.js')
@@ -153,6 +153,13 @@ function main() {
   }
 
   const noChange = ops.length === 0
+  const reconciliationSummary = summarizeReconciliation(reconciliation)
+  console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
+  if (reconciliationSummary.needs_confirmation_source_ids.length > 0) {
+    const ids = reconciliationSummary.needs_confirmation_source_ids.slice(0, 8).join(', ')
+    const suffix = reconciliationSummary.needs_confirmation_source_ids.length > 8 ? ' …' : ''
+    console.log(`待确认 source_id（最多显示 8 项）：${ids}${suffix}`)
+  }
   console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
   for (const [i, op] of ops.entries()) {
     const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')

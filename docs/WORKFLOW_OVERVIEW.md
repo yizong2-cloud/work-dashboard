@@ -26,7 +26,7 @@
         │ 定时任务(lunchd)：工作日 11:00/15:30/19:30 跑 prepare（--no-advance 只拉不推进游标）
         ▼
    Agent(LLM) 分析：结合 docs/KNOWLEDGE_BASE.md 识别/合并任务 → 产出变更建议
-        │ 遵守「第四条铁律：全量对账」；产出对账表写进回复
+        │ 遵守「第四条铁律：全量对账」；逐项对账写入 ops.json，回复只报摘要
         ▼
    Agent CLI scripts/agent.js（唯一写入口，原子 RPC）
         ▼
@@ -115,7 +115,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | 会话文件 mtime | ~/.codex/sessions | 摘要器收集用 mtime 过滤（续旧对话也能读到） |
 
 ### 第四条铁律：每次「开始更新」必须全量对账（防漏）
-背景：曾因「增量数=0 就跳过」「文件名日期过滤漏续对话」「cron 推游标」「只看增量不看 detail」反复漏工作。故规定：**分析完成前必须逐会话核对 codex_detail/dsh_detail + 飞书每个会话 + 扫描 ~/Downloads 近 2 小时新文件**，输出对账表。宁可多报"无关"，不可漏报"有工作"。
+背景：曾因「增量数=0 就跳过」「文件名日期过滤漏续对话」「cron 推游标」「只看增量不看 detail」反复漏工作。故规定：**分析完成前必须逐会话核对 codex_detail/dsh_detail + 飞书每个会话 + 扫描 ~/Downloads 近 2 小时新文件**，逐项结论写入 `ops.json`，回复只报机器生成摘要。宁可多报"无关"，不可漏报"有工作"。
 
 ## 6. 通知分层（2026-08-17 起，无时间窗口）
 

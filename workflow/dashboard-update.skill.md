@@ -28,6 +28,7 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 5. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
    - apply 会拒绝遗漏、重复、旧快照或未知 source_id 的对账；无变更会写审查结案，不改任务数据，verify 仍可安全推进游标。
 6. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
+7. 汇报使用 `dashboard:apply` 输出的对账摘要（总数/已映射/无关/待确认）；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
 
 ## 红线
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReviewPacket, compactExcerpt, getEvidence, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { buildReviewPacket, compactExcerpt, getEvidence, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { redactSensitiveText } from './redaction.mjs'
 import { feishuFailureDetail, feishuSnapshot } from './source-safety.mjs'
 
@@ -55,6 +55,23 @@ test('reconciliation rejects omissions, duplicates, unknown sources, and incompl
   assert.match(validateReconciliation(items, [...complete, complete[0]]).join('\n'), /source_id 重复/)
   assert.match(validateReconciliation(items, [{ source_id: 'unknown:0', decision: 'irrelevant' }]).join('\n'), /不属于当前快照/)
   assert.match(validateReconciliation(items, items.map((item) => ({ source_id: item.source_id, decision: 'mapped' }))).join('\n'), /mapped 项缺 task_id/)
+})
+
+test('reconciliation summary keeps chat output compact without dropping full decisions', () => {
+  const summary = summarizeReconciliation([
+    { source_id: 'codex:0', decision: 'mapped', task_id: 'task-a-id' },
+    { source_id: 'dsh:0', decision: 'irrelevant' },
+    { source_id: 'feishu:0', decision: 'needs_confirmation' },
+    { source_id: 'local:0', decision: 'unknown' },
+  ])
+  assert.deepEqual(summary, {
+    total: 4,
+    mapped: 1,
+    irrelevant: 1,
+    needs_confirmation: 1,
+    invalid: 1,
+    needs_confirmation_source_ids: ['feishu:0'],
+  })
 })
 
 test('review spec binds reconciliation to one current snapshot', () => {

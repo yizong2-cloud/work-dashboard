@@ -33,7 +33,7 @@ prepare → Agent 分析 review-packet.json（结合 KNOWLEDGE_BASE；按需展�
 ```bash
 npm run dashboard:prepare                        # ① 拉数据，生成 review-packet.json
 # Agent 读取 review-packet.json + docs/KNOWLEDGE_BASE.md；有歧义才展开原始 evidence
-# 产出 workflow/ops.json：每个 source_id 一条 reconciliation，ops 可为空（无变更结案）
+# 产出 workflow/ops.json：每个 source_id 一条 reconciliation，ops 可为空（无变更结案）；回复使用 apply 输出的摘要，不重复粘贴逐项表格
 npm run dashboard:apply -- --dry-run             # ② 预演
 npm run dashboard:apply                          # ③ 执行
 npm run dashboard:verify                         # ④ 校验

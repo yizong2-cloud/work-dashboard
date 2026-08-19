@@ -4,6 +4,7 @@
 import { redactSensitiveText, redactSensitiveValue } from './redaction.mjs'
 
 const MAX_EXCERPT = 420
+const RECONCILIATION_DECISIONS = new Set(['mapped', 'irrelevant', 'needs_confirmation'])
 
 function removeToolNoise(value) {
   if (Array.isArray(value)) {
@@ -204,7 +205,6 @@ export function getEvidence(ctx, sourceId) {
 
 export function validateReconciliation(reviewItems, reconciliation) {
   const errors = []
-  const allowed = new Set(['mapped', 'irrelevant', 'needs_confirmation'])
   const expected = new Set(reviewItems.map((item) => item.source_id))
   const seen = new Set()
   if (!Array.isArray(reconciliation)) return ['reconciliation 必须是数组']
@@ -218,13 +218,35 @@ export function validateReconciliation(reviewItems, reconciliation) {
     if (!expected.has(id)) errors.push(`reconciliation[${index}]: source_id 不属于当前快照: ${id}`)
     if (seen.has(id)) errors.push(`reconciliation[${index}]: source_id 重复: ${id}`)
     seen.add(id)
-    if (!allowed.has(entry?.decision)) errors.push(`reconciliation[${index}]: decision 非法`)
+    if (!RECONCILIATION_DECISIONS.has(entry?.decision)) errors.push(`reconciliation[${index}]: decision 非法`)
     if (entry?.decision === 'mapped' && !entry.task_id) errors.push(`reconciliation[${index}]: mapped 项缺 task_id`)
   }
   for (const id of expected) {
     if (!seen.has(id)) errors.push(`缺少对账结论: ${id}`)
   }
   return errors
+}
+
+// 回复只需要这份摘要；逐条结论仍完整保存在 ops.json / changeset，并由上面的闸门校验。
+export function summarizeReconciliation(reconciliation) {
+  const rows = Array.isArray(reconciliation) ? reconciliation : []
+  const summary = {
+    total: rows.length,
+    mapped: 0,
+    irrelevant: 0,
+    needs_confirmation: 0,
+    invalid: 0,
+    needs_confirmation_source_ids: [],
+  }
+  for (const row of rows) {
+    if (!RECONCILIATION_DECISIONS.has(row?.decision)) {
+      summary.invalid += 1
+      continue
+    }
+    summary[row.decision] += 1
+    if (row.decision === 'needs_confirmation' && row.source_id) summary.needs_confirmation_source_ids.push(row.source_id)
+  }
+  return summary
 }
 
 export function validateReviewSpec(snapshotId, reviewPacket, spec) {
