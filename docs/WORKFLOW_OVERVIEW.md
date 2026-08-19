@@ -57,6 +57,8 @@
 | 反馈/计划 | `src/lib/feedbackService.ts` 等 | Leader 反馈线程、日粒度计划块/日程 |
 | 部署 | `.github/workflows/deploy.yml` | push main → GitHub Pages |
 
+> 飞书导出器位于 Workboard 仓库之外，需单独维护。当前版本在页面结构不兼容时会快速失败；连续多个会话无法打开也会中止本次导出。`prepare` 还会拒绝带有会话级失败的部分导出，避免把不完整聊天记录当成正常增量。
+
 ## 3. 数据模型（唯一契约，与 schema.sql 一致）
 
 - **tasks**：id、title、description、status(planned/in_progress/blocked/paused/completed/cancelled)、priority(**urgent**/high/normal/low)、progress(0-100)、start_date、expected_end_date、actual_end_date、current_status(一句话现状)、block_reason、is_interrupt_task、created_at、updated_at
