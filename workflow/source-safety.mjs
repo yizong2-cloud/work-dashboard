@@ -5,6 +5,9 @@ export function feishuFailureDetail({ stderr = '', code = null, timed_out = fals
   if (incomplete) {
     return '飞书导出出现会话打开/读取失败，本次不使用部分结果；请检查 Cookies 与飞书页面状态后重试'
   }
+  if (/页面已完成加载.*会话列表没有出现|会话列表没有出现/i.test(text)) {
+    return '飞书页面已加载但会话列表未出现；可能是登录态未被浏览器接受、租户页面未初始化或前端资源被拦截。请用 --no-headless 观察后重试'
+  }
   if (/未能进入飞书|登录态|cookies?/i.test(text)) {
     return `飞书登录态可能已失效，请重新导出浏览器 Cookies 到 ${cookiesPath}`
   }

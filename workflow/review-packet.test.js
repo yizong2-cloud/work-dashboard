@@ -123,6 +123,10 @@ test('Feishu collection failures explain recovery without exposing raw command n
   )
   assert.match(feishuFailureDetail({ code: 'ETIMEDOUT', timed_out: true }, '/tmp/cookies.json'), /导出超时/)
   assert.match(feishuFailureDetail({ stderr: 'network unavailable' }, '/tmp/cookies.json'), /network unavailable/)
+  assert.match(
+    feishuFailureDetail({ stderr: '飞书页面已完成加载，但会话列表没有出现；这通常是登录态未被浏览器接受' }, '/tmp/cookies.json'),
+    /会话列表未出现.*--no-headless/,
+  )
 })
 
 test('partial Feishu chat failures are not accepted as a complete source', () => {
