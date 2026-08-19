@@ -149,7 +149,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 - Secrets：GitHub Actions 用 SUPABASE_URL/ANON_KEY；本地 `.env` 有 SERVICE_ROLE_KEY（仅本机）。
 - 数据动态生效：改 Supabase 即刷即见，无需重部署。
 - Edge Function：`npx supabase functions deploy feishu-notify --project-ref <ref>`。
-- Secrets（飞书/通知）：`DASHBOARD_WEBHOOK_SECRET`、`FEISHU_BOT_WEBHOOK_URL`、`FEISHU_BOT_SIGNING_SECRET` 经 Management API 配置（值已哈希，不落仓库）。
+- Secrets（飞书/通知）：`DASHBOARD_WEBHOOK_SECRET`、`FEISHU_BOT_WEBHOOK_URL`、`FEISHU_BOT_SIGNING_SECRET`、`FEISHU_PERSONAL_BOT_WEBHOOK_URL`、`FEISHU_PERSONAL_BOT_SIGNING_SECRET` 经 Management API 配置（值已哈希，不落仓库）。其中个人机器人仅接收 `decision_response_submitted`。
 
 ## 9. 安全红线
 
