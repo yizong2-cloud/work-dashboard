@@ -4858,4 +4858,36 @@ h3,
     flex-direction: column;
     align-items: stretch;
   }
+
+  /* 决策中心移动端：保留纸张卡片层级，避免标题/操作/身份选项互相挤压。 */
+  .decision-center-page { padding: 18px 13px 56px; }
+  .decision-page-title { font-size: 1.35rem; }
+  .decision-page-desc { font-size: 0.86rem; }
+  .decision-notice-banner { align-items: flex-start; padding: 10px 12px; font-size: 0.8rem; }
+  .decision-inbox { padding: 14px 13px; }
+  .decision-inbox-heading { flex-direction: column; gap: 10px; }
+  .decision-inbox-list { grid-template-columns: 1fr; gap: 8px; }
+  .decision-inbox-item-title { overflow-wrap: anywhere; }
+  .decision-filter-bar { overflow-x: auto; }
+  .decision-filter-tabs { width: max-content; }
+  .decision-grid { grid-template-columns: 1fr; gap: 12px; }
+  .decision-card { padding: 16px; }
+  .decision-card-title { overflow-wrap: anywhere; }
+  .decision-card-actions { flex-wrap: wrap; }
+  .decision-card-actions .btn { flex: 1 1 130px; min-width: 0; }
+  .decision-meta-slug { display: none; }
+
+  .decision-form-container { padding: 14px 13px 100px; }
+  .decision-form-header-card { padding: 18px 16px; }
+  .decision-form-header-top { flex-direction: column; align-items: stretch; gap: 12px; }
+  .decision-header-btn-group { width: 100%; }
+  .decision-header-btn-group .btn { flex: 1; justify-content: center; }
+  .decision-form-title { font-size: 1.35rem; overflow-wrap: anywhere; }
+  .decision-form-meta-row { flex-direction: column; gap: 6px; }
+  .decision-share-bar { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
+  .decision-share-bar .btn { justify-content: center; }
+  .decision-question-card { padding: 18px 16px; }
+  .identity-choice-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .identity-choice { width: 100%; text-align: center; }
+  .decision-bottom-bar { margin: 20px -13px -100px; padding: 12px 13px 16px; }
 }
