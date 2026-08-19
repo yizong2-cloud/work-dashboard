@@ -185,6 +185,21 @@ async function opInbox(op) {
   return null
 }
 
+async function opInboxStatus(op) {
+  const id = requireOp(op, 'id', '处理留言 id')
+  const to = String(op.to ?? op.status ?? '')
+  if (!['open', 'in_progress', 'resolved'].includes(to)) {
+    fail(`非法处理箱状态: ${to}，可选: open / in_progress / resolved`)
+  }
+  if (dryRun) {
+    human(`[dry-run] 处理留言 ${id} → ${to}`)
+    return null
+  }
+  const thread = await store.setFeedbackStatus(id, to, who)
+  human(`✅ 处理留言 ${id} 已标记为 ${to}`)
+  return thread
+}
+
 async function opCreate(op) {
   const title = requireOp(op, 'title', '任务名称')
   const input = {
@@ -577,6 +592,7 @@ function opHelp() {
   list [--status 状态] [--interrupt]          列出任务（支持过滤）
   get <任务id>                                 查看任务详情 + 时间线
   inbox [--all] [--status open|in_progress|resolved] 读取处理箱（默认仅未解决，支持 --json）
+  inbox-status <留言id> --to in_progress|resolved|open  更新处理箱状态
   create --title "任务名" [--description] [--status] [--priority]
         [--progress 0-100] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
         [--interrupt] [--note "创建说明"]       新建任务（自动记录时间线）
@@ -613,6 +629,7 @@ const ops = {
   list: opList,
   get: opGet,
   inbox: opInbox,
+  'inbox-status': opInboxStatus,
   create: opCreate,
   progress: opProgress,
   status: opStatus,

@@ -79,6 +79,10 @@ test('inbox 默认只读未解决反馈，并输出任务定位与完整消息',
   assert.equal(items.length, 1)
   assert.equal(items[0].task_title, '处理箱测试任务')
   assert.equal(items[0].messages[0].body, '预计完成日期记错了，请改到周五。')
+  const resolved = run('inbox-status', threadId, '--to', 'resolved')
+  assert.ok(resolved.ok, resolved.stderr)
+  const empty = run('inbox', '--json')
+  assert.deepEqual(JSON.parse(empty.stdout), [])
 })
 
 test('progress 原子更新：进度变更 + 时间线各一条', () => {
