@@ -7,6 +7,8 @@
 
 ## 命令总览
 
+> 机器消费 JSON 时请使用 `npm --silent run <命令> -- --json`，或直接调用对应的 `node workflow/*.mjs --json`；普通 `npm run` 会先打印 npm 自身的脚本提示。
+
 | 命令 | 作用 |
 | --- | --- |
 | `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。飞书 Cookies 缺失/失效会明确提示且不复用旧数据。**可无人值守** |

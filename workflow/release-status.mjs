@@ -14,6 +14,9 @@ function runSupabase(args) {
       encoding: 'utf8',
       timeout: 120000,
       maxBuffer: 8 * 1024 * 1024,
+      // Supabase CLI writes login/connection progress to stderr. Capture it so
+      // `--json` remains machine-readable for callers that merge both streams.
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
     return parseCommandJson(stdout)
   } catch (error) {
