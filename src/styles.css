@@ -3727,6 +3727,14 @@ h3,
   line-height: 1.4;
 }
 
+.tag-inbox-new {
+  margin-left: 8px;
+  color: #6f568f;
+  background: rgba(120, 99, 189, 0.12);
+  border: 1px solid rgba(120, 99, 189, 0.2);
+  vertical-align: 1px;
+}
+
 .decision-inbox-item-meta {
   margin-top: 4px;
   color: var(--primary-strong);

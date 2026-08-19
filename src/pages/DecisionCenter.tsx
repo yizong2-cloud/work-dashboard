@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getDB } from '../lib/dbFactory'
 import { createDecisionService } from '../lib/decisionService'
@@ -24,6 +24,8 @@ export function DecisionCenter() {
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [exportModalForm, setExportModalForm] = useState<DecisionFormDetail | null>(null)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
+  const [newFeedbackSlugs, setNewFeedbackSlugs] = useState<string[]>([])
+  const previousResponseCounts = useRef<Record<string, number> | null>(null)
 
   const db = getDB()
   const service = createDecisionService(db)
@@ -33,6 +35,16 @@ export function DecisionCenter() {
     try {
       const list = await service.listForms(true)
       setForms(list)
+      const nextCounts = Object.fromEntries(list.map((form) => [form.slug, form.response_count ?? 0]))
+      if (previousResponseCounts.current) {
+        setNewFeedbackSlugs((current) => Array.from(new Set([
+          ...current,
+          ...list
+            .filter((form) => (form.response_count ?? 0) > (previousResponseCounts.current?.[form.slug] ?? 0))
+            .map((form) => form.slug),
+        ])))
+      }
+      previousResponseCounts.current = nextCounts
       setLastRefreshedAt(new Date())
     } catch (err) {
       console.error('加载决策表单失败:', err)
@@ -146,9 +158,15 @@ export function DecisionCenter() {
                 type="button"
                 key={form.id}
                 className="decision-inbox-item"
-                onClick={() => navigate(`/decisions/${form.slug}/export`)}
+                onClick={() => {
+                  setNewFeedbackSlugs((current) => current.filter((slug) => slug !== form.slug))
+                  navigate(`/decisions/${form.slug}/export`)
+                }}
               >
-                <span className="decision-inbox-item-title">{form.title}</span>
+                <span className="decision-inbox-item-title">
+                  {form.title}
+                  {newFeedbackSlugs.includes(form.slug) && <span className="tag tag-inbox-new">新反馈</span>}
+                </span>
                 <span className="decision-inbox-item-meta">已收到 {form.response_count} 份反馈 · 查看结果</span>
               </button>
             ))}
