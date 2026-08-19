@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildReviewPacket, compactExcerpt, getEvidence, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { redactSensitiveText } from './redaction.mjs'
-import { feishuSnapshot } from './source-safety.mjs'
+import { feishuFailureDetail, feishuSnapshot } from './source-safety.mjs'
 
 const context = {
   snapshot_id: 'snapshot-1',
@@ -97,6 +97,15 @@ test('failed or empty Feishu collection never reuses a previous export', () => {
     file: 'new-range.md',
     content: '新聊天',
   })
+})
+
+test('Feishu collection failures explain recovery without exposing raw command noise', () => {
+  assert.match(
+    feishuFailureDetail({ stderr: '未能进入飞书（登录态可能已过期，请重新导出浏览器 Cookies）' }, '/tmp/cookies.json'),
+    /重新导出浏览器 Cookies.*\/tmp\/cookies\.json/,
+  )
+  assert.match(feishuFailureDetail({ code: 'ETIMEDOUT', timed_out: true }, '/tmp/cookies.json'), /导出超时/)
+  assert.match(feishuFailureDetail({ stderr: 'network unavailable' }, '/tmp/cookies.json'), /network unavailable/)
 })
 
 test('compact excerpts remove image-only noise and retain actionable text', () => {

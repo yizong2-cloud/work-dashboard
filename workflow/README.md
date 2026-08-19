@@ -9,12 +9,14 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。**可无人值守** |
+| `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。飞书 Cookies 缺失/失效会明确提示且不复用旧数据。**可无人值守** |
 | `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开一条原始会话/飞书群/本地文件元数据。 |
 | `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
+
+飞书导出默认超时 120 秒；确需更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`，登录态失效或超时都不会复用旧导出。
 
 ## 一条龙流程（用户说「开始更新」时）
 

@@ -16,13 +16,16 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { buildReviewPacket } from './review-packet.mjs'
 import { redactSensitiveValue } from './redaction.mjs'
-import { feishuSnapshot } from './source-safety.mjs'
+import { feishuFailureDetail, feishuSnapshot } from './source-safety.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = os.homedir()
 const FEISHU_BIN = path.join(HOME, 'feishu_export', 'bin', 'feishu-export')
+const FEISHU_COOKIES = path.join(HOME, 'feishu_export', 'cookies.json')
 const DAILY_DIR = path.join(HOME, 'feishu_export', 'daily')
 const DAYS = 3
+const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS || 120000)
+const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : 120000
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
 const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
@@ -162,7 +165,13 @@ function run(cmd, args, timeoutMs = 120000) {
     const stdout = execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs })
     return { ok: true, stdout: String(stdout), stderr: '' }
   } catch (e) {
-    return { ok: false, stdout: String(e.stdout || ''), stderr: String(e.stderr || e.message || '') }
+    return {
+      ok: false,
+      stdout: String(e.stdout || ''),
+      stderr: String(e.stderr || e.message || ''),
+      code: e.code || null,
+      timed_out: e.code === 'ETIMEDOUT' || e.signal === 'SIGTERM',
+    }
   }
 }
 
@@ -210,7 +219,9 @@ function main() {
     ? ['--since', `${reviewedDate}T00:00`, '--refresh-chats', '--markdown', '--no-update-state']
     : ['--today', '--refresh-chats', '--markdown', '--no-update-state']
   const feishuStartedAt = Date.now()
-  const feishuRes = run(FEISHU_BIN, feishuArgs, 300000)
+  const feishuRes = fs.existsSync(FEISHU_COOKIES)
+    ? run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS)
+    : { ok: false, stdout: '', stderr: 'cookies.json 不存在', code: 'MISSING_COOKIES', timed_out: false }
   // A successful command that produced no new file is still an empty source;
   // never reuse the previous range export as if it were current evidence.
   const freshFeishuFile = feishuRes.ok ? latestFile(DAILY_DIR, /^range_.*\.md$/, feishuStartedAt - 2000) : null
@@ -227,7 +238,7 @@ function main() {
   steps.push({
     name: '飞书增量导出',
     ok: feishuRes.ok,
-    detail: feishuRes.ok ? summarizeStep(feishuRes.stdout) || `文件 ${feishuFile}` : feishuRes.stderr.slice(0, 200),
+    detail: feishuRes.ok ? summarizeStep(feishuRes.stdout) || `文件 ${feishuFile}` : feishuFailureDetail(feishuRes, FEISHU_COOKIES),
     file: feishuFile,
   })
 
@@ -390,7 +401,7 @@ function main() {
 
   const failed = steps.filter((s) => !s.ok)
   if (failed.length > 0) {
-    console.error(`[prepare] ⚠️ ${failed.length} 个步骤失败: ${failed.map((s) => s.name).join('、')}`)
+    console.error(`[prepare] ⚠️ ${failed.length} 个步骤失败: ${failed.map((s) => `${s.name}（${s.detail}）`).join('、')}`)
   }
   console.log(`[prepare] ✅ 完成: ${CONTEXT_FILE}`)
   console.log(`[prepare] 审查包: ${REVIEW_PACKET_FILE}（${reviewPacket.counts.total} 条证据）`)
