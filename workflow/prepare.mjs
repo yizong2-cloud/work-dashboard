@@ -78,7 +78,7 @@ function loadSourceMap() {
   try {
     return JSON.parse(fs.readFileSync(path.join(ROOT, 'workflow', 'source-map.json'), 'utf8'))
   } catch {
-    return { codex_cwd: [], feishu_chat: [] }
+    return { ignored_cwd: [], codex_cwd: [], feishu_chat: [] }
   }
 }
 
@@ -103,6 +103,7 @@ function buildSessionCandidates(sessions, map, key) {
     const cwd = s.cwd || ''
     if (cwd.includes('Documents/Codex')) continue // 临时/测试会话
     if (cwd === HOME || cwd === `${HOME}/`) continue // DSH 根目录会话（工具维护等）
+    if (matchPattern(map.ignored_cwd || [], cwd)) continue // source-map 明确标注的工具维护目录
     const rule = matchPattern(map.codex_cwd, cwd)
     if (rule) {
       hits.push({ source: key, cwd, hint: rule.hint, tasks: rule.tasks || [], last: s.lastTs || s.lastTsMs || null, start: s.start || null })
@@ -413,4 +414,6 @@ function main() {
   }
 }
 
-main()
+export { buildSessionCandidates, unmappedCwdRequired }
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()

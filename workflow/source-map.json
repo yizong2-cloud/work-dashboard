@@ -1,5 +1,8 @@
 {
-  "_comment": "候选提示的「目录 / 飞书群 → 任务」映射表。pattern 为大小写不敏感的子串匹配；hint 给 Agent 一句话线索；tasks 为候选看板任务标题（供 Agent 判断归属，非强制）。AGENT 必须结合会话/消息内容判断，不能只靠 pattern。",
+  "_comment": "候选提示的「目录 / 飞书群 → 任务」映射表。pattern 为大小写不敏感的子串匹配；hint 给 Agent 一句话线索；tasks 为候选看板任务标题（供 Agent 判断归属，非强制）。AGENT 必须结合会话/消息内容判断，不能只靠 pattern。ignored_cwd 仅用于明确排除工具维护目录，不代表来源已被删除。",
+  "ignored_cwd": [
+    { "pattern": "/work-dashboard", "hint": "Workboard 自身仓库（工具维护/系统迭代），不作为业务任务候选" }
+  ],
   "codex_cwd": [
     { "pattern": "StudioProjects/jigsaw-android", "hint": "Fantasy 拼图游戏客户端源码（成就/试玩/H5 demo/积分制等所有 fantasy 客户端工作，具体看会话内容）", "tasks": ["Fantasy 成就系统收尾（接手杨柯迪）", "Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）", "Fantasy 积分制与完成页激励文案开发"] },
     { "pattern": "jigsolitaire-cms", "hint": "华容道 CMS/API（与小米共用后端仓库、域名区分；一般只改我们自己华容道那部分）。多用于华容道 CMS 分类/图库/API 联调", "tasks": ["华容道正式服图库数据填充与关卡排布", "华容道 CMS 分类管理功能", "Jigslide（宁静华容道）CMS 与 API 联调支持"] },
