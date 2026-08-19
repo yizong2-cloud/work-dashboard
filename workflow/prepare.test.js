@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildFeishuArgs, buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
+import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -65,5 +65,14 @@ test('prepare passes overridden Cookie and output paths to any exporter', () => 
   assert.deepEqual(buildFeishuArgs('2026-08-19T10:00:00.000Z', '/tmp/private cookies.json', '/tmp/feishu out'), [
     '--since', '2026-08-19T00:00', '--refresh-chats', '--markdown', '--no-update-state',
     '--cookies', '/tmp/private cookies.json', '--out', '/tmp/feishu out',
+  ])
+})
+
+test('detail summaries share the analysis cursor instead of rereading stale sessions', () => {
+  assert.deepEqual(buildDetailArgs('/tmp/workboard', 'codex-summary.js', 3, '2026-08-19T10:00:00.000Z'), [
+    '/tmp/workboard/scripts/codex-summary.js', '--days', '3', '--detail', '--json', '--since-time', '2026-08-19T10:00:00.000Z',
+  ])
+  assert.deepEqual(buildDetailArgs('/tmp/workboard', 'dsh-summary.js', 3, null), [
+    '/tmp/workboard/scripts/dsh-summary.js', '--days', '3', '--detail', '--json',
   ])
 })

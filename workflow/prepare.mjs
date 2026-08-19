@@ -69,6 +69,15 @@ export function buildFeishuArgs(lastAt, cookiesPath, outputDir) {
   return args
 }
 
+// Detail extraction must use the same analysis cursor as the compact summary.
+// Otherwise prepare rereads older sessions only to discard them later, inflating
+// local IO and the context packet while offering no new evidence.
+export function buildDetailArgs(root, scriptName, days, lastAt) {
+  const args = [path.join(root, 'scripts', scriptName), '--days', String(days), '--detail', '--json']
+  if (lastAt) args.push('--since-time', lastAt)
+  return args
+}
+
 // 增量窗口起点：分析游标（无则退化最近 3 天由 codex/dsh 的 --days 兜底）
 const LAST_AT = readAnalysisState().reviewed_at || null
 const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
@@ -331,7 +340,7 @@ function main() {
   const snapshot_health = feishuOk && codexOk && dshOk ? 'ok' : 'degraded'
 
   // ---- 详情：增量窗口内会话的完整对话内容（分析者第一步就能看到具体说了什么）----
-  const detailArgs = (extra) => [path.join(ROOT, 'scripts', extra), '--days', String(DAYS), '--detail', '--json']
+  const detailArgs = (extra) => buildDetailArgs(ROOT, extra, DAYS, LAST_AT)
   const codexDetailRes = run('node', detailArgs('codex-summary.js'), 240000)
   const dshDetailRes = run('node', detailArgs('dsh-summary.js'), 240000)
   let codexDetail = []
@@ -343,12 +352,12 @@ function main() {
   const candidates = buildCandidates({ codexDetail, dshDetail, feishuText, board })
   steps.push({ name: '候选提示', ok: true, detail: `codex命中${candidates.codex.length} dsh命中${candidates.dsh.length} 飞书群命中${candidates.feishu.length} 未映射目录${candidates.unmapped_cwd.length} 未排期${candidates.unscheduled.length} 逾期${candidates.overdue.length}` })
 
-  // 摘要步骤报告（增量数 + 三日窗口 detail 数；增量可能为 0 但窗口内仍有长会话内容）
+  // 摘要步骤报告（增量数 + 同一分析窗口的 detail 数；增量可能为 0 但窗口内仍有长会话内容）
   if (!steps.some((s) => s.name === 'Codex 摘要')) {
-    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（三日窗口共 ${codexDetail.length} 个，含跨窗口长会话）` })
+    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（详情窗口共 ${codexDetail.length} 个，含跨窗口长会话）` })
   }
   if (!steps.some((s) => s.name === 'DSH 摘要')) {
-    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个增量（三日窗口共 ${dshDetail.length} 个，含跨窗口长会话）` })
+    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个增量（详情窗口共 ${dshDetail.length} 个，含跨窗口长会话）` })
   }
 
   // ---- 打包 context ----
