@@ -10,6 +10,7 @@
 
 import { buildCard, buildDailyCard, type OriginalFeedback, type OutboxEvent, type TaskSummary } from './cards.ts'
 import { classifyDeliveryFailure } from './delivery.ts'
+import { audienceForEvent, type NotificationAudience } from './routing.ts'
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' }
 
@@ -38,7 +39,7 @@ Deno.serve(async (request) => {
       const event: OutboxEvent = { id: 'daily', event_type: 'daily_report', payload: payload.record.payload }
       try {
         const card = buildDailyCard(event, baseUrl)
-        const channel = await sendFeishu(card)
+        const channel = await sendFeishu(card, 'group')
         return response({ ok: true, channel, event: 'daily_report' })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -62,7 +63,7 @@ Deno.serve(async (request) => {
     if (!claimed) return response({ skipped: true, reason: 'already processed or in flight' })
 
     try {
-      const task = await resolveTask(event)
+      const task = event.event_type === 'decision_response_submitted' ? null : await resolveTask(event)
       const original = event.event_type === 'feedback_replied'
         ? await loadOriginalFeedback(String(event.payload.thread_id || ''))
         : null
@@ -72,7 +73,7 @@ Deno.serve(async (request) => {
         await markStatus(record.id, 'skipped', 'unsupported event type')
         return response({ ok: true, skipped: true, reason: 'unsupported event type' })
       }
-      const channel = await sendFeishu(card)
+      const channel = await sendFeishu(card, audienceForEvent(event.event_type))
       await markStatus(record.id, 'sent', '', new Date().toISOString())
       return response({ ok: true, channel, event_id: record.id })
     } catch (error) {
@@ -174,11 +175,15 @@ async function restGet(table: string, query: string, select: string): Promise<un
 
 // ---------------- 飞书发送（沿用原实现） ----------------
 
-async function sendFeishu(card: Record<string, unknown>): Promise<'custom_bot' | 'app_bot'> {
-  const webhookUrl = Deno.env.get('FEISHU_BOT_WEBHOOK_URL')
+async function sendFeishu(card: Record<string, unknown>, audience: NotificationAudience): Promise<'custom_bot' | 'app_bot'> {
+  const webhookUrl = audience === 'personal'
+    ? Deno.env.get('FEISHU_PERSONAL_BOT_WEBHOOK_URL')
+    : Deno.env.get('FEISHU_BOT_WEBHOOK_URL')
   if (webhookUrl) {
     const payload: Record<string, unknown> = { msg_type: 'interactive', card }
-    const signingSecret = Deno.env.get('FEISHU_BOT_SIGNING_SECRET')
+    const signingSecret = audience === 'personal'
+      ? Deno.env.get('FEISHU_PERSONAL_BOT_SIGNING_SECRET')
+      : Deno.env.get('FEISHU_BOT_SIGNING_SECRET')
     if (signingSecret) {
       const timestamp = Math.floor(Date.now() / 1000).toString()
       payload.timestamp = timestamp
@@ -193,6 +198,9 @@ async function sendFeishu(card: Record<string, unknown>): Promise<'custom_bot' |
     }
     return 'custom_bot'
   }
+
+  // 隐私事件不能在个人机器人缺失时静默降级到群机器人。
+  if (audience === 'personal') throw new Error('FEISHU_PERSONAL_BOT_WEBHOOK_URL is not configured')
 
   const appId = Deno.env.get('FEISHU_APP_ID')
   const appSecret = Deno.env.get('FEISHU_APP_SECRET')

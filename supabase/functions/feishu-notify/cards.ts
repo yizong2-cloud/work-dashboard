@@ -58,6 +58,11 @@ export function deepLink(baseUrl: string, taskId: string, threadId?: string): st
   return threadId ? `${base}#/task/${taskId}?thread=${threadId}` : `${base}#/task/${taskId}`
 }
 
+export function decisionExportLink(baseUrl: string, slug: string): string {
+  const base = (baseUrl || '').replace(/\/?$/, '/')
+  return `${base}#/decisions/${encodeURIComponent(slug)}/export`
+}
+
 function baseCard(tone: string, title: string): Record<string, unknown> {
   return {
     config: { wide_screen_mode: true },
@@ -178,6 +183,28 @@ export function buildFeedbackResolvedCard(event: OutboxEvent, task: TaskSummary,
     tag: 'action',
     actions: [{ tag: 'button', type: 'default', text: { tag: 'plain_text', content: '查看反馈线程' }, url: deepLink(baseUrl, task.id, threadId) }],
   })
+  return card
+}
+
+export function buildDecisionResponseCard(event: OutboxEvent, baseUrl: string): Record<string, unknown> {
+  const formSlug = String(event.payload.form_slug || '')
+  const formTitle = trimText(String(event.payload.form_title || '未命名决策表单'), 120)
+  const respondent = String(event.payload.respondent_name || '').trim() || '未填写身份'
+  const submittedAt = formatTime(String(event.payload.submitted_at || ''))
+  const card = baseCard('purple', '🔔 收到新的决策答卷')
+  const elements = card.elements as Array<Record<string, unknown>>
+  elements.push({
+    tag: 'markdown',
+    content: `**${escapeMarkdown(formTitle)}**\n提交人：${escapeMarkdown(respondent)}\n提交时间：${escapeMarkdown(submittedAt)}`,
+  })
+  elements.push({
+    tag: 'action',
+    actions: [{
+      tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '查看决策结果' },
+      url: decisionExportLink(baseUrl, formSlug),
+    }],
+  })
+  elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: 'Workboard · 决策中心 · 仅发送给 Leader' }] })
   return card
 }
 
@@ -328,10 +355,14 @@ export function buildDailyCard(event: OutboxEvent, baseUrl: string): Record<stri
 /** 根据事件类型分发卡片构建（供 Edge Function 与测试使用） */
 export function buildCard(
   event: OutboxEvent,
-  task: TaskSummary,
+  task: TaskSummary | null,
   baseUrl: string,
   original: OriginalFeedback | null = null,
 ): Record<string, unknown> | null {
+  if (event.event_type === 'decision_response_submitted') {
+    return buildDecisionResponseCard(event, baseUrl)
+  }
+  if (!task) return null
   switch (event.event_type) {
     case 'task_update': return buildTaskCard(event, task, baseUrl)
     case 'task_update_progress': return buildProgressDigestCard(event, task, baseUrl)

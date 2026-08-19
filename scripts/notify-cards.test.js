@@ -7,7 +7,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCard, buildDailyCard, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
+import { buildCard, buildDailyCard, decisionExportLink, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
+import { audienceForEvent } from '../supabase/functions/feishu-notify/routing.ts'
 
 const BASE = 'https://yizong2-cloud.github.io/work-dashboard/'
 function localDateOffset(days) {
@@ -33,6 +34,26 @@ test('deepLink：任务详情与反馈线程深链接', () => {
   assert.equal(deepLink(BASE, 't-1'), 'https://yizong2-cloud.github.io/work-dashboard/#/task/t-1')
   assert.equal(deepLink(BASE, 't-1', 'ft-9'), 'https://yizong2-cloud.github.io/work-dashboard/#/task/t-1?thread=ft-9')
   assert.equal(deepLink('https://x.github.io/work-dashboard', 't-1'), 'https://x.github.io/work-dashboard/#/task/t-1')
+})
+
+test('通知分流：决策答卷只投递个人，其余协作事件投递群', () => {
+  assert.equal(audienceForEvent('decision_response_submitted'), 'personal')
+  assert.equal(audienceForEvent('task_nudged'), 'group')
+  assert.equal(audienceForEvent('task_update'), 'group')
+})
+
+test('decision_response_submitted：个人卡片直达决策结果页', () => {
+  const card = buildCard(ev('decision_response_submitted', {
+    form_slug: 'puzzle-decisions', form_title: '拼图产品决策', respondent_name: 'PM',
+    submitted_at: '2026-08-20T01:02:00Z',
+  }), null, BASE)
+  const json = JSON.stringify(card)
+  assert.equal(decisionExportLink(BASE, 'puzzle-decisions'), 'https://yizong2-cloud.github.io/work-dashboard/#/decisions/puzzle-decisions/export')
+  assert.match(json, /收到新的决策答卷/)
+  assert.match(json, /拼图产品决策/)
+  assert.match(json, /提交人：PM/)
+  assert.match(json, /#\/decisions\/puzzle-decisions\/export/)
+  assert.match(json, /仅发送给 Leader/)
 })
 
 test('task_update：阻塞事件 → 红色卡片 + 任务详情按钮', () => {

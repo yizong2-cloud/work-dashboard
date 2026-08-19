@@ -26,7 +26,7 @@ task_feedback_messages / threads        task_updates
         飞书私有工作群（卡片，按钮深链接回网站对应线程）
 ```
 
-## 通知规则（2026-08-17 起：事件分层 + Agent 显式声明推送意图，无时间窗口）
+## 通知规则（事件分层 + Agent 显式声明推送意图，无时间窗口）
 
 | 事件 | 触发 | 卡片 | 投递 |
 | --- | --- | --- | --- |
@@ -39,13 +39,21 @@ task_feedback_messages / threads        task_updates
 | `note`（备注） | CLI `note --type note` | **不即时推送**，只写时间线、进 19:30 日报汇总；`--notify` 可强制即时 | 静默 |
 | `note`（进展） | CLI `note` 默认类型或 `note --type progress` | 作为真实进展即时推送；批量进度应优先使用 `progress` 命令以获得合并卡 | 即时 |
 | 历史补记 | CLI `--at` 回填 | 只写时间线，**永不推送**（触发器忽略时间早于当前 10 分钟的记录） | 静默 |
+| `decision_response_submitted` | 决策表单收到一份新答卷 | 「🔔 收到新的决策答卷」+ 表单名 + 提交人；按钮**查看决策结果** → `#/decisions/:slug/export` | **仅个人机器人** |
+
+### 投递分层（默认策略）
+
+- **群机器人**：任务进展、排期、阻塞、反馈、加急、催办和工作日日报。它们需要让 Leader 或协作者看到操作回执。
+- **个人机器人**：决策表单答卷提交。答卷内容和结果属于 Leader 的收件信息，不回群。
+- 加急和催办即使由 Leader 触发，也保留群内卡片；否则触发者无法确认按钮是否生效。
+- 个人机器人缺失时，决策答卷**不会降级发群**，而是进入 outbox failed，避免隐私事件误投。
 
 **推送意图由 Agent 显式声明**（`task_updates.notify_mode`）：`immediate` 秒推 / `merge` 同批合并 / `silent` 静默——不再用时间窗口猜测是否批量。
 
 ## 已部署内容（2026-08-16）
 
 1. **数据库**（`supabase/schema.sql`，已执行）：
-   - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）
+   - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）；`decision_response_submitted` 由迁移 `0010` 加入
    - 三个触发器：`notify_task_update_trigger`（按 immediate/merge/silent 分流）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
    - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
    - pg_cron：每 5 分钟兜底投递 pending，每 15 分钟重试 failed（最多 5 次）；failed 按 attempts 递增退避；迁移 `0008_notification_delivery_cron.sql` / `0009_notification_retry_backoff.sql` 补齐调度与退避
@@ -57,9 +65,10 @@ task_feedback_messages / threads        task_updates
 
 - 采用 **pg_net 触发器**（`notify_outbox_deliver`）在 outbox 新事件时异步调用 Edge Function，
   不需要在控制台配置 Database Webhook（Management API 无 webhook CRUD 端点）。
-- 投递目标（函数 URL + `x-dashboard-secret`）存在 `public.webhook_endpoint` 表（RLS 禁止 anon 读取），
+- 群投递目标（函数 URL + `x-dashboard-secret`）存在 `public.webhook_endpoint` 表（RLS 禁止 anon 读取），
   值在部署时写入，不落仓库；**与函数 Secrets `DASHBOARD_WEBHOOK_SECRET` 保持一致**。
 - 更换 secret：重新生成 → `supabase secrets set DASHBOARD_WEBHOOK_SECRET=<新值>` → `update public.webhook_endpoint set secret='<新值>' where id=1`。
+- 个人机器人配置为 Edge Function Secrets：`FEISHU_PERSONAL_BOT_WEBHOOK_URL`、`FEISHU_PERSONAL_BOT_SIGNING_SECRET`。二者只供 `decision_response_submitted` 使用，缺失时不回退群机器人。
 
 ## 端到端验证清单
 
