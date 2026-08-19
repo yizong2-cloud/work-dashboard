@@ -28,7 +28,21 @@ test('review packet inventories every source while keeping excerpts compact', ()
   assert.equal(packet.source_health.codex.count, null)
   assert.equal(packet.coverage.complete, true)
   assert.equal(packet.review_items[0].candidate_tasks[0], 'task-a')
+  assert.equal(packet.review_items[0].review_reason, 'single_candidate')
+  assert.equal(packet.review_items[0].candidate_count, 1)
+  assert.match(packet.review_contract.review_priority_semantics, /不是任务 priority/)
   assert.ok(packet.review_items.every((item) => item.excerpt.length <= 420))
+})
+
+test('review attention explains ambiguity instead of pretending task urgency', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    candidates: { ...context.candidates, codex: [] },
+  })
+  const item = packet.review_items.find((row) => row.source_id === 'codex:0')
+  assert.equal(item.review_priority, 'high')
+  assert.equal(item.review_reason, 'no_candidate_mapping')
+  assert.equal(packet.counts.review_attention, packet.counts.high_priority)
 })
 
 test('coverage reports a missing source row instead of silently passing', () => {

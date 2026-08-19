@@ -75,7 +75,10 @@ export function formatStatus(status) {
   }
   lines.push(`快照：${status.snapshot_health} · ${ageText(status.age_hours)} · ${status.snapshot_id}`)
   lines.push(`新鲜度：${status.snapshot_stale ? '已过期（超过 24 小时）' : '正常'}`)
-  if (status.counts) lines.push(`证据：${status.counts.total} 条（高优先级 ${status.counts.high_priority} 条）`)
+  if (status.counts) {
+    const attention = status.counts.review_attention ?? status.counts.high_priority ?? 0
+    lines.push(`证据：${status.counts.total} 条（需人工判断 ${attention} 条）`)
+  }
   if (status.coverage) {
     lines.push(`对账覆盖：${status.coverage.complete ? '✅ 完整' : `⚠️ 缺口：${status.coverage.gaps.join('、')}`}`)
   }

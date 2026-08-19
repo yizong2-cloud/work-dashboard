@@ -60,6 +60,20 @@ function candidateForGroup(ctx, group) {
   return (ctx.candidates?.feishu || []).find((item) => item.group === group) || null
 }
 
+// This is review effort, not task urgency. Keep the legacy review_priority
+// field for compatibility, but expose why an item needs human attention so an
+// Agent never treats it as the task's `priority` value.
+function reviewMeta(candidate, fallbackReason = null) {
+  const candidateCount = Array.isArray(candidate?.tasks) ? candidate.tasks.length : 0
+  const reviewReason = fallbackReason
+    || (candidateCount === 0 ? 'no_candidate_mapping' : candidateCount > 1 ? 'multiple_candidate_tasks' : 'single_candidate')
+  return {
+    candidate_count: candidateCount,
+    review_priority: reviewReason === 'single_candidate' ? 'normal' : 'high',
+    review_reason: reviewReason,
+  }
+}
+
 function sessionKey(session) {
   if (session?.file) return `file:${session.file}`
   return `fallback:${session?.cwd || ''}|${session?.lastTs || session?.lastTsMs || session?.start || ''}`
@@ -156,7 +170,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt((session.userReqs || []).join('\n')),
-      review_priority: candidate?.tasks?.length === 1 ? 'normal' : 'high',
+      ...reviewMeta(candidate),
     })
   }
 
@@ -171,7 +185,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt((session.userMsgs || []).join('\n')),
-      review_priority: candidate?.tasks?.length === 1 ? 'normal' : 'high',
+      ...reviewMeta(candidate),
     })
   }
 
@@ -186,7 +200,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt(group.content),
-      review_priority: candidate?.tasks?.length === 1 ? 'normal' : 'high',
+      ...reviewMeta(candidate),
     })
   }
 
@@ -200,7 +214,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: [],
       hint: '本地文件只采集元数据；按文件名判断，必要时展开或读取文件。',
       excerpt: `${file.ext || 'file'} · ${file.size || 0} bytes · ${file.path || ''}`,
-      review_priority: 'high',
+      ...reviewMeta(null, 'metadata_only'),
     })
   }
   return items
@@ -218,9 +232,17 @@ export function buildReviewPacket(ctx) {
     review_contract: {
       required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
+      review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。',
     },
     coverage: buildCoverage(ctx, items),
-    counts: { total: items.length, by_source: bySource, high_priority: items.filter((item) => item.review_priority === 'high').length },
+    counts: {
+      total: items.length,
+      by_source: bySource,
+      // Keep high_priority for older consumers; new consumers should use the
+      // explicit name so task urgency and review effort cannot be conflated.
+      high_priority: items.filter((item) => item.review_priority === 'high').length,
+      review_attention: items.filter((item) => item.review_priority === 'high').length,
+    },
     risks: {
       unmapped_cwd: ctx.candidates?.unmapped_cwd || [],
       unmapped_feishu_groups: ctx.candidates?.unmapped_feishu_groups || [],
