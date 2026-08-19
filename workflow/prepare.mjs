@@ -20,9 +20,23 @@ import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './s
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = os.homedir()
-const FEISHU_BIN = path.join(HOME, 'feishu_export', 'bin', 'feishu-export')
-const FEISHU_COOKIES = path.join(HOME, 'feishu_export', 'cookies.json')
-const DAILY_DIR = path.join(HOME, 'feishu_export', 'daily')
+function expandHome(value, home) {
+  return String(value || '').replace(/^~(?=\/|$)/, home)
+}
+
+export function resolveFeishuPaths(home = os.homedir(), env = process.env) {
+  const base = path.join(home, 'feishu_export')
+  return {
+    bin: expandHome(env.WORKBOARD_FEISHU_BIN || path.join(base, 'bin', 'feishu-export'), home),
+    cookies: expandHome(env.WORKBOARD_FEISHU_COOKIES || path.join(base, 'cookies.json'), home),
+    output: expandHome(env.WORKBOARD_FEISHU_OUTPUT_DIR || path.join(base, 'daily'), home),
+  }
+}
+
+const FEISHU_PATHS = resolveFeishuPaths(HOME)
+const FEISHU_BIN = FEISHU_PATHS.bin
+const FEISHU_COOKIES = FEISHU_PATHS.cookies
+const DAILY_DIR = FEISHU_PATHS.output
 const DAYS = 3
 const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS || 120000)
 const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : 120000

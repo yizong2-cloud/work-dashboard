@@ -21,7 +21,7 @@
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
 
-飞书导出默认超时 120 秒；确需更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`，登录态失效或超时都不会复用旧导出。
+飞书导出默认超时 120 秒；确需更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`，登录态失效或超时都不会复用旧导出。导出器、Cookie 和输出目录默认使用 `~/feishu_export`，也可通过 `WORKBOARD_FEISHU_BIN`、`WORKBOARD_FEISHU_COOKIES`、`WORKBOARD_FEISHU_OUTPUT_DIR` 覆盖（支持 `~/...`），便于切换到已加固的导出器而不改代码。
 
 ## 一条龙流程（用户说「开始更新」时）
 

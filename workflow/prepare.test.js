@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSessionCandidates, unmappedCwdRequired } from './prepare.mjs'
+import { buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -42,4 +42,21 @@ test('Codex temporary sessions are excluded through source-map rules', () => {
 
   assert.deepEqual(result.hits, [])
   assert.deepEqual(result.unmapped, [])
+})
+
+test('Feishu paths can be overridden without changing the default layout', () => {
+  assert.deepEqual(resolveFeishuPaths('/tmp/workboard-home', {}), {
+    bin: '/tmp/workboard-home/feishu_export/bin/feishu-export',
+    cookies: '/tmp/workboard-home/feishu_export/cookies.json',
+    output: '/tmp/workboard-home/feishu_export/daily',
+  })
+  assert.deepEqual(resolveFeishuPaths('/tmp/workboard-home', {
+    WORKBOARD_FEISHU_BIN: '~/public/bin/feishu-export',
+    WORKBOARD_FEISHU_COOKIES: '~/private/cookies.json',
+    WORKBOARD_FEISHU_OUTPUT_DIR: '~/exports',
+  }), {
+    bin: '/tmp/workboard-home/public/bin/feishu-export',
+    cookies: '/tmp/workboard-home/private/cookies.json',
+    output: '/tmp/workboard-home/exports',
+  })
 })
