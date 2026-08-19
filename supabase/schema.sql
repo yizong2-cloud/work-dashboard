@@ -621,7 +621,9 @@ begin
   -- 投递失败未超次数的 → 重新投递
   update public.notification_outbox
      set status = 'pending', updated_at = now()
-   where status = 'failed' and attempts < max_attempts;
+   where status = 'failed'
+     and attempts < max_attempts
+     and updated_at <= now() - (interval '15 minutes' * greatest(1, attempts)::double precision);
   get diagnostics v_updated = ROW_COUNT;
   -- 长时间停留在 sending（进程中断）的 → 重新投递
   update public.notification_outbox

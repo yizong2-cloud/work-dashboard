@@ -4,6 +4,7 @@ import fs from 'node:fs'
 
 const schema = fs.readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8')
 const migration = fs.readFileSync(new URL('../supabase/migrations/0008_notification_delivery_cron.sql', import.meta.url), 'utf8')
+const backoffMigration = fs.readFileSync(new URL('../supabase/migrations/0009_notification_retry_backoff.sql', import.meta.url), 'utf8')
 
 test('通知 outbox 的总 schema 与增量迁移都声明自动维护调度', () => {
   for (const source of [schema, migration]) {
@@ -12,5 +13,13 @@ test('通知 outbox 的总 schema 与增量迁移都声明自动维护调度', (
     assert.match(source, /deliver_pending_notifications\(\)/)
     assert.match(source, /retry_failed_notifications\(5\)/)
     assert.match(source, /cron\.unschedule/)
+  }
+})
+
+test('失败通知重试契约包含按 attempts 递增的退避条件', () => {
+  for (const source of [schema, backoffMigration]) {
+    assert.match(source, /status = 'failed'/)
+    assert.match(source, /attempts < max_attempts/)
+    assert.match(source, /15 minutes.*greatest\(1, attempts\)/s)
   }
 })

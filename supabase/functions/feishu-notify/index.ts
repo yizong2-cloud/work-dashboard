@@ -9,6 +9,7 @@
 // ============================================================
 
 import { buildCard, buildDailyCard, type OriginalFeedback, type OutboxEvent, type TaskSummary } from './cards.ts'
+import { classifyDeliveryFailure } from './delivery.ts'
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' }
 
@@ -76,10 +77,11 @@ Deno.serve(async (request) => {
       return response({ ok: true, channel, event_id: record.id })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      console.error(`[feishu-notify] deliver failed for ${record.id}: ${message}`)
-      await markStatus(record.id, 'failed', message)
-      // 返回 200：避免 webhook 自动重试造成并发；失败事件留在 outbox，由 retry_failed_notifications() 重试
-      return response({ ok: false, error: message, queued: 'failed' }, 200)
+      const disposition = classifyDeliveryFailure(message)
+      console.error(`[feishu-notify] deliver ${disposition === 'skip' ? 'skipped' : 'failed'} for ${record.id}: ${message}`)
+      await markStatus(record.id, disposition === 'skip' ? 'skipped' : 'failed', message)
+      // 返回 200：避免 webhook 自动重试造成并发；可重试事件留在 outbox，由 retry_failed_notifications() 重试。
+      return response({ ok: false, error: message, queued: disposition === 'skip' ? 'skipped' : 'failed' }, 200)
     }
   } catch (error) {
     console.error(error)

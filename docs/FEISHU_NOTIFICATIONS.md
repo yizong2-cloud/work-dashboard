@@ -48,7 +48,7 @@ task_feedback_messages / threads        task_updates
    - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）
    - 三个触发器：`notify_task_update_trigger`（按 immediate/merge/silent 分流）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
    - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
-   - pg_cron：每 5 分钟兜底投递 pending，每 15 分钟重试 failed（最多 5 次）；迁移 `0008_notification_delivery_cron.sql` 补齐历史部署遗漏的调度
+   - pg_cron：每 5 分钟兜底投递 pending，每 15 分钟重试 failed（最多 5 次）；failed 按 attempts 递增退避；迁移 `0008_notification_delivery_cron.sql` / `0009_notification_retry_backoff.sql` 补齐调度与退避
 2. **Edge Function**（`supabase/functions/feishu-notify/`，已部署，卡片构建抽到 `cards.ts` 纯函数可单测）：
    - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
 3. **本地测试**：`npm test`（含 `scripts/notify-cards.test.js`：事件分类、深链接、原反馈摘要、聚合卡、不泄露密钥）
@@ -78,7 +78,8 @@ task_feedback_messages / threads        task_updates
 | 现象 | 排查 |
 | --- | --- |
 | 飞书没收到卡片 | ① 查 `notification_outbox` 是否有 pending/failed 行（没行 = 触发器/webhook 未触发）；② 查 Edge Function 日志（Dashboard → Edge Functions → feishu-notify → Logs）；③ 检查 webhook Header 与 Secret 是否一致 |
-| outbox 有 failed | 看 `last_error`；修复后执行 `select public.retry_failed_notifications();`（webhook 监听 UPDATE 会重新投递） |
+| 想快速查看通知健康 | 本地运行 `npm run dashboard:notify-status`（需要 `.env` 中的 `SUPABASE_URL` 与 `SUPABASE_SERVICE_ROLE_KEY`；只读，不输出 payload） |
+| outbox 有 failed | 看 `last_error`；可执行 `select public.retry_failed_notifications();`，系统 cron 也会按 attempts 退避重试；任务/线程已不存在的永久错误会标记为 skipped |
 | 重复收到卡片 | 函数有幂等 claim，同一 outbox 行只会发一次；确认 webhook 没配成重复 |
 | Agent 批量更新刷屏 | 批量命令/`--merge` 显式合并成一条（`task_update_progress`）；普通单条进展即时，纯备注静默 |
 | 签名校验失败 | 确认 webhook Header `x-dashboard-secret` 与 Secret `DASHBOARD_WEBHOOK_SECRET` 一致 |
