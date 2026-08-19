@@ -36,6 +36,27 @@ export function shortDateTime(iso: string | null | undefined): string {
   return `${m}/${day} ${hh}:${mm}`
 }
 
+export type TaskDataFreshness = 'fresh' | 'stale' | 'unknown'
+
+/**
+ * Describes how recent the latest task timeline is. This is a UI honesty cue,
+ * not a source-health guarantee: it tells the reader when the board last changed.
+ */
+export function taskDataFreshness(iso: string | null | undefined, now = new Date()): {
+  tone: TaskDataFreshness
+  label: string
+  detail: string
+} {
+  if (!iso) return { tone: 'unknown', label: '暂无任务更新', detail: '当前没有可显示的任务时间线' }
+  const timestamp = new Date(iso).getTime()
+  if (Number.isNaN(timestamp)) return { tone: 'unknown', label: '更新时间不可读', detail: iso }
+  const ageHours = Math.max(0, now.getTime() - timestamp) / 3_600_000
+  if (ageHours >= 24) {
+    return { tone: 'stale', label: '数据可能滞后', detail: '距最近任务更新已超过 24 小时' }
+  }
+  return { tone: 'fresh', label: '最近任务更新', detail: '任务时间线在 24 小时内有更新' }
+}
+
 /** 今天 / 昨天 / 具体日期 */
 export function relativeDay(iso: string | null | undefined): string {
   if (!iso) return '—'

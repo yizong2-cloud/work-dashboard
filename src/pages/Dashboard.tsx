@@ -22,7 +22,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { QuickUpdateModal } from '../components/QuickUpdateModal'
 import { CreateTaskModal } from '../components/CreateTaskModal'
 import { commentBody, isComment } from '../lib/comments'
-import { shortDate, shortDateTime, relativeDay, todayISO, zhDate } from '../lib/format'
+import { shortDate, shortDateTime, relativeDay, taskDataFreshness, todayISO, zhDate } from '../lib/format'
 
 const PRIORITY_ORDER = { urgent: -1, high: 0, normal: 1, low: 2 } as const
 type WorkFilter = 'all' | 'risk' | 'blocked' | 'unscheduled'
@@ -182,6 +182,7 @@ export function Dashboard() {
   const scheduledRate = activeTasks.length ? Math.round((scheduledCount / activeTasks.length) * 100) : 100
   const completedCount = tasks.filter((task) => task.status === 'completed').length
   const completionRate = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0
+  const dataFreshness = taskDataFreshness(allUpdates[0]?.created_at)
 
   function notify(message: string) {
     setToast(message)
@@ -208,9 +209,9 @@ export function Dashboard() {
           <p>聚焦正在推进的事项、交付风险与需要决策的问题。</p>
         </div>
         <div className="intro-actions">
-          <div className="sync-state" title="依据最新一条时间线记录">
+          <div className={`sync-state sync-state-${dataFreshness.tone}`} title={dataFreshness.detail}>
             <span className="sync-dot" />
-            <span>最近同步 {shortDateTime(allUpdates[0]?.created_at)}</span>
+            <span>{dataFreshness.label} {shortDateTime(allUpdates[0]?.created_at)}</span>
           </div>
           <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
             <DashboardIcon name="plus" />新建任务

@@ -1,22 +1,9 @@
 // Compact, complete review index for a dashboard snapshot.
 // Raw source material stays in update-context.json and is retrieved only by id.
 
+import { redactSensitiveText, redactSensitiveValue } from './redaction.mjs'
+
 const MAX_EXCERPT = 420
-
-function redact(text) {
-  return String(text || '')
-    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [REDACTED]')
-    .replace(/\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\b/g, '[REDACTED_TOKEN]')
-}
-
-function redactValue(value) {
-  if (typeof value === 'string') return redact(value)
-  if (Array.isArray(value)) return value.map(redactValue)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactValue(child)]))
-  }
-  return value
-}
 
 function removeToolNoise(value) {
   if (Array.isArray(value)) {
@@ -31,7 +18,7 @@ function removeToolNoise(value) {
 }
 
 function cleanLine(line) {
-  return redact(line)
+  return redactSensitiveText(line)
     .replace(/^[-*]\s*/, '')
     .replace(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*/, '')
     .replace(/\[图片\]\([^)]*\)/g, '')
@@ -186,10 +173,10 @@ export function getEvidence(ctx, sourceId) {
   if (!match) return null
   const [, source, rawIndex] = match
   const index = Number(rawIndex)
-  if (source === 'codex') return redactValue(removeToolNoise(ctx.codex_detail?.[index] || null))
-  if (source === 'dsh') return redactValue(removeToolNoise(ctx.dsh_detail?.[index] || null))
-  if (source === 'local') return redactValue(removeToolNoise(ctx.sources?.local_files?.[index] || null))
-  if (source === 'feishu') return redactValue(removeToolNoise(splitFeishuGroups(ctx.feishu?.content)[index] || null))
+  if (source === 'codex') return redactSensitiveValue(removeToolNoise(ctx.codex_detail?.[index] || null))
+  if (source === 'dsh') return redactSensitiveValue(removeToolNoise(ctx.dsh_detail?.[index] || null))
+  if (source === 'local') return redactSensitiveValue(removeToolNoise(ctx.sources?.local_files?.[index] || null))
+  if (source === 'feishu') return redactSensitiveValue(removeToolNoise(splitFeishuGroups(ctx.feishu?.content)[index] || null))
   return null
 }
 

@@ -1232,6 +1232,20 @@ section {
   white-space: nowrap;
 }
 
+.sync-state-stale {
+  color: var(--warn);
+}
+
+.sync-state-stale .sync-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 4px rgba(190, 130, 56, 0.12);
+}
+
+.sync-state-unknown .sync-dot {
+  background: var(--muted);
+  box-shadow: 0 0 0 4px rgba(115, 108, 128, 0.1);
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

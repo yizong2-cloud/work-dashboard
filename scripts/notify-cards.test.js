@@ -10,9 +10,15 @@ import assert from 'node:assert/strict'
 import { buildCard, buildDailyCard, deepLink } from '../supabase/functions/feishu-notify/cards.ts'
 
 const BASE = 'https://yizong2-cloud.github.io/work-dashboard/'
+function localDateOffset(days) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 const TASK = {
   id: 't-1', title: '宁静拼图主题系统', status: 'in_progress',
-  progress: 65, expected_end_date: '2026-08-19', block_reason: '',
+  progress: 65, expected_end_date: localDateOffset(1), block_reason: '',
 }
 
 function ev(event_type, payload) {

@@ -15,6 +15,8 @@ import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { buildReviewPacket } from './review-packet.mjs'
+import { redactSensitiveValue } from './redaction.mjs'
+import { feishuSnapshot } from './source-safety.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = os.homedir()
@@ -164,11 +166,12 @@ function run(cmd, args, timeoutMs = 120000) {
   }
 }
 
-function latestFile(dir, re) {
+function latestFile(dir, re, minMtime = 0) {
   if (!fs.existsSync(dir)) return null
   return fs.readdirSync(dir)
     .filter((f) => re.test(f))
     .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .filter(({ t }) => t >= minMtime)
     .sort((a, b) => b.t - a.t)[0]?.f ?? null
 }
 
@@ -206,16 +209,21 @@ function main() {
   const feishuArgs = reviewedDate
     ? ['--since', `${reviewedDate}T00:00`, '--refresh-chats', '--markdown', '--no-update-state']
     : ['--today', '--refresh-chats', '--markdown', '--no-update-state']
+  const feishuStartedAt = Date.now()
   const feishuRes = run(FEISHU_BIN, feishuArgs, 300000)
-  const feishuFile = latestFile(DAILY_DIR, /^range_.*\.md$/)
-  let feishuText = '（无飞书增量文件）'
-  if (feishuFile) {
+  // A successful command that produced no new file is still an empty source;
+  // never reuse the previous range export as if it were current evidence.
+  const freshFeishuFile = feishuRes.ok ? latestFile(DAILY_DIR, /^range_.*\.md$/, feishuStartedAt - 2000) : null
+  let feishuFile = freshFeishuFile
+  let feishuText = ''
+  if (feishuRes.ok && feishuFile) {
     try {
       feishuText = fs.readFileSync(path.join(DAILY_DIR, feishuFile), 'utf8').slice(0, 30000)
     } catch {
       feishuText = '（飞书增量文件读取失败）'
     }
   }
+  ;({ file: feishuFile, content: feishuText } = feishuSnapshot({ ok: feishuRes.ok, file: feishuFile, content: feishuText }))
   steps.push({
     name: '飞书增量导出',
     ok: feishuRes.ok,
@@ -323,11 +331,11 @@ function main() {
       local_files: localFiles,
     },
     steps,
-    feishu: { latest_file: feishuFile, content: feishuText },
-    codex,
-    dsh,
-    codex_detail: codexDetail,
-    dsh_detail: dshDetail,
+    feishu: { latest_file: feishuFile, content: redactSensitiveValue(feishuText) },
+    codex: redactSensitiveValue(codex),
+    dsh: redactSensitiveValue(dsh),
+    codex_detail: redactSensitiveValue(codexDetail),
+    dsh_detail: redactSensitiveValue(dshDetail),
     candidates,
     board,
     knowledge_base: knowledgeBase.slice(0, 40000),

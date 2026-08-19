@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildReviewPacket, compactExcerpt, getEvidence, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { redactSensitiveText } from './redaction.mjs'
+import { feishuSnapshot } from './source-safety.mjs'
 
 const context = {
   snapshot_id: 'snapshot-1',
@@ -53,6 +55,29 @@ test('evidence lookup exposes one item and redacts bearer credentials', () => {
   const evidence = getEvidence(withSecret, 'dsh:0')
   assert.equal(evidence.userMsgs[0], 'Bearer [REDACTED]')
   assert.equal(getEvidence(context, 'missing:0'), null)
+})
+
+test('derived snapshot redaction covers common bearer, JWT, and token forms', () => {
+  const redacted = redactSensitiveText('Bearer abcdefghijklmnop\neyJabcdefghijkl.abcdefghijkl.abcdefghijkl\nsk-test_abcdefghijklmnop')
+  assert.doesNotMatch(redacted, /Bearer abcdef/)
+  assert.doesNotMatch(redacted, /eyJabcdefghijkl/)
+  assert.doesNotMatch(redacted, /sk-test_abcdef/)
+  assert.match(redacted, /\[REDACTED\]/)
+})
+
+test('failed or empty Feishu collection never reuses a previous export', () => {
+  assert.deepEqual(feishuSnapshot({ ok: false, file: 'old-range.md', content: '旧聊天' }), {
+    file: null,
+    content: '（飞书采集失败；本次不使用旧导出内容）',
+  })
+  assert.deepEqual(feishuSnapshot({ ok: true, file: null, content: '' }), {
+    file: null,
+    content: '（本次无飞书增量）',
+  })
+  assert.deepEqual(feishuSnapshot({ ok: true, file: 'new-range.md', content: '新聊天' }), {
+    file: 'new-range.md',
+    content: '新聊天',
+  })
 })
 
 test('compact excerpts remove image-only noise and retain actionable text', () => {
