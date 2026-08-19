@@ -47,7 +47,7 @@
 | **Agent CLI** | `scripts/agent.js` | Agent 更新数据唯一通道（60 行命令） |
 | Codex 摘要器 | `scripts/codex-summary.js` | 读 `~/.codex/sessions` 提炼会话（**按 mtime 过滤**） |
 | DSH 摘要器 | `scripts/dsh-summary.js` | 读 `~/.dsh/sessions`（zstd 解压） |
-| 飞书导出 | `~/feishu_export/bin/feishu-export`（外部工具） | cookies + 无头 Chrome 拉聊天 |
+| 飞书导出 | 优先 `~/feishu-export-public/bin/feishu-export`，否则 `~/feishu_export/bin/feishu-export` | cookies + 无头 Chrome 拉聊天 |
 | prepare | `workflow/prepare.mjs` | 拉四类输入 + 打包 context + 报告 + 增量游标管理 |
 | apply/verify | `workflow/apply.mjs` / `verify.mjs` | 执行 ops.json / 校验不变量 |
 | 定时任务 | `workflow/install-cron.mjs`（launchd） | 工作日 3 次自动 prepare（--no-advance） |
@@ -57,7 +57,7 @@
 | 反馈/计划 | `src/lib/feedbackService.ts` 等 | Leader 反馈线程、日粒度计划块/日程 |
 | 部署 | `.github/workflows/deploy.yml` | push main → GitHub Pages |
 
-> 飞书导出器位于 Workboard 仓库之外，需单独维护。当前版本在页面结构不兼容时会快速失败；连续多个会话无法打开也会中止本次导出。`prepare` 还会拒绝带有会话级失败的部分导出，避免把不完整聊天记录当成正常增量。
+> 飞书导出器位于 Workboard 仓库之外，需单独维护。维护中的公开版本在页面结构不兼容时会快速失败，并对临时会话切换失败做有限重试；连续多个会话无法打开也会中止本次导出。`prepare` 还会拒绝带有会话级失败的部分导出，避免把不完整聊天记录当成正常增量。`WORKBOARD_FEISHU_BIN` 可显式覆盖默认选择。
 
 ## 3. 数据模型（唯一契约，与 schema.sql 一致）
 
