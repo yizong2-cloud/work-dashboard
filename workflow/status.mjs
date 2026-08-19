@@ -10,6 +10,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 const ANALYSIS_STATE_FILE = path.join(ROOT, 'workflow', '.analysis-state.json')
 const CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
+const STALE_AFTER_HOURS = 24
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
@@ -22,20 +23,23 @@ function ageHours(iso, now) {
   return Math.max(0, now.getTime() - timestamp) / 3_600_000
 }
 
-function nextAction({ packet, changeset, matched }) {
+function nextAction({ packet, changeset, matched, ageHoursValue }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
   if (packet.snapshot_health === 'degraded') return '来源不完整：先修复失败来源，再决定是否更新看板'
+  if (ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS) return '当前快照已超过 24 小时；先运行 npm run dashboard:prepare 获取新数据'
   if (!matched) return '当前快照尚未完成 apply + verify；先按更新流程审查并校验'
   return '当前快照已完成审查；等待下一次数据采集'
 }
 
 export function buildStatus({ packet, analysisState, changeset, now = new Date() }) {
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
+  const ageHoursValue = ageHours(packet?.captured_at, now)
   return {
     packet_available: Boolean(packet),
     snapshot_id: packet?.snapshot_id || null,
     captured_at: packet?.captured_at || null,
-    age_hours: ageHours(packet?.captured_at, now),
+    age_hours: ageHoursValue,
+    snapshot_stale: ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS,
     snapshot_health: packet?.snapshot_health || 'missing',
     source_health: packet?.source_health || null,
     counts: packet?.counts || null,
@@ -45,7 +49,7 @@ export function buildStatus({ packet, analysisState, changeset, now = new Date()
       changeset_id: matched ? changeset.changeset_id || null : null,
       reviewed_no_change: matched ? changeset.reviewed_no_change === true : false,
     },
-    next_action: nextAction({ packet, changeset, matched }),
+    next_action: nextAction({ packet, changeset, matched, ageHoursValue }),
   }
 }
 
@@ -63,6 +67,7 @@ export function formatStatus(status) {
     return lines.join('\n')
   }
   lines.push(`快照：${status.snapshot_health} · ${ageText(status.age_hours)} · ${status.snapshot_id}`)
+  lines.push(`新鲜度：${status.snapshot_stale ? '已过期（超过 24 小时）' : '正常'}`)
   if (status.counts) lines.push(`证据：${status.counts.total} 条（高优先级 ${status.counts.high_priority} 条）`)
   for (const [label, source] of Object.entries(status.source_health || {})) {
     const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件' }[label] || label

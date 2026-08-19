@@ -13,6 +13,7 @@ test('status 在 degraded 快照时指出失败来源和恢复动作', () => {
     now: new Date('2026-08-20T12:00:00Z'),
   })
   assert.equal(status.age_hours, 12)
+  assert.equal(status.snapshot_stale, false)
   assert.equal(status.apply.matched_snapshot, false)
   assert.match(status.next_action, /修复失败来源/)
   assert.match(formatStatus(status), /飞书/)
@@ -29,4 +30,15 @@ test('status 只有同一快照且 apply 成功才显示已匹配', () => {
   const status = buildStatus({ packet, changeset: { snapshot_id: 'snap-2', all_ok: true, changeset_id: 'chg-2', reviewed_no_change: true } })
   assert.equal(status.apply.matched_snapshot, true)
   assert.equal(status.apply.reviewed_no_change, true)
+})
+
+test('status 对超过 24 小时的快照明确提示重新采集', () => {
+  const status = buildStatus({
+    packet: { snapshot_id: 'snap-old', captured_at: '2026-08-18T00:00:00Z', snapshot_health: 'ok', counts: { total: 1, high_priority: 1 } },
+    changeset: { snapshot_id: 'snap-old', all_ok: true, changeset_id: 'chg-old' },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.snapshot_stale, true)
+  assert.match(status.next_action, /超过 24 小时/)
+  assert.match(formatStatus(status), /已过期/)
 })
