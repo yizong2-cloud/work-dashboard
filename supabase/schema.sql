@@ -976,6 +976,21 @@ grant execute on function public.send_daily_report() to service_role;
 -- 11:30 UTC = 19:30 北京。同名 job 幂等（cron.schedule 同名即更新）。
 select cron.schedule('workboard-daily-report', '30 11 * * 1-5', 'select public.send_daily_report()');
 
+-- 通知维护：pending 兜底每 5 分钟投递；failed 每 15 分钟重试，最多 5 次。
+-- 先按名称移除旧 job，保证重复执行 schema / 迁移不会创建重复调度。
+do $$
+declare v_jobid bigint;
+begin
+  for v_jobid in
+    select jobid from cron.job
+     where jobname in ('workboard-notification-pending', 'workboard-notification-retry')
+  loop
+    perform cron.unschedule(v_jobid);
+  end loop;
+  perform cron.schedule('workboard-notification-pending', '*/5 * * * *', 'select public.deliver_pending_notifications()');
+  perform cron.schedule('workboard-notification-retry', '*/15 * * * *', 'select public.retry_failed_notifications(5)');
+end $$;
+
 -- ============================================================
 -- 决策中心（Decision Hub）数据模型与 RPC
 -- ============================================================

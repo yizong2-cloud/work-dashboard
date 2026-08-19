@@ -48,6 +48,7 @@ task_feedback_messages / threads        task_updates
    - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）
    - 三个触发器：`notify_task_update_trigger`（按 immediate/merge/silent 分流）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
    - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
+   - pg_cron：每 5 分钟兜底投递 pending，每 15 分钟重试 failed（最多 5 次）；迁移 `0008_notification_delivery_cron.sql` 补齐历史部署遗漏的调度
 2. **Edge Function**（`supabase/functions/feishu-notify/`，已部署，卡片构建抽到 `cards.ts` 纯函数可单测）：
    - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
 3. **本地测试**：`npm test`（含 `scripts/notify-cards.test.js`：事件分类、深链接、原反馈摘要、聚合卡、不泄露密钥）
