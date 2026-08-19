@@ -127,6 +127,10 @@ test('Feishu collection failures explain recovery without exposing raw command n
     feishuFailureDetail({ stderr: '飞书页面已完成加载，但会话列表没有出现；这通常是登录态未被浏览器接受' }, '/tmp/cookies.json'),
     /会话列表未出现.*--no-headless/,
   )
+  assert.match(
+    feishuFailureDetail({ stderr: '本次导出未完成：1 个会话读取失败；输出仅供诊断' }, '/tmp/cookies.json'),
+    /不使用部分结果.*FEISHU_CHAT_TIMEOUT_MS/,
+  )
 })
 
 test('partial Feishu chat failures are not accepted as a complete source', () => {

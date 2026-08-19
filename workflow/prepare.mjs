@@ -38,8 +38,12 @@ const FEISHU_BIN = FEISHU_PATHS.bin
 const FEISHU_COOKIES = FEISHU_PATHS.cookies
 const DAILY_DIR = FEISHU_PATHS.output
 const DAYS = 3
-const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS || 120000)
-const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : 120000
+// A normal full refresh may cover a dozen active chats; the exporter also
+// enforces a per-chat budget, so the outer budget can safely allow the batch
+// to finish without turning one stuck chat into an unbounded wait.
+const DEFAULT_FEISHU_TIMEOUT_MS = 600000
+const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS || DEFAULT_FEISHU_TIMEOUT_MS)
+const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : DEFAULT_FEISHU_TIMEOUT_MS
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
 const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
