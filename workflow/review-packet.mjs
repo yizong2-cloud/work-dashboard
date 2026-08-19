@@ -60,6 +60,31 @@ function candidateForGroup(ctx, group) {
   return (ctx.candidates?.feishu || []).find((item) => item.group === group) || null
 }
 
+function sessionKey(session) {
+  if (session?.file) return `file:${session.file}`
+  return `fallback:${session?.cwd || ''}|${session?.lastTs || session?.lastTsMs || session?.start || ''}`
+}
+
+// Compact summaries are the complete inventory; detail rows enrich matching
+// sessions with longer user text/actions. Detail extraction is intentionally
+// capped, so review must never use it as the source of truth for coverage.
+export function mergeSessionRows(summaryRows, detailRows) {
+  const summary = Array.isArray(summaryRows) ? summaryRows : []
+  const detail = Array.isArray(detailRows) ? detailRows : []
+  const detailByKey = new Map(detail.map((row) => [sessionKey(row), row]))
+  const seen = new Set()
+  const merged = summary.map((row) => {
+    const key = sessionKey(row)
+    seen.add(key)
+    return { ...row, ...(detailByKey.get(key) || {}) }
+  })
+  for (const row of detail) {
+    const key = sessionKey(row)
+    if (!seen.has(key)) merged.push(row)
+  }
+  return merged
+}
+
 export function splitFeishuGroups(text) {
   const headings = [...String(text || '').matchAll(/^##\s+(.+)$/gm)]
   return headings.map((match, index) => {
@@ -105,7 +130,7 @@ export function buildReviewItems(ctx) {
   const items = []
   const add = (item) => items.push({ ...item, raw_available: true })
 
-  for (const [index, session] of (ctx.codex_detail || []).entries()) {
+  for (const [index, session] of mergeSessionRows(ctx.codex, ctx.codex_detail).entries()) {
     const candidate = candidateForSession(ctx, 'codex', session.cwd)
     add({
       source_id: `codex:${index}`,
@@ -120,7 +145,7 @@ export function buildReviewItems(ctx) {
     })
   }
 
-  for (const [index, session] of (ctx.dsh_detail || []).entries()) {
+  for (const [index, session] of mergeSessionRows(ctx.dsh, ctx.dsh_detail).entries()) {
     const candidate = candidateForSession(ctx, 'dsh', session.cwd)
     add({
       source_id: `dsh:${index}`,
@@ -196,8 +221,8 @@ export function getEvidence(ctx, sourceId) {
   if (!match) return null
   const [, source, rawIndex] = match
   const index = Number(rawIndex)
-  if (source === 'codex') return redactSensitiveValue(removeToolNoise(ctx.codex_detail?.[index] || null))
-  if (source === 'dsh') return redactSensitiveValue(removeToolNoise(ctx.dsh_detail?.[index] || null))
+  if (source === 'codex') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.codex, ctx.codex_detail)[index] || null))
+  if (source === 'dsh') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.dsh, ctx.dsh_detail)[index] || null))
   if (source === 'local') return redactSensitiveValue(removeToolNoise(ctx.sources?.local_files?.[index] || null))
   if (source === 'feishu') return redactSensitiveValue(removeToolNoise(splitFeishuGroups(ctx.feishu?.content)[index] || null))
   return null

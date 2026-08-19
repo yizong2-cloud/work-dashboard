@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReviewPacket, compactExcerpt, getEvidence, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { buildReviewPacket, compactExcerpt, getEvidence, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { redactSensitiveText } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
@@ -28,6 +28,31 @@ test('review packet inventories every source while keeping excerpts compact', ()
   assert.equal(packet.source_health.codex.count, null)
   assert.equal(packet.review_items[0].candidate_tasks[0], 'task-a')
   assert.ok(packet.review_items.every((item) => item.excerpt.length <= 420))
+})
+
+test('review packet covers all summary sessions while enriching matching detail rows', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    codex: [
+      { file: '/repo/a.jsonl', cwd: '/repo/a', lastTs: '2026-08-19T09:00:00Z', userReqs: ['摘要 A'] },
+      { file: '/repo/b.jsonl', cwd: '/repo/b', lastTs: '2026-08-19T08:00:00Z', userReqs: ['摘要 B'] },
+    ],
+    codex_detail: [{ file: '/repo/a.jsonl', cwd: '/repo/a', lastTs: '2026-08-19T09:00:00Z', userReqs: ['完整 A：完成联调'] }],
+  })
+  const codexItems = packet.review_items.filter((item) => item.source === 'codex')
+  assert.equal(codexItems.length, 2)
+  assert.match(codexItems[0].excerpt, /完整 A/)
+  assert.match(codexItems[1].excerpt, /摘要 B/)
+  assert.equal(mergeSessionRows(
+    [{ file: '/repo/a.jsonl' }, { file: '/repo/b.jsonl' }],
+    [{ file: '/repo/a.jsonl', userReqs: ['完整 A'] }],
+  ).length, 2)
+  const evidence = getEvidence({
+    ...context,
+    codex: [{ file: '/repo/a.jsonl', cwd: '/repo/a', userReqs: ['Bearer abcdefghijklmnop'] }],
+    codex_detail: [],
+  }, 'codex:0')
+  assert.equal(evidence.userReqs[0], 'Bearer [REDACTED]')
 })
 
 test('review packet exposes the failing source without opening raw snapshot', () => {
