@@ -35,6 +35,21 @@ test('unmapped project directories always require explicit review', () => {
   assert.equal(unmappedCwdRequired([]), false)
 })
 
+test('confirmed JigsawCard reverse-engineering directory maps to the leaderboard research task', () => {
+  const result = buildSessionCandidates([
+    { cwd: '/Users/zongyi/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T08:00:00Z' },
+  ], {
+    ignored_cwd: [],
+    codex_cwd: [{
+      pattern: 'Unified_API_Playground/packages/jigsawcard',
+      hint: 'JigsawCard 竞品触觉/震动反馈逆向',
+      tasks: ['华容道排行榜功能（九月初预定）'],
+    }],
+  }, 'dsh')
+  assert.deepEqual(result.unmapped, [])
+  assert.deepEqual(result.hits[0].tasks, ['华容道排行榜功能（九月初预定）'])
+})
+
 test('Codex temporary sessions are excluded through source-map rules', () => {
   const result = buildSessionCandidates([
     { cwd: '/Users/zongyi/Documents/Codex/temporary-thread' },

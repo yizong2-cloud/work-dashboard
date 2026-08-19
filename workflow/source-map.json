@@ -6,6 +6,7 @@
   ],
   "codex_cwd": [
     { "pattern": "StudioProjects/jigsaw-android", "hint": "Fantasy 拼图游戏客户端源码（成就/试玩/H5 demo/积分制等所有 fantasy 客户端工作，具体看会话内容）", "tasks": ["Fantasy 成就系统收尾（接手杨柯迪）", "Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）", "Fantasy 积分制与完成页激励文案开发"] },
+    { "pattern": "Unified_API_Playground/packages/jigsawcard", "hint": "JigsawCard 竞品触觉/震动反馈逆向，已确认归入华容道排行榜竞品研究", "tasks": ["华容道排行榜功能（九月初预定）"] },
     { "pattern": "jigsolitaire-cms", "hint": "华容道 CMS/API（与小米共用后端仓库、域名区分；一般只改我们自己华容道那部分）。多用于华容道 CMS 分类/图库/API 联调", "tasks": ["华容道正式服图库数据填充与关卡排布", "华容道 CMS 分类管理功能", "Jigslide（宁静华容道）CMS 与 API 联调支持"] },
     { "pattern": "jigsaw-cms", "hint": "多产品矩阵 CMS + 客户端 API 后端（fantasy/legacy/peace/farm 几个产品）", "tasks": ["Farm 项目 CMS 接入与研发排期", "Fantasy 积分制与完成页激励文案开发", "Fantasy 成就系统收尾（接手杨柯迪）", "Peace 印度版广告 SDK（ADX/双 banner）接入验证"] },
     { "pattern": "jigsaw-h5-ad", "hint": "H5 广告 / 可玩广告制作", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
