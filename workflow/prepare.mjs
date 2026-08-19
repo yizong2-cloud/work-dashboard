@@ -54,6 +54,17 @@ function readAnalysisState() {
     return {}
   }
 }
+
+export function buildFeishuArgs(lastAt, cookiesPath, outputDir) {
+  const reviewedDate = lastAt ? lastAt.slice(0, 10) : null
+  const args = reviewedDate
+    ? ['--since', `${reviewedDate}T00:00`, '--refresh-chats', '--markdown', '--no-update-state']
+    : ['--today', '--refresh-chats', '--markdown', '--no-update-state']
+  if (cookiesPath) args.push('--cookies', cookiesPath)
+  if (outputDir) args.push('--out', outputDir)
+  return args
+}
+
 // 增量窗口起点：分析游标（无则退化最近 3 天由 codex/dsh 的 --days 兜底）
 const LAST_AT = readAnalysisState().reviewed_at || null
 const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
@@ -229,10 +240,7 @@ function main() {
   // 不从/不推进飞书 .state.lastSync —— 消除「飞书游标过早推进导致增量丢失」的缺口。
   // --refresh-chats：强制重扫会话列表，避免缓存快照陈旧漏会话（如高琦）。
   // cron(--no-advance) 与手动 prepare 走同一无状态逻辑。
-  const reviewedDate = LAST_AT ? LAST_AT.slice(0, 10) : null
-  const feishuArgs = reviewedDate
-    ? ['--since', `${reviewedDate}T00:00`, '--refresh-chats', '--markdown', '--no-update-state']
-    : ['--today', '--refresh-chats', '--markdown', '--no-update-state']
+  const feishuArgs = buildFeishuArgs(LAST_AT, FEISHU_COOKIES, DAILY_DIR)
   const feishuStartedAt = Date.now()
   const feishuRes = fs.existsSync(FEISHU_COOKIES)
     ? run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS)

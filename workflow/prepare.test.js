@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -59,4 +59,11 @@ test('Feishu paths can be overridden without changing the default layout', () =>
     cookies: '/tmp/workboard-home/private/cookies.json',
     output: '/tmp/workboard-home/exports',
   })
+})
+
+test('prepare passes overridden Cookie and output paths to any exporter', () => {
+  assert.deepEqual(buildFeishuArgs('2026-08-19T10:00:00.000Z', '/tmp/private cookies.json', '/tmp/feishu out'), [
+    '--since', '2026-08-19T00:00', '--refresh-chats', '--markdown', '--no-update-state',
+    '--cookies', '/tmp/private cookies.json', '--out', '/tmp/feishu out',
+  ])
 })
