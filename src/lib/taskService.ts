@@ -57,8 +57,8 @@ export interface TaskService {
   /** Leader 催进度：追加 nudge 时间线 + 飞书通知，不改任何任务属性 */
   nudge(id: string, content?: string, author?: string): Promise<Task>
 
-  /** 统一领域操作：把任务安排到某天做日计划（计划块 + 静默审计时间线），页面「＋今天」都应走这里 */
-  planToday(id: string, date?: string, author?: string): Promise<PlanBlock>
+  /** 统一领域操作：幂等安排到今天（计划块 + 静默审计时间线），页面「＋今天」都应走这里 */
+  planToday(id: string): Promise<PlanBlock>
 }
 
 export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService {
@@ -187,27 +187,16 @@ export function createTaskService(db: DB, opts: TaskServiceOptions): TaskService
     },
 
     /**
-     * 把任务安排到某一天（默认今天）做日计划：统一领域操作，
-     * 原子创建计划块 + 写一条「静默」时间线（铁律：任何变化写时间线；notify_mode=silent 不推送飞书）。
+     * 幂等安排到今天：统一领域操作。
+     * Supabase 在单个 RPC 事务中创建计划块 + 写「静默」时间线；local 模式一次 save 完成两者。
      * 页面「＋今天 / 安排到今天」都应走这里，避免散处直接 createPlanBlock 漏审计、行为漂移。
      */
-    async planToday(id, date, author) {
-      const d = date || todayISO()
-      const block = await db.createPlanBlock({
+    async planToday(id) {
+      return db.ensurePlanForDay({
         task_id: id,
-        start_date: d,
-        end_date: d,
-        summary: '',
-        created_by: author ?? who(),
+        date: todayISO(),
+        created_by: who(),
       })
-      await db.addUpdate({
-        task_id: id,
-        type: 'note',
-        content: `安排到今天日计划（${d}）`,
-        created_by: author ?? who(),
-        notify_mode: 'silent',
-      })
-      return block
     },
   }
 }

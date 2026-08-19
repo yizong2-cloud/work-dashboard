@@ -387,10 +387,17 @@ export function Schedule() {
                           const block = entry.block
                           const done = block?.status === 'done' || entry.task.status === 'completed'
                           const changed = block?.status === 'changed'
+                          const risk = entry.task.status === 'blocked'
+                            ? 'is-blocked'
+                            : entry.task.priority === 'urgent'
+                              ? 'is-urgent'
+                              : !done && Boolean(entry.task.expected_end_date && entry.task.expected_end_date < today)
+                                ? 'is-overdue'
+                                : ''
                           return (
                             <div
                               key={`${weekStart}:${entry.id}`}
-                              className={`month-entry task-color-line-${taskColorClass(entry.task.id)} is-${entry.source.replace('_', '-')} ${done ? 'is-done' : ''} ${changed ? 'is-changed' : ''}`}
+                              className={`month-entry task-color-line-${taskColorClass(entry.task.id)} is-${entry.source.replace('_', '-')} ${done ? 'is-done' : ''} ${changed ? 'is-changed' : ''} ${risk}`}
                               style={weekPosition(entry, weekStart, weekEnd)}
                               title={`${entry.task.title} · ${entry.startDate} ~ ${entry.endDate}${entry.source === 'plan_block' ? ` · ${entry.label}` : ''}`}
                             >
@@ -398,6 +405,8 @@ export function Schedule() {
                                 <strong>{entry.task.title}</strong>
                                 <small>{entry.source === 'plan_block' ? entry.label : `${shortDate(entry.startDate)}—${shortDate(entry.endDate)}`}</small>
                               </button>
+                              {done && <span className="month-entry-state" aria-label="已完成">✓</span>}
+                              {!done && risk && <span className="month-entry-risk" aria-label={risk === 'is-overdue' ? '已逾期' : risk === 'is-blocked' ? '已阻塞' : '已加急'}>{risk === 'is-overdue' ? '⚠️' : risk === 'is-blocked' ? '⛔' : '🔥'}</span>}
                               {block && (
                                 <span className="month-entry-actions">
                                   <button onClick={() => void toggleDone(block)}>{block.status === 'done' ? '恢复' : '完成'}</button>
@@ -429,6 +438,7 @@ export function Schedule() {
               <span><i className="legend-task-schedule" />任务开始—预计完成</span>
               <span><i className="legend-plan-block" />具体日计划</span>
               <span><i className="legend-done" />已完成</span>
+              <span><i className="legend-risk-line" />阻塞 / 加急 / 逾期</span>
               <span>没有日期的任务不会显示</span>
             </div>
           </section>

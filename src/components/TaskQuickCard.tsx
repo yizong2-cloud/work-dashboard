@@ -1,6 +1,7 @@
 import type { PlanBlock, Task } from '../types'
 import { taskColorClass } from '../lib/taskColor'
 import { shortDate, todayISO } from '../lib/format'
+import { activePlanForDay } from '../lib/dailyPlan'
 
 // 就地操作卡：单击任务弹此卡（进度/截止日/今日计划 + 安排到今天/更新进度/查看详情），不跳页。
 // 「安排到今天」统一走上层传入的 onPlanToday（= taskService.planToday，含审计时间线 + 刷新 + 错误处理）。
@@ -20,7 +21,7 @@ export function TaskQuickCard({
   onClose: () => void
 }) {
   const today = todayISO()
-  const todayBlock = blocks.find((b) => b.task_id === task.id && b.start_date <= today && b.end_date >= today && b.status !== 'done')
+  const todayBlock = activePlanForDay(blocks, task.id, today)
 
   return (
     <div className="modal-mask" onClick={onClose}>
@@ -42,7 +43,7 @@ export function TaskQuickCard({
           {task.priority === 'urgent' ? <p className="week-block-reason">🔥 加急</p> : null}
         </div>
         <div className="modal-foot week-quick-actions">
-          <button className="btn btn-ghost" onClick={() => onPlanToday(task.id)}>
+          <button className="btn btn-ghost" disabled={Boolean(todayBlock)} onClick={() => onPlanToday(task.id)}>
             {todayBlock ? '已安排到今天' : '＋ 安排到今天'}
           </button>
           <button className="btn btn-ghost" onClick={() => onQuickProgress(task.id)}>更新进度</button>

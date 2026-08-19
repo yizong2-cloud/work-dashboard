@@ -373,6 +373,7 @@ export function createLocalDB(): DB {
         new_expected_end_date: null,
         created_at: now(),
         created_by: input.created_by ?? 'admin',
+        notify_mode: 'silent',
       })
       save(store)
       return block

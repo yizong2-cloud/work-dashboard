@@ -59,6 +59,8 @@ export interface TaskUpdate {
   new_expected_end_date: string | null
   created_at: string
   created_by: string
+  /** 通知投递意图；旧数据兼容为空。 */
+  notify_mode?: 'immediate' | 'merge' | 'silent'
 }
 
 /** 新建任务入参（Agent 与网页共用同一套字段名） */

@@ -66,6 +66,10 @@ export function ScheduleWeek({
   const overdue = active.filter((t) => t.expected_end_date && t.expected_end_date < today)
   const unscheduled = active.filter((t) => !t.expected_end_date)
   const risks = active.filter((t) => t.status === 'blocked' || t.priority === 'urgent')
+  const plannedToday = useMemo(
+    () => new Set(blocks.filter((b) => b.start_date <= today && b.end_date >= today && b.status !== 'done').map((b) => b.task_id)),
+    [blocks, today],
+  )
 
   function dayPlans(day: string) {
     return entries.filter((e) => e.source === 'plan_block' && e.startDate <= day && e.endDate >= day)
@@ -98,7 +102,9 @@ export function ScheduleWeek({
                     <span className="task-chip-title">{t.title}</span>
                     <span className="task-chip-meta">{shortDate(t.expected_end_date!)} · {t.progress}%</span>
                   </button>
-                  <button className="task-chip-quick" onClick={() => onPlanToday(t.id)} title="安排到今天">＋今天</button>
+                  <button className="task-chip-quick" disabled={plannedToday.has(t.id)} onClick={() => onPlanToday(t.id)} title={plannedToday.has(t.id) ? '今天已安排' : '安排到今天'}>
+                    {plannedToday.has(t.id) ? '已安排' : '＋今天'}
+                  </button>
                 </li>
               ))}
             </ul>
