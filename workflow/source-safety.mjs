@@ -11,6 +11,9 @@ export function feishuFailureDetail({ stderr = '', code = null, timed_out = fals
   if (/本次导出未完成|会话读取失败/i.test(text)) {
     return '飞书导出包含未完成会话，本次不使用部分结果且不推进游标；可提高 FEISHU_CHAT_TIMEOUT_MS 或用 --limit-chats 定位异常会话'
   }
+  if (/连续 \d+ 个会话无法打开/i.test(text)) {
+    return '飞书会话切换连续失败，本次不使用部分结果且不推进游标；可重试导出，或用 --limit-chats 缩小范围定位异常会话'
+  }
   if (/未能进入飞书|登录态|cookies?/i.test(text)) {
     return `飞书登录态可能已失效，请重新导出浏览器 Cookies 到 ${cookiesPath}`
   }

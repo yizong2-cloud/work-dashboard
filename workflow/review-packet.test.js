@@ -131,6 +131,10 @@ test('Feishu collection failures explain recovery without exposing raw command n
     feishuFailureDetail({ stderr: '本次导出未完成：1 个会话读取失败；输出仅供诊断' }, '/tmp/cookies.json'),
     /不使用部分结果.*FEISHU_CHAT_TIMEOUT_MS/,
   )
+  assert.match(
+    feishuFailureDetail({ stderr: '连续 3 个会话无法打开（A:openfail, B:openfail, C:openfail）' }, '/tmp/cookies.json'),
+    /会话切换连续失败.*--limit-chats/,
+  )
 })
 
 test('partial Feishu chat failures are not accepted as a complete source', () => {
