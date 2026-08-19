@@ -116,6 +116,50 @@ test('update 可改非状态字段（描述/现状）', () => {
   assert.match(g.stdout, /补充说明/)
 })
 
+test('note 默认进展应即时推送，普通备注保持静默', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '通知策略任务')
+  const id = extractId(c.stdout)
+
+  const progress = run('note', id, '--content', '完成接口联调')
+  assert.ok(progress.ok, progress.stderr)
+  const dbAfterProgress = JSON.parse(fs.readFileSync(progress.dbFile, 'utf8'))
+  assert.equal(dbAfterProgress.updates.at(-1).type, 'progress')
+  assert.equal(dbAfterProgress.updates.at(-1).notify_mode, 'immediate')
+
+  const note = run('note', id, '--type', 'note', '--content', '补充一个背景说明')
+  assert.ok(note.ok, note.stderr)
+  const dbAfterNote = JSON.parse(fs.readFileSync(note.dbFile, 'utf8'))
+  assert.equal(dbAfterNote.updates.at(-1).type, 'note')
+  assert.equal(dbAfterNote.updates.at(-1).notify_mode, 'silent')
+})
+
+test('update current_status 视为进展即时推送，纯描述修改保持静默', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '现状通知任务')
+  const id = extractId(c.stdout)
+
+  const status = run('update', id, '--current_status', '已完成接口联调')
+  assert.ok(status.ok, status.stderr)
+  const dbAfterStatus = JSON.parse(fs.readFileSync(status.dbFile, 'utf8'))
+  assert.equal(dbAfterStatus.updates.at(-1).notify_mode, 'immediate')
+
+  const description = run('update', id, '--description', '补充任务背景')
+  assert.ok(description.ok, description.stderr)
+  const dbAfterDescription = JSON.parse(fs.readFileSync(description.dbFile, 'utf8'))
+  assert.equal(dbAfterDescription.updates.at(-1).notify_mode, 'silent')
+})
+
+test('历史补记永不推送，即使显式要求通知', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '历史补记任务')
+  const id = extractId(c.stdout)
+  const r = run('note', id, '--type', 'progress', '--content', '补记昨天进展', '--at', '2026-08-17', '--notify')
+  assert.ok(r.ok, r.stderr)
+  const db = JSON.parse(fs.readFileSync(r.dbFile, 'utf8'))
+  assert.equal(db.updates.at(-1).notify_mode, 'silent')
+})
+
 test('list --interrupt 裸参数可过滤临时任务', () => {
   const run = makeRunner()
   run('create', '--title', '普通任务')

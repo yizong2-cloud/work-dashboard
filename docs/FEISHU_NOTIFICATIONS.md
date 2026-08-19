@@ -13,7 +13,7 @@
         │                                        │
         ▼                                        ▼
 task_feedback_messages / threads        task_updates
-        │ 数据库触发器（after insert/update）        │ 触发器（progress 30 分钟内聚合）
+        │ 数据库触发器（after insert/update）        │ 触发器（按 notify_mode 分流）
         ▼                                        ▼
               notification_outbox（唯一事件源；幂等键 = 源记录 id）
         │
@@ -33,10 +33,11 @@ task_feedback_messages / threads        task_updates
 | `feedback_created` | Leader 在网站发起反馈（线程首条消息） | 「💬 发起了新反馈」+ 任务名 + 正文；按钮**查看反馈并回复** → `#/task/:id?thread=:thread` | 即时 |
 | `feedback_replied` | 负责人在线程下回复 | 回复摘要 + **原反馈摘要**（上下文完整）；按钮同上 | 即时 |
 | `feedback_resolved` | 线程被标记解决 / 重新打开 | 低噪音状态卡（绿/橙） | 即时 |
-| `task_update`（blocked/unblocked/completed/schedule_change/interrupt/urgent/deurgent/**progress 单条**） | 任务关键变化 + 普通进度 | 任务简报卡（**单条进度也秒推**，不再等窗口）；按钮**查看任务详情**（逾期任务变「去更新进度」） | 即时 |
+| `task_update`（blocked/unblocked/completed/schedule_change/interrupt/urgent/deurgent/**progress 单条**/`current_status` 实质变化） | 任务关键变化 + 普通进度 | 任务简报卡（**单条进度也秒推**，不再等窗口）；按钮**查看任务详情**（逾期任务变「去更新进度」） | 即时 |
 | `task_nudged` | Leader 点「催进度」（或 CLI `nudge`） | 橙色「⏰ 有人催进度了」卡 + 附言 | 即时 |
 | `task_update_progress`（**批量合并卡**） | Agent `batch` 命令 / `--merge 批号` 的批量进度 | 聚合摘要「任务进度更新（N 条）」，批末 `flush_merge` **立即投递**（不延迟；未 flush 由 cron 2 分钟兜底） | 批末即发 |
-| `note`（备注） | CLI `note`（默认 `silent`） | **不即时推送**，只写时间线、进 19:30 日报汇总；`--notify` 可强制即时 | 静默 |
+| `note`（备注） | CLI `note --type note` | **不即时推送**，只写时间线、进 19:30 日报汇总；`--notify` 可强制即时 | 静默 |
+| `note`（进展） | CLI `note` 默认类型或 `note --type progress` | 作为真实进展即时推送；批量进度应优先使用 `progress` 命令以获得合并卡 | 即时 |
 | 历史补记 | CLI `--at` 回填 | 只写时间线，**永不推送**（触发器忽略时间早于当前 10 分钟的记录） | 静默 |
 
 **推送意图由 Agent 显式声明**（`task_updates.notify_mode`）：`immediate` 秒推 / `merge` 同批合并 / `silent` 静默——不再用时间窗口猜测是否批量。
@@ -45,7 +46,7 @@ task_feedback_messages / threads        task_updates
 
 1. **数据库**（`supabase/schema.sql`，已执行）：
    - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）
-   - 三个触发器：`notify_task_update_trigger`（progress 聚合）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
+   - 三个触发器：`notify_task_update_trigger`（按 immediate/merge/silent 分流）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
    - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
 2. **Edge Function**（`supabase/functions/feishu-notify/`，已部署，卡片构建抽到 `cards.ts` 纯函数可单测）：
    - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
@@ -78,7 +79,7 @@ task_feedback_messages / threads        task_updates
 | 飞书没收到卡片 | ① 查 `notification_outbox` 是否有 pending/failed 行（没行 = 触发器/webhook 未触发）；② 查 Edge Function 日志（Dashboard → Edge Functions → feishu-notify → Logs）；③ 检查 webhook Header 与 Secret 是否一致 |
 | outbox 有 failed | 看 `last_error`；修复后执行 `select public.retry_failed_notifications();`（webhook 监听 UPDATE 会重新投递） |
 | 重复收到卡片 | 函数有幂等 claim，同一 outbox 行只会发一次；确认 webhook 没配成重复 |
-| Agent 批量更新刷屏 | 触发器会把 30 分钟内同一任务的 progress 聚合成一条（`task_update_progress`）；关键事件仍即时 |
+| Agent 批量更新刷屏 | 批量命令/`--merge` 显式合并成一条（`task_update_progress`）；普通单条进展即时，纯备注静默 |
 | 签名校验失败 | 确认 webhook Header `x-dashboard-secret` 与 Secret `DASHBOARD_WEBHOOK_SECRET` 一致 |
 
 ## 安全红线

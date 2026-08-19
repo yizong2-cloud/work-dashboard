@@ -95,6 +95,7 @@ npm run agent -- unblock <id> --note "素材已到位，恢复开发"
 # 完成 / 追加说明（--at 可回填历史时间，如 --at "2026-08-14T18:00:00"）
 npm run agent -- complete <id> --note "已发布上线，观察无异常"
 npm run agent -- note <id> --type interrupt --content "临时插入线上问题排查，占用约2小时" [--at "时间"]
+# note 默认按 progress 处理并即时推送；纯备注请显式使用 --type note（默认静默）
 
 # Leader 协作操作（同样触发飞书通知）
 npm run agent -- nudge <id> --note "这个周五前能完成吗？"   # 催进度（橙色飞书卡 + 时间线留痕）

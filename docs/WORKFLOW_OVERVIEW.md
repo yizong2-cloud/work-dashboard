@@ -84,7 +84,7 @@ npm run agent -- update <id> --title/desc/current_status/priority/start_date [--
 npm run agent -- schedule <id> --end YYYY-MM-DD [--note]   # 排期（old/new + 可带开始日期）
 npm run agent -- block <id> --reason / unblock      # 阻塞/解除
 npm run agent -- complete <id> [--note]              # 完成
-npm run agent -- note <id> --content ".." [--type][--at][--notify]   # 追加时间线（默认静默；--at 回填历史）
+npm run agent -- note <id> --content ".." [--type][--at][--notify]   # 默认按 progress 即时推送；--type note 纯备注默认静默；--at 回填历史
 npm run agent -- nudge <id> [--note]                 # Leader 催进度（飞书橙卡）
 npm run agent -- urgent/deurgent（经 update --priority）  # 加急/取消加急（红卡，即时）
 npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/批量/计划块/本地演示
@@ -123,7 +123,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | --- | --- | --- | --- |
 | immediate（默认/关键事件） | 单条 progress、status/block/complete/schedule、urgent/deurgent、nudge、反馈、排期 | 单条秒推 | 即时 |
 | merge | Agent `batch`/`--merge 批号` | 同批进度合并 1 条聚合卡，批末 `flush_merge` 立即投递 | 批末即发（兜底 cron 2 分钟） |
-| silent | CLI `note`/`update` 默认；`--at` 历史补记 | 只写时间线不推，进 19:30 日报 | 静默 |
+| silent | `note --type note`、标题/描述等普通 `update`；`--at` 历史补记 | 只写时间线不推，进 19:30 日报 | 静默 |
 
 - 触发器 `notify_task_update`：历史补记(created_at 早 10min) 静默；silent 静默；merge 合并；其余立即。
 - 队列：`notification_outbox`（pending/sending/sent/failed/skipped）→ pg_net → feishu-notify → 飞书群卡片。
@@ -206,7 +206,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——默认拒绝，需 --force）；② 高风险操作（create/complete/block/delete/schedule）必须带 reconciliation（全量对账证据）；③ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；④ 执行后写 `workflow/last-changeset.json` 可追溯。
 4. **第四数据源纳入 prepare**：白名单目录（Downloads/Desktop/Documents）扫描自分析游标以来的新文件，仅收集元数据（path/mtime/size/ext），输出到 `snapshot.sources.local_files`，不再靠人工记忆。
 5. **manifest/snapshot**：`update-context.json` 现含 `captured_at`、`snapshot_health`、`sources`（各源 ok/失败 + 计数 + 本地文件）。
-6. **通知**：关键事件即时、note/update 静默、批量 merge——由 CLI 命令类型内置默认 notify_mode 实现（已确认），未为改触发器引入回归风险。
+6. **通知**：真实进展与关键事件即时、纯 note 备注和普通字段编辑静默、批量显式 merge——由 CLI 命令类型内置默认 notify_mode 实现。
 7. **文档/schema 漂移修复**：cron 时间注释（工作日 11/15:30/19:30）、测试数口径、operation.schema.json 补 `urgent`。
 
 仍待办 / 需用户拍板：

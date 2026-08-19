@@ -34,6 +34,16 @@ const STATUSES = ['planned', 'in_progress', 'blocked', 'paused', 'completed', 'c
 const PRIORITIES = ['urgent', 'high', 'normal', 'low']
 const UPDATE_TYPES = ['progress', 'status_change', 'schedule_change', 'blocked', 'unblocked', 'interrupt', 'note', 'completed', 'urgent', 'nudge']
 
+/**
+ * 通知策略：进展类事件默认即时推送，纯备注默认静默；历史补记永不推送。
+ * --notify 只负责把当前事件显式升级为即时推送，不能突破历史补记规则。
+ */
+function noteNotifyMode({ type, at, notify }) {
+  if (at) return 'silent'
+  if (notify) return 'immediate'
+  return type === 'note' ? 'silent' : 'immediate'
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 /** 本地时区的今天（YYYY-MM-DD），避免 UTC 跨天问题 */
@@ -289,11 +299,12 @@ async function opUpdate(op) {
       content = op.note ? op.note : '取消加急。'
     }
   }
-  // update 只改非状态字段：普通字段更新（type=note）默认静默，避免与 progress/status
-  // 等进展通知重复刷屏；--notify 可强制即时。优先级变化（urgent/deurgent）是关键事件，保持即时。
+  // update 只改非状态字段：标题/描述等普通编辑默认静默；current_status 是进展信号，
+  // 优先级变化（urgent/deurgent）是关键事件，均即时推送；--notify 可显式升级通知。
   const task = await store.applyTaskUpdate(id, patch, {
     type, content, created_by: who,
-    notify_mode: type === 'note' && !op.notify ? 'silent' : 'immediate',
+    // 修改 current_status 就是进展信号；单纯标题/描述等编辑仍保持静默。
+    notify_mode: op.notify || patch.current_status !== undefined || type !== 'note' ? 'immediate' : 'silent',
   })
   human(`✅ 任务 ${id} 已更新（字段: ${changed}）`)
   human(renderTask(task))
@@ -374,8 +385,7 @@ async function opNote(op) {
     type,
     content,
     created_by: who,
-    // note 备注默认静默（只进日报，不即时推）；--notify 强制单条推送
-    notify_mode: op.notify ? 'immediate' : 'silent',
+    notify_mode: noteNotifyMode({ type, at, notify: op.notify }),
     ...(at ? { created_at: at } : {}),
   })
   human(`✅ 已记录 [${type}]${at ? ` @${at}` : ''}`)
@@ -551,8 +561,8 @@ function opHelp() {
   unblock <id> [--note]                         解除阻塞
   complete <id> [--note]                        标记完成（进度=100，记录实际完成日）
   note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"] [--notify]
-                                       追加时间线（默认静默只进日报，--notify 强制即时推送；
-                                       --at 回填历史时间）
+                                       追加时间线（默认按 progress 即时推送；--type note
+                                       纯备注默认静默；--at 回填历史时间）
   progress <id> --to 70 [--merge 批号] 更新进度（默认秒推；--merge 合并进指定批的聚合卡，
                                        由 batch 命令自动携带）
   nudge <id> [--note "附言"]           催进度（记录时间线 + 飞书通知任务负责人）
