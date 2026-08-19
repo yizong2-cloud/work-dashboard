@@ -79,6 +79,27 @@ function taskBrief(task) {
   }
 }
 
+function sourceHealth(ctx) {
+  const steps = new Map((ctx.steps || []).map((step) => [step.name, step]))
+  const source = (name, fallback = {}) => ({
+    ok: fallback.ok !== false,
+    count: fallback.count ?? null,
+    file: fallback.file ?? null,
+    detail: steps.get(name)?.detail || null,
+  })
+  return {
+    feishu: source('飞书增量导出', ctx.sources?.feishu),
+    codex: source('Codex 摘要', ctx.sources?.codex),
+    dsh: source('DSH 摘要', ctx.sources?.dsh),
+    local_files: {
+      ok: true,
+      count: Array.isArray(ctx.sources?.local_files) ? ctx.sources.local_files.length : 0,
+      file: null,
+      detail: steps.get('本地新文件')?.detail || null,
+    },
+  }
+}
+
 export function buildReviewItems(ctx) {
   const items = []
   const add = (item) => items.push({ ...item, raw_available: true })
@@ -152,6 +173,7 @@ export function buildReviewPacket(ctx) {
     snapshot_id: ctx.snapshot_id,
     captured_at: ctx.captured_at,
     snapshot_health: ctx.snapshot_health,
+    source_health: sourceHealth(ctx),
     review_contract: {
       required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',

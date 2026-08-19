@@ -24,8 +24,27 @@ test('review packet inventories every source while keeping excerpts compact', ()
   const packet = buildReviewPacket(context)
   assert.equal(packet.counts.total, 5)
   assert.deepEqual(packet.review_items.map((item) => item.source_id), ['codex:0', 'dsh:0', 'feishu:0', 'feishu:1', 'local:0'])
+  assert.equal(packet.source_health.feishu.ok, true)
+  assert.equal(packet.source_health.codex.count, null)
   assert.equal(packet.review_items[0].candidate_tasks[0], 'task-a')
   assert.ok(packet.review_items.every((item) => item.excerpt.length <= 420))
+})
+
+test('review packet exposes the failing source without opening raw snapshot', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    snapshot_health: 'degraded',
+    sources: {
+      ...context.sources,
+      feishu: { ok: false, file: null },
+      codex: { ok: true, count: 1 },
+      dsh: { ok: true, count: 0 },
+    },
+    steps: [{ name: '飞书增量导出', ok: false, detail: '登录态可能已过期' }],
+  })
+  assert.equal(packet.source_health.feishu.ok, false)
+  assert.equal(packet.source_health.feishu.detail, '登录态可能已过期')
+  assert.equal(packet.source_health.codex.count, 1)
 })
 
 test('reconciliation rejects omissions, duplicates, unknown sources, and incomplete mappings', () => {

@@ -12,6 +12,7 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 1. `cd /Users/zongyi/work-dashboard && npm run dashboard:prepare`
 2. 仅读 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
    - 审查包包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，及候选任务和短摘录。
+   - 先看 `snapshot_health` 与 `source_health`；若为 `degraded`，先识别具体失败来源，不要把缺失来源当作“本次没有工作”。
    - 不得直接读取或打印整个 `update-context.json`、完整飞书导出、会话列表或工具源码。
    - 某项含义不清才执行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开该证据。
 3. 对审查包中每个 `source_id` 给出唯一结论：`mapped`（需 `task_id`）、`irrelevant` 或 `needs_confirmation`。命中别名映射则更新既有任务，不新建；新事实先写知识库待确认区。
