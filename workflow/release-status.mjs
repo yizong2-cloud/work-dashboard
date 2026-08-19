@@ -15,11 +15,26 @@ function runSupabase(args) {
       timeout: 120000,
       maxBuffer: 8 * 1024 * 1024,
     })
-    return JSON.parse(stdout)
+    return parseCommandJson(stdout)
   } catch (error) {
     const detail = String(error.stderr || error.stdout || error.message || '').replace(/\s+/g, ' ').trim().slice(0, 300)
     throw new Error(`Supabase 只读检查失败：${detail}`)
   }
+}
+
+// Supabase CLI 可能把登录/连接提示写到 stdout；不能让这些提示污染本命令的 --json 输出。
+// 从完整输出中提取唯一可解析的 JSON 值，同时保留 CLI 失败时的原始错误摘要。
+export function parseCommandJson(output) {
+  const raw = String(output || '').trim()
+  try {
+    return JSON.parse(raw)
+  } catch {
+    for (let index = 0; index < raw.length; index += 1) {
+      if (raw[index] !== '{' && raw[index] !== '[') continue
+      try { return JSON.parse(raw.slice(index)) } catch { /* 继续寻找 JSON 起点 */ }
+    }
+  }
+  throw new Error('Supabase 返回内容中未找到合法 JSON')
 }
 
 export function compareMigrations(entries) {
