@@ -22,6 +22,14 @@ const LABEL = 'com.zongyi.workdashboard.prepare'
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LABEL}.plist`)
 const LOG_OUT = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.out.log')
 const LOG_ERR = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.err.log')
+const PROPAGATED_ENV = [
+  'WORKBOARD_FEISHU_BIN',
+  'WORKBOARD_FEISHU_COOKIES',
+  'WORKBOARD_FEISHU_OUTPUT_DIR',
+  'WORKBOARD_FEISHU_TIMEOUT_MS',
+  'FEISHU_BASE_URL',
+  'FEISHU_CHROME_PATH',
+]
 
 // 定时计划：工作日（周一=1 … 周五=5），每天 11:00 / 15:30 / 19:30
 const SCHEDULE = [
@@ -51,6 +59,22 @@ function sh(cmd, args) {
   }
 }
 
+function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function propagatedEnvironmentXml(env = process.env) {
+  return PROPAGATED_ENV
+    .filter((key) => env[key])
+    .map((key) => `    <key>${key}</key><string>${xmlEscape(env[key])}</string>`)
+    .join('\n')
+}
+
 function plistXml() {
   const intervals = SCHEDULE.map(
     (s) => `    <dict>
@@ -78,6 +102,7 @@ ${intervals}
   <dict>
     <key>HOME</key><string>${HOME}</string>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+${propagatedEnvironmentXml()}
   </dict>
   <key>StandardOutPath</key><string>${LOG_OUT}</string>
   <key>StandardErrorPath</key><string>${LOG_ERR}</string>
@@ -114,5 +139,9 @@ function uninstall() {
 }
 
 const cmd = process.argv[2]
-if (cmd === 'uninstall') uninstall()
-else install()
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (cmd === 'uninstall') uninstall()
+  else install()
+}
+
+export { plistXml, propagatedEnvironmentXml }
