@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatNotificationStatus, summarizeOutbox } from '../workflow/notification-status.mjs'
+import { attentionAction, formatNotificationStatus, summarizeOutbox } from '../workflow/notification-status.mjs'
 
 test('outbox 摘要识别 failed，并只暴露截断后的错误', () => {
   const summary = summarizeOutbox([
@@ -11,7 +11,14 @@ test('outbox 摘要识别 failed，并只暴露截断后的错误', () => {
   assert.equal(summary.health, 'degraded')
   assert.deepEqual(summary.counts, { pending: 1, sending: 0, failed: 1, sent: 1, skipped: 0, unknown: 0 })
   assert.equal(summary.attention[0].last_error, 'Bearer [REDACTED] 超时')
+  assert.match(summary.attention[0].action, /可重试/)
   assert.match(formatNotificationStatus(summary), /failed task_update/)
+})
+
+test('outbox 诊断区分永久错误、可重试错误和重试上限', () => {
+  assert.match(attentionAction({ status: 'failed', attempts: 2, last_error: 'Task not found: x' }), /无需重试/)
+  assert.match(attentionAction({ status: 'failed', attempts: 2, last_error: 'too many request' }), /可重试/)
+  assert.match(attentionAction({ status: 'failed', attempts: 5, last_error: 'network error' }), /重试上限/)
 })
 
 test('没有待处理事件时 outbox 状态为 ok', () => {

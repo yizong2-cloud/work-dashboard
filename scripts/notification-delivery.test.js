@@ -6,6 +6,7 @@ test('永久性数据错误转为 skipped，不进入自动重试', () => {
   assert.equal(classifyDeliveryFailure('Task not found: abc'), 'skip')
   assert.equal(classifyDeliveryFailure('Thread not found: xyz'), 'skip')
   assert.equal(classifyDeliveryFailure('Event has no task_id'), 'skip')
+  assert.equal(classifyDeliveryFailure('Unsupported event type: legacy'), 'skip')
 })
 
 test('频控和网络错误保留为 retry', () => {

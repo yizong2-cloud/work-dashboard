@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { redactSensitiveText } from './redaction.mjs'
+import { classifyDeliveryFailure } from '../supabase/functions/feishu-notify/delivery-classification.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ENV_FILE = path.join(ROOT, '.env')
@@ -31,6 +32,15 @@ function shortError(value) {
   return redactSensitiveText(String(value || '')).replace(/\s+/g, ' ').trim().slice(0, 180)
 }
 
+export function attentionAction(row) {
+  if (row?.status === 'pending') return '等待自动投递'
+  if (row?.status === 'sending') return '投递中；若持续超过 10 分钟需检查'
+  if (row?.status !== 'failed') return null
+  if (classifyDeliveryFailure(row.last_error) === 'skip') return '无需重试：永久性数据错误，建议标记 skipped'
+  if (Number(row.attempts || 0) >= 5) return '已达重试上限，需人工处理'
+  return '可重试：等待退避并检查外部限流/网络'
+}
+
 export function summarizeOutbox(rows, now = new Date()) {
   const counts = { pending: 0, sending: 0, failed: 0, sent: 0, skipped: 0, unknown: 0 }
   for (const row of rows || []) {
@@ -48,6 +58,7 @@ export function summarizeOutbox(rows, now = new Date()) {
       attempts: Number(row.attempts || 0),
       age_hours: ageHours(row.updated_at || row.created_at, now),
       last_error: shortError(row.last_error),
+      action: attentionAction(row),
     }))
   return {
     health: counts.failed > 0 ? 'degraded' : counts.pending + counts.sending > 0 ? 'pending' : 'ok',
@@ -78,7 +89,7 @@ export function formatNotificationStatus(summary) {
   lines.push('需关注：')
   for (const row of summary.attention) {
     const error = row.last_error ? ` · ${row.last_error}` : ''
-    lines.push(`- ${row.status} ${row.event_type || 'unknown'} · ${ageText(row.age_hours)} · 尝试 ${row.attempts}${error}`)
+    lines.push(`- ${row.status} ${row.event_type || 'unknown'} · ${ageText(row.age_hours)} · 尝试 ${row.attempts} · ${row.action || '无需处理'}${error}`)
   }
   return lines.join('\n')
 }
