@@ -16,7 +16,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { buildReviewPacket } from './review-packet.mjs'
 import { redactSensitiveValue } from './redaction.mjs'
-import { feishuFailureDetail, feishuSnapshot } from './source-safety.mjs'
+import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = os.homedir()
@@ -223,23 +223,25 @@ function main() {
   const feishuRes = fs.existsSync(FEISHU_COOKIES)
     ? run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS)
     : { ok: false, stdout: '', stderr: 'cookies.json 不存在', code: 'MISSING_COOKIES', timed_out: false }
+  const feishuIncomplete = feishuRes.ok && feishuOutputIncomplete(feishuRes.stdout)
+  const feishuOk = feishuRes.ok && !feishuIncomplete
   // A successful command that produced no new file is still an empty source;
   // never reuse the previous range export as if it were current evidence.
-  const freshFeishuFile = feishuRes.ok ? latestFile(DAILY_DIR, /^range_.*\.md$/, feishuStartedAt - 2000) : null
+  const freshFeishuFile = feishuOk ? latestFile(DAILY_DIR, /^range_.*\.md$/, feishuStartedAt - 2000) : null
   let feishuFile = freshFeishuFile
   let feishuText = ''
-  if (feishuRes.ok && feishuFile) {
+  if (feishuOk && feishuFile) {
     try {
       feishuText = fs.readFileSync(path.join(DAILY_DIR, feishuFile), 'utf8').slice(0, 30000)
     } catch {
       feishuText = '（飞书增量文件读取失败）'
     }
   }
-  ;({ file: feishuFile, content: feishuText } = feishuSnapshot({ ok: feishuRes.ok, file: feishuFile, content: feishuText }))
+  ;({ file: feishuFile, content: feishuText } = feishuSnapshot({ ok: feishuOk, file: feishuFile, content: feishuText }))
   steps.push({
     name: '飞书增量导出',
-    ok: feishuRes.ok,
-    detail: feishuRes.ok ? summarizeStep(feishuRes.stdout) || `文件 ${feishuFile}` : feishuFailureDetail(feishuRes, FEISHU_COOKIES),
+    ok: feishuOk,
+    detail: feishuOk ? summarizeStep(feishuRes.stdout) || `文件 ${feishuFile}` : feishuFailureDetail({ ...feishuRes, incomplete: feishuIncomplete }, FEISHU_COOKIES),
     file: feishuFile,
   })
 
@@ -298,7 +300,6 @@ function main() {
   steps.push({ name: '本地新文件', ok: true, detail: `${localFiles.length} 个候选（自分析游标以来，元数据）` })
 
   // ---- 快照健康：任一关键源失败即 degraded（apply 默认拒绝对接快照）----
-  const feishuOk = feishuRes.ok
   const codexOk = !codexRes || codexRes.ok
   const dshOk = !dshRes || dshRes.ok
   const snapshot_health = feishuOk && codexOk && dshOk ? 'ok' : 'degraded'

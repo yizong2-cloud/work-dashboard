@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildReviewPacket, compactExcerpt, getEvidence, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { redactSensitiveText } from './redaction.mjs'
-import { feishuFailureDetail, feishuSnapshot } from './source-safety.mjs'
+import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
 const context = {
   snapshot_id: 'snapshot-1',
@@ -123,6 +123,15 @@ test('Feishu collection failures explain recovery without exposing raw command n
   )
   assert.match(feishuFailureDetail({ code: 'ETIMEDOUT', timed_out: true }, '/tmp/cookies.json'), /导出超时/)
   assert.match(feishuFailureDetail({ stderr: 'network unavailable' }, '/tmp/cookies.json'), /network unavailable/)
+})
+
+test('partial Feishu chat failures are not accepted as a complete source', () => {
+  assert.equal(feishuOutputIncomplete('  [1/1] AI技术讨论: 跳过(openfail)'), true)
+  assert.equal(feishuOutputIncomplete('完成：2 个会话、18 条消息'), false)
+  assert.match(
+    feishuFailureDetail({ incomplete: true }, '/tmp/cookies.json'),
+    /不使用部分结果.*Cookies/,
+  )
 })
 
 test('compact excerpts remove image-only noise and retain actionable text', () => {
