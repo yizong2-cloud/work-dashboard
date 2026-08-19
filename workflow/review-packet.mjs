@@ -85,6 +85,21 @@ export function mergeSessionRows(summaryRows, detailRows) {
   return merged
 }
 
+export function buildCoverage(ctx, items) {
+  const expected = {
+    codex: mergeSessionRows(ctx.codex, ctx.codex_detail).length,
+    dsh: mergeSessionRows(ctx.dsh, ctx.dsh_detail).length,
+    feishu: splitFeishuGroups(ctx.feishu?.content).length,
+    local: Array.isArray(ctx.sources?.local_files) ? ctx.sources.local_files.length : 0,
+  }
+  const actual = Object.fromEntries(['codex', 'dsh', 'feishu', 'local'].map((source) => [
+    source,
+    (items || []).filter((item) => item.source === source).length,
+  ]))
+  const gaps = Object.keys(expected).filter((source) => expected[source] !== actual[source])
+  return { expected, actual, complete: gaps.length === 0, gaps }
+}
+
 export function splitFeishuGroups(text) {
   const headings = [...String(text || '').matchAll(/^##\s+(.+)$/gm)]
   return headings.map((match, index) => {
@@ -204,6 +219,7 @@ export function buildReviewPacket(ctx) {
       required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
     },
+    coverage: buildCoverage(ctx, items),
     counts: { total: items.length, by_source: bySource, high_priority: items.filter((item) => item.review_priority === 'high').length },
     risks: {
       unmapped_cwd: ctx.candidates?.unmapped_cwd || [],

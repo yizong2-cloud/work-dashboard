@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReviewPacket, compactExcerpt, getEvidence, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { buildCoverage, buildReviewPacket, compactExcerpt, getEvidence, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { redactSensitiveText } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
@@ -26,8 +26,20 @@ test('review packet inventories every source while keeping excerpts compact', ()
   assert.deepEqual(packet.review_items.map((item) => item.source_id), ['codex:0', 'dsh:0', 'feishu:0', 'feishu:1', 'local:0'])
   assert.equal(packet.source_health.feishu.ok, true)
   assert.equal(packet.source_health.codex.count, null)
+  assert.equal(packet.coverage.complete, true)
   assert.equal(packet.review_items[0].candidate_tasks[0], 'task-a')
   assert.ok(packet.review_items.every((item) => item.excerpt.length <= 420))
+})
+
+test('coverage reports a missing source row instead of silently passing', () => {
+  const coverage = buildCoverage({
+    codex: [{ file: '/repo/a' }],
+    dsh: [],
+    feishu: { content: '' },
+    sources: { local_files: [] },
+  }, [{ source: 'dsh', source_id: 'dsh:0' }])
+  assert.equal(coverage.complete, false)
+  assert.deepEqual(coverage.gaps.sort(), ['codex', 'dsh'])
 })
 
 test('review packet covers all summary sessions while enriching matching detail rows', () => {

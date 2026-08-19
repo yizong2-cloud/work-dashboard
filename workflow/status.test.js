@@ -20,6 +20,18 @@ test('status 在 degraded 快照时指出失败来源和恢复动作', () => {
   assert.match(formatStatus(status), /飞书/)
 })
 
+test('status blocks an incomplete review index even when source health is ok', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-gap', captured_at: '2026-08-20T00:00:00Z', snapshot_health: 'ok',
+      coverage: { complete: false, gaps: ['codex'] }, counts: { total: 1, high_priority: 1 },
+    },
+    changeset: { snapshot_id: 'snap-gap', all_ok: true },
+  })
+  assert.match(status.next_action, /审查索引不完整/)
+  assert.match(formatStatus(status), /缺口：codex/)
+})
+
 test('status 不虚构不存在的快照', () => {
   const status = buildStatus({ packet: null, analysisState: null, changeset: null })
   assert.equal(status.snapshot_health, 'missing')
