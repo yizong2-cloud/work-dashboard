@@ -3606,6 +3606,18 @@ h3,
   margin-bottom: 16px;
 }
 
+.decision-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.decision-refresh-meta {
+  color: var(--muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
 .decision-title-group {
   flex: 1;
 }
@@ -4843,6 +4855,12 @@ h3,
     flex-direction: column;
     align-items: stretch;
   }
+  .decision-header-actions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+    gap: 4px;
+  }
+  .decision-refresh-meta { font-size: 0.68rem; }
   .confirmation-toggle-row {
     grid-template-columns: 1fr;
   }

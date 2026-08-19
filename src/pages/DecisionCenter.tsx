@@ -23,6 +23,7 @@ export function DecisionCenter() {
   const [loading, setLoading] = useState(true)
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [exportModalForm, setExportModalForm] = useState<DecisionFormDetail | null>(null)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
 
   const db = getDB()
   const service = createDecisionService(db)
@@ -32,6 +33,7 @@ export function DecisionCenter() {
     try {
       const list = await service.listForms(true)
       setForms(list)
+      setLastRefreshedAt(new Date())
     } catch (err) {
       console.error('加载决策表单失败:', err)
     } finally {
@@ -41,6 +43,15 @@ export function DecisionCenter() {
 
   useEffect(() => {
     loadForms()
+  }, [loadForms])
+
+  // 收件箱不依赖 Realtime：页面可见时低频刷新，避免提交者完成后 Leader
+  // 还要猜测是否需要手动刷新；切到后台则暂停，保持请求成本克制。
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!document.hidden) loadForms()
+    }, 60_000)
+    return () => window.clearInterval(timer)
   }, [loadForms])
 
   const filteredForms = forms.filter((f) => {
@@ -94,6 +105,11 @@ export function DecisionCenter() {
             </p>
           </div>
           <div className="decision-header-actions">
+            <span className="decision-refresh-meta" aria-live="polite">
+              {lastRefreshedAt
+                ? `更新于 ${lastRefreshedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+                : '正在同步'}
+            </span>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
