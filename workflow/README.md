@@ -10,6 +10,7 @@
 | 命令 | 作用 |
 | --- | --- |
 | `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。飞书 Cookies 缺失/失效会明确提示且不复用旧数据。**可无人值守** |
+| `npm run dashboard:status [-- --json]` | 只读查看最近快照、四个来源、审查游标和 apply 匹配状态；不展开原始快照、不写数据库。 |
 | `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开一条原始会话/飞书群/本地文件元数据。 |
 | `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |

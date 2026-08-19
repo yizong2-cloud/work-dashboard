@@ -85,7 +85,7 @@ function sourceHealth(ctx) {
     ok: fallback.ok !== false,
     count: fallback.count ?? null,
     file: fallback.file ?? null,
-    detail: steps.get(name)?.detail || null,
+    detail: steps.get(name)?.detail ? redactSensitiveText(steps.get(name).detail).slice(0, 240) : null,
   })
   return {
     feishu: source('飞书增量导出', ctx.sources?.feishu),
@@ -95,7 +95,7 @@ function sourceHealth(ctx) {
       ok: true,
       count: Array.isArray(ctx.sources?.local_files) ? ctx.sources.local_files.length : 0,
       file: null,
-      detail: steps.get('本地新文件')?.detail || null,
+      detail: steps.get('本地新文件')?.detail ? redactSensitiveText(steps.get('本地新文件').detail).slice(0, 240) : null,
     },
   }
 }
