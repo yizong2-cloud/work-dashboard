@@ -22,11 +22,33 @@ import type {
   Task,
   TaskUpdate,
 } from '../types'
+import { summarizeFeedbackThreads } from './feedbackSummary'
 
 const TASKS = 'tasks'
 const UPDATES = 'task_updates'
 
 export function createSupabaseDB(client: SupabaseClient): DB {
+  async function enrichFeedbackThreads(rows: Array<Record<string, unknown>>): Promise<FeedbackThread[]> {
+    const ids = rows.map((row) => String(row.id)).filter(Boolean)
+    let messages: FeedbackMessage[] = []
+    if (ids.length > 0) {
+      const { data, error } = await client
+        .from('task_feedback_messages')
+        .select('*')
+        .in('thread_id', ids)
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      messages = (data ?? []) as FeedbackMessage[]
+    }
+    return summarizeFeedbackThreads(rows.map((row) => ({
+      ...row,
+      id: String(row.id),
+      task_feedback_messages: Array.isArray(row.task_feedback_messages)
+        ? row.task_feedback_messages as Array<{ count?: number }>
+        : undefined,
+    })), messages)
+  }
+
   return {
     mode: 'supabase',
 
@@ -127,10 +149,7 @@ export function createSupabaseDB(client: SupabaseClient): DB {
         .eq('task_id', taskId)
         .order('updated_at', { ascending: false })
       if (error) throw new Error(error.message)
-      return (data ?? []).map((t) => ({
-        ...t,
-        message_count: t.task_feedback_messages?.[0]?.count ?? 0,
-      })) as FeedbackThread[]
+      return enrichFeedbackThreads((data ?? []) as Array<Record<string, unknown>>)
     },
 
     async listAllFeedbackThreads() {
@@ -140,7 +159,7 @@ export function createSupabaseDB(client: SupabaseClient): DB {
         .order('updated_at', { ascending: false })
         .limit(200)
       if (error) throw new Error(error.message)
-      return (data ?? []) as FeedbackThread[]
+      return enrichFeedbackThreads((data ?? []) as Array<Record<string, unknown>>)
     },
 
     async listFeedbackMessages(threadId) {

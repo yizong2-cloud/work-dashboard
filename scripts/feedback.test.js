@@ -14,6 +14,7 @@ import {
   validateFeedbackRole,
 } from '../src/lib/feedbackRules.ts'
 import { COMMENT_PREFIX, commentBody, encodeComment, isComment } from '../src/lib/comments.ts'
+import { summarizeFeedbackThreads } from '../src/lib/feedbackSummary.ts'
 
 test('validateFeedbackBody：空/空白/超长被拒，合法通过', () => {
   assert.equal(validateFeedbackBody(''), '内容不能为空')
@@ -57,4 +58,19 @@ test('历史留言兼容：💬 前缀 note 识别与剥离（旧版本数据不
   assert.equal(isComment({ type: 'progress', content: '💬 x' }), false)
   // 普通 note 不带前缀不是留言
   assert.equal(isComment({ type: 'note', content: '普通进展' }), false)
+})
+
+test('反馈摘要：列表同时带最新正文、作者和消息数', () => {
+  const rows = [{
+    id: 'thread-1', task_id: 'task-1', status: 'open', created_at: '2026-08-20T01:00:00Z',
+    created_by: 'Leader', updated_at: '2026-08-20T01:02:00Z', task_feedback_messages: [{ count: 2 }],
+  }]
+  const messages = [
+    { id: 'm1', thread_id: 'thread-1', body: '第一条', author_name: 'Leader', author_role: 'leader', created_at: '2026-08-20T01:01:00Z' },
+    { id: 'm2', thread_id: 'thread-1', body: '请改到周五', author_name: 'Leader', author_role: 'leader', created_at: '2026-08-20T01:02:00Z' },
+  ]
+  const [summary] = summarizeFeedbackThreads(rows, messages)
+  assert.equal(summary.latest_message, '请改到周五')
+  assert.equal(summary.latest_author, 'Leader')
+  assert.equal(summary.message_count, 2)
 })
