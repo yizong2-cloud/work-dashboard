@@ -1,5 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
@@ -59,6 +62,15 @@ test('Feishu paths can be overridden without changing the default layout', () =>
     cookies: '/tmp/workboard-home/private/cookies.json',
     output: '/tmp/workboard-home/exports',
   })
+})
+
+test('installed maintained exporter wins over the legacy copy', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-feishu-'))
+  const maintainedBin = path.join(home, 'feishu-export-public', 'bin')
+  fs.mkdirSync(maintainedBin, { recursive: true })
+  fs.writeFileSync(path.join(maintainedBin, 'feishu-export'), '#!/bin/sh\n')
+  assert.equal(resolveFeishuPaths(home, {}).bin, path.join(home, 'feishu-export-public', 'bin', 'feishu-export'))
+  fs.rmSync(home, { recursive: true, force: true })
 })
 
 test('prepare passes overridden Cookie and output paths to any exporter', () => {

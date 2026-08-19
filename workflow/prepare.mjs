@@ -26,8 +26,12 @@ function expandHome(value, home) {
 
 export function resolveFeishuPaths(home = os.homedir(), env = process.env) {
   const base = path.join(home, 'feishu_export')
+  const maintained = path.join(home, 'feishu-export-public', 'bin', 'feishu-export')
+  const defaultBin = fs.existsSync(maintained) ? maintained : path.join(base, 'bin', 'feishu-export')
   return {
-    bin: expandHome(env.WORKBOARD_FEISHU_BIN || path.join(base, 'bin', 'feishu-export'), home),
+    // Prefer the maintained/public exporter when it is installed locally. Keep
+    // the legacy copy as a fallback so existing machines continue to work.
+    bin: expandHome(env.WORKBOARD_FEISHU_BIN || defaultBin, home),
     cookies: expandHome(env.WORKBOARD_FEISHU_COOKIES || path.join(base, 'cookies.json'), home),
     output: expandHome(env.WORKBOARD_FEISHU_OUTPUT_DIR || path.join(base, 'daily'), home),
   }
