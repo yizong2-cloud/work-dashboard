@@ -68,7 +68,7 @@ task_feedback_messages / threads        task_updates
 - 群投递目标（函数 URL + `x-dashboard-secret`）存在 `public.webhook_endpoint` 表（RLS 禁止 anon 读取），
   值在部署时写入，不落仓库；**与函数 Secrets `DASHBOARD_WEBHOOK_SECRET` 保持一致**。
 - 更换 secret：重新生成 → `supabase secrets set DASHBOARD_WEBHOOK_SECRET=<新值>` → `update public.webhook_endpoint set secret='<新值>' where id=1`。
-- 个人机器人配置为 Edge Function Secrets：`FEISHU_PERSONAL_BOT_WEBHOOK_URL`、`FEISHU_PERSONAL_BOT_SIGNING_SECRET`。二者只供 `decision_response_submitted` 使用，缺失时不回退群机器人。
+- 个人机器人配置为 Edge Function Secrets：`FEISHU_PERSONAL_BOT_WEBHOOK_URL`、`FEISHU_PERSONAL_BOT_SIGNING_SECRET`。二者只供 `decision_response_submitted` 使用；任一缺失都会失败入队，不回退群机器人，也不发送无签名请求。
 
 ## 端到端验证清单
 

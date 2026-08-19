@@ -184,6 +184,9 @@ async function sendFeishu(card: Record<string, unknown>, audience: NotificationA
     const signingSecret = audience === 'personal'
       ? Deno.env.get('FEISHU_PERSONAL_BOT_SIGNING_SECRET')
       : Deno.env.get('FEISHU_BOT_SIGNING_SECRET')
+    if (audience === 'personal' && !signingSecret) {
+      throw new Error('FEISHU_PERSONAL_BOT_SIGNING_SECRET is not configured')
+    }
     if (signingSecret) {
       const timestamp = Math.floor(Date.now() / 1000).toString()
       payload.timestamp = timestamp
