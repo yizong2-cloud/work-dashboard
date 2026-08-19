@@ -30,7 +30,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "enum": ["create", "progress", "status", "update", "schedule", "block", "unblock", "complete", "note", "delete"]
+          "enum": ["create", "progress", "status", "update", "schedule", "block", "unblock", "complete", "note"]
         },
         "id": { "type": "string", "description": "任务 id（除 create 外必填）" },
         "title": { "type": "string", "description": "create: 任务名称（必填）" },

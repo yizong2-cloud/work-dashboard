@@ -36,7 +36,6 @@ const OP_RULES = {
   unblock: ['id'],
   complete: ['id'],
   note: ['id', 'content'],
-  delete: ['id'],
 }
 const VALID_STATUS = ['planned', 'in_progress', 'blocked', 'paused', 'completed', 'cancelled']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -124,11 +123,6 @@ function main() {
     console.error('❌ 校验失败:')
     for (const e of errors) console.error(`  - ${e}`)
     process.exit(1)
-  }
-
-  // ---- 2.5) delete 技术闸门：铁律「delete 必须用户明确要求」→ 需 --force ----
-  if (ops.some((op) => op.op === 'delete') && !args.force) {
-    fail('包含 delete 操作：按铁律需用户明确要求，apply 要求 --force 显式确认。')
   }
 
   // ---- 3) 预条件：引用的任务必须存在（真实可用的预检）----

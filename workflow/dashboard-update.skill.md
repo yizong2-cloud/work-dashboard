@@ -35,4 +35,5 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 - 所有变更自动生成时间线（原子写入）；排期调整记录 old→new 与原因。
 - `SUPABASE_SERVICE_ROLE_KEY` 只在本地 `.env`，绝不写入代码/文档/前端。
 - 不执行 `delete` 除非用户明确要求。
+- 自动化 `apply` 不接受 `delete`；即使需要删除，也必须由用户单独执行手动删除命令。
 - `snapshot_health=degraded` 时默认不 apply；不要用 `--force` 跳过全量对账。
