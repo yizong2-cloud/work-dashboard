@@ -38,6 +38,16 @@ test('缺少线上函数时明确报告，而不是假装已发布', () => {
   assert.match(formatReleaseStatus(status), /线上未找到/)
 })
 
+test('线上函数健康时下一步不制造虚假阻塞，并显示版本', () => {
+  const status = buildReleaseStatus({
+    migrations: [{ local: '0001', remote: '0001' }],
+    functions: [{ slug: 'feishu-notify', status: 'ACTIVE', version: 14 }],
+  })
+  assert.equal(status.healthy, true)
+  assert.match(status.next_action, /已 ACTIVE.*version 14/)
+  assert.match(formatReleaseStatus(status), /已 ACTIVE.*version 14/)
+})
+
 test('release-status --json 不把 Supabase CLI 的 stderr 进度日志混入结果', () => {
   const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-release-status-'))
   const fakeNpx = path.join(binDir, 'npx')

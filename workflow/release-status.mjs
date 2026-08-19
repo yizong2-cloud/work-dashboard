@@ -68,7 +68,7 @@ export function buildReleaseStatus({ migrations, functions }) {
       ? `先部署待应用迁移：${migrationStatus.pending.join(', ')}`
       : functionStatus?.status !== 'ACTIVE'
         ? '检查 feishu-notify 的线上状态，再决定是否重新部署'
-        : '迁移均已应用；Edge Function 版本仍需按发布记录核对',
+        : `迁移均已应用；feishu-notify 已 ACTIVE（线上 version ${functionStatus.version ?? '未知'}）`,
   }
 }
 
