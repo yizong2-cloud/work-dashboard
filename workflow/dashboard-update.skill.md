@@ -10,14 +10,13 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 ## 流程
 
 1. `cd /Users/zongyi/work-dashboard && npm run dashboard:prepare`
-2. 仅读 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
+2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，立即报告 JSON 中的 `next_action` 并停止；此时不要把知识库或审查条目加载进上下文。
+3. 仅在预检通过后读取 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
    - 审查包包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，及候选任务和短摘录。
-   - 在解释任何条目之前，先看 `snapshot_health`、`source_health` 与 `coverage.complete`。
-   - 若快照为 `degraded` 或覆盖率不完整，先停在闸门处：报告失败来源/缺口与恢复动作，不进入逐项对账或 apply；不要把缺失来源当作“本次没有工作”。
    - 不得直接读取或打印整个 `update-context.json`、完整飞书导出、会话列表或工具源码。
    - 某项含义不清才执行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开该证据。
-3. 仅在健康与覆盖率闸门通过后，对审查包中每个 `source_id` 给出唯一结论：`mapped`（需 `task_id`）、`irrelevant` 或 `needs_confirmation`。命中别名映射则更新既有任务，不新建；新事实先写知识库待确认区。
-4. 写 `workflow/ops.json`：
+4. 对审查包中每个 `source_id` 给出唯一结论：`mapped`（需 `task_id`）、`irrelevant` 或 `needs_confirmation`。命中别名映射则更新既有任务，不新建；新事实先写知识库待确认区。
+5. 写 `workflow/ops.json`：
    ```json
    {
      "snapshot_id": "<review-packet 的 snapshot_id>",
@@ -26,11 +25,11 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
    }
    ```
    `ops` 有变更时写操作；没有变更时保持空数组，仍表示本快照已完整审查。
-5. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
+6. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
    - apply 会拒绝遗漏、重复、旧快照或未知 source_id 的对账；无变更会写审查结案，不改任务数据，verify 仍可安全推进游标。
    - `snapshot_health=degraded` 或 `coverage.complete=false` 时不要 apply，也不要用 `--force` 绕过；先修复采集或重新 prepare。
-6. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
-7. 汇报使用 `dashboard:apply` 输出的对账摘要（总数/已映射/无关/待确认）；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
+7. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
+8. 汇报使用 `dashboard:apply` 输出的对账摘要（总数/已映射/无关/待确认）；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
 
 ## 红线
 
