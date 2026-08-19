@@ -44,7 +44,7 @@ function dayStamp(offsetDays) {
   return d.toISOString().slice(0, 10)
 }
 
-function collectFiles() {
+function collectFiles(minMtime = 0) {
   const files = []
   if (!fs.existsSync(SESSIONS_ROOT)) return files
   for (const grp of fs.readdirSync(SESSIONS_ROOT)) {
@@ -54,7 +54,12 @@ function collectFiles() {
       const sp = path.join(gp, sid)
       if (!fs.statSync(sp).isDirectory()) continue
       const f = path.join(sp, 'session.jsonl.zstd')
-      if (fs.existsSync(f)) files.push(f)
+      if (!fs.existsSync(f)) continue
+      try {
+        if (fs.statSync(f).mtimeMs >= minMtime) files.push(f)
+      } catch {
+        // 文件可能在扫描期间被清理，忽略
+      }
     }
   }
   return files
@@ -169,7 +174,11 @@ const since = args.all ? '0000-01-01' : args.sinceTime ? args.sinceTime.slice(0,
 const sinceMs = args.sinceTime ? new Date(args.sinceTime).getTime() : 0
 console.error(`[dsh-summary] 扫描 ${since} 之后的 DSH 会话…`)
 
-const files = collectFiles()
+// 先按文件 mtime 缩小候选集，再解压 JSONL；保留一天缓冲以覆盖跨午夜续写的长会话。
+const windowStartMs = args.all
+  ? 0
+  : new Date(`${since.slice(0, 10)}T00:00:00Z`).getTime() - 86400000
+const files = collectFiles(windowStartMs)
 let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
