@@ -65,9 +65,18 @@ function collectFiles(minMtime = 0) {
   return files
 }
 
+// DSH 有时把系统注入拼在用户消息后面（而不是单独事件），例如完整的
+// <system-reminder> 技能清单。先剥离已知系统块，再判断剩余文本，避免把
+// skill 说明当成工作事实喂给审查包。
+const SYSTEM_BLOCK_RE = /<(?:system-reminder|app-context|environment_context|skills_instructions|recommended_plugins)\b[^>]*>[\s\S]*?<\/(?:system-reminder|app-context|environment_context|skills_instructions|recommended_plugins)\s*>/gi
+
+export function stripSystemBlocks(text) {
+  return String(text || '').replace(SYSTEM_BLOCK_RE, '').trim()
+}
+
 // 过滤系统注入/工具通知，保留用户真实请求
 function isSystemText(text) {
-  const t = String(text).trim()
+  const t = stripSystemBlocks(text)
   if (!t) return true
   if (t.startsWith('Current runtime context')) return true
   if (t.startsWith('background job ') || t.startsWith('Background subagent')) return true
@@ -119,8 +128,9 @@ function summarizeSession(file) {
       for (const c of e.data?.content || []) {
         if (c.type !== 'text') continue
         const text = c.text || ''
-        if (!isSystemText(text)) {
-          userMsgs.push(text.trim().slice(0, 4000))
+        const cleaned = stripSystemBlocks(text)
+        if (!isSystemText(cleaned)) {
+          userMsgs.push(cleaned.slice(0, 4000))
           break
         }
       }
