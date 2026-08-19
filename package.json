@@ -18,6 +18,7 @@
     "decision": "node --experimental-strip-types scripts/decision.js",
     "decision:validate": "node --experimental-strip-types scripts/decision.js validate",
     "decision:create": "node --experimental-strip-types scripts/decision.js create",
+    "decision:publish": "node --experimental-strip-types scripts/decision.js publish",
     "decision:export": "node --experimental-strip-types scripts/decision.js export",
     "decision:close": "node --experimental-strip-types scripts/decision.js close",
     "decision:open": "node --experimental-strip-types scripts/decision.js open",

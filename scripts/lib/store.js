@@ -425,6 +425,7 @@ function createLocalStore() {
           required: qp.required ?? true,
           allow_other: qp.allow_other ?? false,
           recommended_option_id: recOptId,
+          recommended_reason: qp.recommended_reason?.trim() ?? '',
           recommended_option_code: qp.recommended_option_code?.trim() ?? null,
           options: qOpts,
         })

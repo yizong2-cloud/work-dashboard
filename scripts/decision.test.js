@@ -5,6 +5,11 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   validateDecisionPayload,
   validateDecisionSubmission,
@@ -15,6 +20,31 @@ import {
   formatShanghaiTime,
 } from '../src/lib/decisionFormat.ts'
 import { createStore } from './lib/store.js'
+
+const DECISION_CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'decision.js')
+
+function makeDecisionRunner() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-decision-cli-'))
+  const dbFile = path.join(dir, 'local.json')
+  const env = {
+    ...process.env,
+    LOCAL_DB_FILE: dbFile,
+    VITE_SUPABASE_URL: '',
+    SUPABASE_URL: '',
+    SUPABASE_SERVICE_ROLE_KEY: '',
+  }
+  return {
+    dir,
+    dbFile,
+    run(...args) {
+      try {
+        return { ok: true, stdout: execFileSync('node', ['--experimental-strip-types', DECISION_CLI, ...args], { env, encoding: 'utf8' }) }
+      } catch (error) {
+        return { ok: false, stdout: String(error.stdout || ''), stderr: String(error.stderr || error.message || '') }
+      }
+    },
+  }
+}
 
 const sampleValidPayload = {
   slug: 'test-puzzle-retention',
@@ -409,6 +439,49 @@ test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷�
   assert.equal(parsed.responses[0].respondent_note, '与竞品一致')
   assert.equal(parsed.responses[0].answers[0].question_code, 'D1')
   assert.equal(parsed.responses[0].answers[0].selected_options[0].code, 'A')
+})
+
+test('decision:publish：一步保留原文并幂等返回同一分享链接', () => {
+  const runner = makeDecisionRunner()
+  const payloadFile = path.join(runner.dir, 'form.json')
+  const sourceFile = path.join(runner.dir, 'source.md')
+  fs.writeFileSync(payloadFile, JSON.stringify({
+    slug: 'publish-idempotent-test',
+    title: '发布测试决策单',
+    questions: [{ code: 'P1', title: '是否发布？', type: 'confirmation', required: true }],
+  }))
+  fs.writeFileSync(sourceFile, '# 原始决策文档\n\n保留完整背景。')
+
+  const first = runner.run('publish', '--file', payloadFile, '--source-file', sourceFile, '--json')
+  assert.ok(first.ok, first.stderr)
+  const firstResult = JSON.parse(first.stdout)
+  assert.equal(firstResult.created, true)
+  assert.match(firstResult.url, /#\/decisions\/publish-idempotent-test$/)
+
+  const retry = runner.run('publish', '--file', payloadFile, '--source-file', sourceFile, '--json')
+  assert.ok(retry.ok, retry.stderr)
+  const retryResult = JSON.parse(retry.stdout)
+  assert.equal(retryResult.created, false)
+  assert.equal(retryResult.url, firstResult.url)
+
+  const stored = JSON.parse(fs.readFileSync(runner.dbFile, 'utf8'))
+  assert.equal(stored.decisionForms.length, 1)
+  assert.equal(stored.decisionForms[0].source_document, '# 原始决策文档\n\n保留完整背景。')
+
+  fs.writeFileSync(sourceFile, '# 不同原文')
+  const conflict = runner.run('publish', '--file', payloadFile, '--source-file', sourceFile, '--json')
+  assert.equal(conflict.ok, false)
+  assert.match(conflict.stderr, /slug 已存在但表单定义或原始文档不同/)
+
+  fs.writeFileSync(sourceFile, '# 原始决策文档\n\n保留完整背景。')
+  fs.writeFileSync(payloadFile, JSON.stringify({
+    slug: 'publish-idempotent-test',
+    title: '发布测试决策单（改版）',
+    questions: [{ code: 'P1', title: '是否发布？', type: 'confirmation', required: true }],
+  }))
+  const definitionConflict = runner.run('publish', '--file', payloadFile, '--source-file', sourceFile, '--json')
+  assert.equal(definitionConflict.ok, false)
+  assert.match(definitionConflict.stderr, /slug 已存在但表单定义或原始文档不同/)
 })
 
 test('存储层：创建表单、多答卷独立提交、关闭拦截全链路', async () => {

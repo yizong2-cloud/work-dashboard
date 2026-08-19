@@ -10,6 +10,7 @@
 //   npm run decision:open -- --slug <slug>
 //   npm run decision:clarify -- --slug <slug> --question <code> --content <text>
 //   npm run decision:enrich -- --slug <slug> --file <decision.json> --source-file <original.md>
+//   npm run decision:publish -- --file <decision.json> --source-file <original.md> --json
 // ============================================================
 
 import fs from 'node:fs'
@@ -58,6 +59,53 @@ function loadPayloadFromFile(filePath) {
   }
 }
 
+function loadTextFromFile(filePath, label) {
+  if (!filePath || filePath === true) {
+    fail(`缺少参数 --${label}`)
+  }
+  const resolved = path.resolve(process.cwd(), String(filePath))
+  if (!fs.existsSync(resolved)) {
+    fail(`文件不存在: ${resolved}`)
+  }
+  return fs.readFileSync(resolved, 'utf8')
+}
+
+const normalizedText = (value) => String(value ?? '').trim()
+
+function sameDecisionDefinition(existing, payload) {
+  if (normalizedText(existing.title) !== normalizedText(payload.title)) return false
+  if (normalizedText(existing.summary) !== normalizedText(payload.summary)) return false
+  if (existing.questions.length !== payload.questions.length) return false
+
+  return payload.questions.every((candidate, index) => {
+    const stored = existing.questions[index]
+    if (!stored) return false
+    const sameFields = [
+      ['code', stored.code, candidate.code],
+      ['title', stored.title, candidate.title],
+      ['context', stored.context, candidate.context],
+      ['group_name', stored.group_name, candidate.group_name || '待确认事项'],
+      ['source_excerpt', stored.source_excerpt, candidate.source_excerpt],
+      ['conversion_note', stored.conversion_note, candidate.conversion_note],
+      ['type', stored.type, candidate.type],
+      ['recommended_option_code', stored.recommended_option_code, candidate.recommended_option_code],
+      ['recommended_reason', stored.recommended_reason, candidate.recommended_reason],
+    ]
+    if (stored.required !== (candidate.required ?? true) || stored.allow_other !== (candidate.allow_other ?? false)) return false
+    if (sameFields.some(([, left, right]) => normalizedText(left) !== normalizedText(right))) return false
+    const storedOptions = stored.options ?? []
+    const candidateOptions = candidate.options ?? []
+    if (storedOptions.length !== candidateOptions.length) return false
+    return candidateOptions.every((option, optionIndex) => {
+      const storedOption = storedOptions[optionIndex]
+      return storedOption
+        && normalizedText(storedOption.code) === normalizedText(option.code)
+        && normalizedText(storedOption.label) === normalizedText(option.label)
+        && normalizedText(storedOption.detail) === normalizedText(option.detail)
+    })
+  })
+}
+
 async function handleValidate() {
   const payload = loadPayloadFromFile(args.file)
   const result = validateDecisionPayload(payload)
@@ -104,6 +152,42 @@ async function handleCreate() {
     }
   } catch (err) {
     fail(`创建表单失败: ${err.message}`)
+  }
+}
+
+async function handlePublish() {
+  const payload = loadPayloadFromFile(args.file)
+  const sourceDocument = loadTextFromFile(args['source-file'], 'source-file（原始 Markdown/文本路径）')
+  payload.source_document = sourceDocument
+
+  const result = validateDecisionPayload(payload)
+  if (!result.valid) {
+    if (jsonOut) {
+      console.log(JSON.stringify({ error: '表单 Payload 校验失败', errors: result.errors }))
+    } else {
+      console.error('❌ 表单 Payload 校验失败：')
+      for (const err of result.errors) console.error(`  - ${err}`)
+    }
+    process.exit(1)
+  }
+
+  const slug = payload.slug.trim()
+  try {
+    const existing = await store.getDecisionFormBySlug(slug)
+    if (existing) {
+      if (existing.source_document === sourceDocument && sameDecisionDefinition(existing, payload)) {
+        const outcome = { id: existing.id, slug, url: getShareUrl(slug), created: false }
+        console.log(jsonOut ? JSON.stringify(outcome) : `${outcome.url}\n${outcome.id}`)
+        return
+      }
+      fail(`slug 已存在但表单定义或原始文档不同: ${slug}。请指定新 slug，避免覆盖既有决策。`)
+    }
+
+    const created = await store.createDecisionForm(payload)
+    const outcome = { id: created.id, slug: created.slug, url: getShareUrl(created.slug), created: true }
+    console.log(jsonOut ? JSON.stringify(outcome) : `${outcome.url}\n${outcome.id}`)
+  } catch (err) {
+    fail(`发布表单失败: ${err.message}`)
   }
 }
 
@@ -247,6 +331,9 @@ async function main() {
     case 'create':
       await handleCreate()
       break
+    case 'publish':
+      await handlePublish()
+      break
     case 'export':
       await handleExport()
       break
@@ -270,6 +357,7 @@ async function main() {
 决策中心 CLI 用法：
   npm run decision:validate -- --file <decision.json>
   npm run decision:create -- --file <decision.json>
+  npm run decision:publish -- --file <decision.json> --source-file <original.md> [--json]
   npm run decision:export -- --slug <slug> [--format markdown|json] [--respondent <name>]
   npm run decision:close -- --slug <slug>
   npm run decision:open -- --slug <slug>

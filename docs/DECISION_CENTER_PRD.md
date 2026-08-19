@@ -159,6 +159,10 @@ npm run decision:validate -- --file decision.json
 # 原子创建决策表单和所有题目/选项；成功后 stdout 只输出分享 URL 与 form id
 npm run decision:create -- --file decision.json
 
+# 推荐：一步校验、保留完整原文、幂等发布并输出分享链接。
+# 同一 slug + 同一原文 + 同一表单定义的重试返回既有链接；任一不同都会拒绝，避免重复或覆盖。
+npm run decision:publish -- --file decision.json --source-file original.md --json
+
 # 输出某表单的全部答卷，默认 Markdown；可供执行 Agent 直接消费
 npm run decision:export -- --slug puzzle-retention-incentives --format markdown
 npm run decision:export -- --slug puzzle-retention-incentives --format json
