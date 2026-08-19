@@ -1,7 +1,8 @@
 {
-  "_comment": "候选提示的「目录 / 飞书群 → 任务」映射表。pattern 为大小写不敏感的子串匹配；hint 给 Agent 一句话线索；tasks 为候选看板任务标题（供 Agent 判断归属，非强制）。AGENT 必须结合会话/消息内容判断，不能只靠 pattern。ignored_cwd 仅用于明确排除工具维护目录，不代表来源已被删除。",
+  "_comment": "候选提示的「目录 / 飞书群 → 任务」映射表。pattern 为大小写不敏感的子串匹配；hint 给 Agent 一句话线索；tasks 为候选看板任务标题（供 Agent 判断归属，非强制）。AGENT 必须结合会话/消息内容判断，不能只靠 pattern。ignored_cwd 仅用于明确排除工具维护/测试目录，不代表来源已被删除；未列入映射的目录一律进入待确认。",
   "ignored_cwd": [
-    { "pattern": "/work-dashboard", "hint": "Workboard 自身仓库（工具维护/系统迭代），不作为业务任务候选" }
+    { "pattern": "/work-dashboard", "hint": "Workboard 自身仓库（工具维护/系统迭代），不作为业务任务候选" },
+    { "pattern": "Documents/Codex", "hint": "Codex 临时/测试会话，不作为业务任务候选" }
   ],
   "codex_cwd": [
     { "pattern": "StudioProjects/jigsaw-android", "hint": "Fantasy 拼图游戏客户端源码（成就/试玩/H5 demo/积分制等所有 fantasy 客户端工作，具体看会话内容）", "tasks": ["Fantasy 成就系统收尾（接手杨柯迪）", "Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）", "Fantasy 积分制与完成页激励文案开发"] },
@@ -13,8 +14,7 @@
     { "pattern": "Fantasy Jigsaw-适配moloco试玩", "hint": "Fantasy 试玩 Moloco 渠道适配（张震威投放需求）", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配"] },
     { "pattern": "FunColor", "hint": "涂色产品 Fun Color 试玩（涂色线，与拼图不同部门）", "tasks": ["Fun Color 试玩（可玩广告）制作"] },
     { "pattern": "Jigsaw_H5_Demo", "hint": "Fantasy（Jigsaw）拼图反馈优化 H5 验证（demo 产物）", "tasks": ["Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
-    { "pattern": "【PRD】Jigsaw反馈优化", "hint": "Fantasy（Jigsaw）拼图反馈优化 PRD → H5 验证阶段", "tasks": ["Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
-    { "pattern": "Documents/Codex", "hint": "Codex 临时/测试会话，非工作任务，忽略" }
+    { "pattern": "【PRD】Jigsaw反馈优化", "hint": "Fantasy（Jigsaw）拼图反馈优化 PRD → H5 验证阶段", "tasks": ["Jigsaw H5 Demo（拼接反馈动效多方案验证）"] }
   ],
   "feishu_chat": [
     { "pattern": "Jigsaw反馈优化", "hint": "fantasy 的需求（习惯管 fantasy 叫 Jigsaw），当前验证阶段 = H5 demo", "tasks": ["Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },

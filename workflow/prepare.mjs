@@ -101,7 +101,6 @@ function buildSessionCandidates(sessions, map, key) {
   const unmapped = []
   for (const s of sessions) {
     const cwd = s.cwd || ''
-    if (cwd.includes('Documents/Codex')) continue // 临时/测试会话
     if (cwd === HOME || cwd === `${HOME}/`) continue // DSH 根目录会话（工具维护等）
     if (matchPattern(map.ignored_cwd || [], cwd)) continue // source-map 明确标注的工具维护目录
     const rule = matchPattern(map.codex_cwd, cwd)
@@ -130,7 +129,7 @@ function buildFeishuCandidates(feishuText, map) {
   return { hits, unmappedGroups: [...unmappedGroups] }
 }
 
-function buildCandidates({ codexDetail, dshDetail, feishuText, localFiles, board }) {
+function buildCandidates({ codexDetail, dshDetail, feishuText, board }) {
   const map = loadSourceMap()
   const codexCand = buildSessionCandidates(codexDetail, map, 'codex')
   const dshCand = buildSessionCandidates(dshDetail, map, 'dsh')
@@ -158,8 +157,9 @@ function buildCandidates({ codexDetail, dshDetail, feishuText, localFiles, board
 }
 
 function unmappedCwdRequired(unmapped) {
-  // 有未映射的工作目录（且非 Downloads 素材）才需要提示
-  return unmapped.some((c) => !c.includes('Downloads') && !c.includes('Documents') && !c.includes('StudioProjects') && !c.includes('IdeaProjects'))
+  // 任何未映射目录都需要显式确认；忽略策略统一放在 source-map.json，
+  // 不在这里维护按目录名猜测的隐式白名单，避免漏掉新项目。
+  return Array.isArray(unmapped) && unmapped.length > 0
 }
 function run(cmd, args, timeoutMs = 120000) {
   try {
@@ -314,7 +314,7 @@ function main() {
   try { dshDetail = JSON.parse(dshDetailRes.stdout) } catch { dshDetail = [] }
 
   // ---- 候选提示（规则化线索，供 Agent 分析优先参考，降低从零提炼的漏/错）----
-  const candidates = buildCandidates({ codexDetail, dshDetail, feishuText, localFiles, board })
+  const candidates = buildCandidates({ codexDetail, dshDetail, feishuText, board })
   steps.push({ name: '候选提示', ok: true, detail: `codex命中${candidates.codex.length} dsh命中${candidates.dsh.length} 飞书群命中${candidates.feishu.length} 未映射目录${candidates.unmapped_cwd.length} 未排期${candidates.unscheduled.length} 逾期${candidates.overdue.length}` })
 
   // 摘要步骤报告（增量数 + 三日窗口 detail 数；增量可能为 0 但窗口内仍有长会话内容）
