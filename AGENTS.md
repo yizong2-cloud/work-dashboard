@@ -1,7 +1,7 @@
 # AGENTS.md —— 本仓库的 Agent 工作说明
 
 > 任何 Agent（或新加入的人）接手本仓库前先读本文件。
-> 详细手册：`docs/WORKFLOW_OVERVIEW.md`（全景）、`docs/AGENT_GUIDE.md`（CLI 命令）、`docs/UPDATE_WORKFLOW.md`（一条龙流程）、`workflow/README.md`（唯一入口）。
+> 日常「开始更新」只读 `workflow/dashboard-update.skill.md`；它已包含执行所需的最小指令。`docs/WORKFLOW_OVERVIEW.md`、`docs/AGENT_GUIDE.md`、`docs/UPDATE_WORKFLOW.md` 仅在改工作流、排障或需要查完整命令时阅读，**不得作为每次更新的固定上下文**。
 
 ## 这是什么
 
@@ -19,7 +19,7 @@ npm run dashboard:verify    # 校验数据不变量
 npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15:30/19:30 自动 prepare，--no-advance 只拉不推进游标）
 ```
 
-完整流程见 `workflow/README.md` 与 `docs/UPDATE_WORKFLOW.md`。
+例行流程见 `workflow/dashboard-update.skill.md`。先读取紧凑审查包；只有不确定的 source_id 才展开一条原始证据，禁止整包倾倒原始快照。
 
 ## 三条铁律
 

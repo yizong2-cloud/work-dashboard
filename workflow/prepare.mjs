@@ -14,6 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { buildReviewPacket } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = os.homedir()
@@ -21,6 +22,7 @@ const FEISHU_BIN = path.join(HOME, 'feishu_export', 'bin', 'feishu-export')
 const DAILY_DIR = path.join(HOME, 'feishu_export', 'daily')
 const DAYS = 3
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
+const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
 
 // 分析游标 = 上次「apply + verify 都成功」的时间（由 verify 在通过后推进）。
@@ -331,6 +333,8 @@ function main() {
     knowledge_base: knowledgeBase.slice(0, 40000),
   }
   fs.writeFileSync(CONTEXT_FILE, JSON.stringify(ctx, null, 2))
+  const reviewPacket = buildReviewPacket(ctx)
+  fs.writeFileSync(REVIEW_PACKET_FILE, JSON.stringify(reviewPacket, null, 2))
 
   // ---- 规则化报告（无需 LLM）----
   const unfinished = (t) => t.status !== 'completed' && t.status !== 'cancelled'
@@ -370,8 +374,8 @@ function main() {
   if (candidates.unscheduled.length) lines.push(`- 🟠 未排期活跃任务 ${candidates.unscheduled.length} 个（Leader 会问何时完成）`)
   if (candidates.overdue.length) lines.push(`- 🔴 已逾期 ${candidates.overdue.length} 个`)
   lines.push('', '## 下一步', '')
-  lines.push('1. Agent 读取 `workflow/update-context.json`，结合知识库做增量分析')
-  lines.push('2. 生成变更建议 `workflow/ops.json`')
+  lines.push('1. Agent 优先读取 `workflow/review-packet.json`，结合知识库做全量对账；不确定时按 source_id 展开原始证据')
+  lines.push('2. 生成变更建议 `workflow/ops.json`（即使无变更也写完整 reconciliation + 空 ops）')
   lines.push('3. 执行 `npm run dashboard:apply`（可先 `--dry-run`）')
   lines.push('4. 执行 `npm run dashboard:verify` 校验', '')
   fs.writeFileSync(REPORT_FILE, lines.join('\n'))
@@ -381,6 +385,7 @@ function main() {
     console.error(`[prepare] ⚠️ ${failed.length} 个步骤失败: ${failed.map((s) => s.name).join('、')}`)
   }
   console.log(`[prepare] ✅ 完成: ${CONTEXT_FILE}`)
+  console.log(`[prepare] 审查包: ${REVIEW_PACKET_FILE}（${reviewPacket.counts.total} 条证据）`)
   console.log(`[prepare] 报告: ${REPORT_FILE}`)
   if (noSchedule.length > 0) {
     notify('看板数据已就绪', `${noSchedule.length} 个活跃任务未排期；数据源已拉取，可说"开始更新"`)

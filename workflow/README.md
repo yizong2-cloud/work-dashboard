@@ -7,7 +7,8 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dashboard:prepare` | 拉取四数据源（飞书/Codex/DSH/本地 Downloads 白名单）+ 当前看板 + 知识库 + 候选提示，打包 `workflow/update-context.json`，生成 `workflow/latest-report.md`（规则化提示，无需 LLM）。**可无人值守** |
+| `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。**可无人值守** |
+| `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开一条原始会话/飞书群/本地文件元数据。 |
 | `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
@@ -16,16 +17,16 @@
 ## 一条龙流程（用户说「开始更新」时）
 
 ```text
-prepare → Agent 分析 update-context.json（结合 KNOWLEDGE_BASE）
+prepare → Agent 分析 review-packet.json（结合 KNOWLEDGE_BASE；按需展开 evidence）
         → 产出 workflow/ops.json → apply --dry-run → apply → verify → 回写知识库 → 汇报
 ```
 
 对应命令序列：
 
 ```bash
-npm run dashboard:prepare                        # ① 拉数据打包
-# Agent 读取 workflow/update-context.json + docs/KNOWLEDGE_BASE.md，增量分析
-# 产出 workflow/ops.json（格式见 operation.schema.json）
+npm run dashboard:prepare                        # ① 拉数据，生成 review-packet.json
+# Agent 读取 review-packet.json + docs/KNOWLEDGE_BASE.md；有歧义才展开原始 evidence
+# 产出 workflow/ops.json：每个 source_id 一条 reconciliation，ops 可为空（无变更结案）
 npm run dashboard:apply -- --dry-run             # ② 预演
 npm run dashboard:apply                          # ③ 执行
 npm run dashboard:verify                         # ④ 校验

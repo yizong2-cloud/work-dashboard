@@ -1,108 +1,26 @@
-# 看板「一条龙」更新流程（Agent 执行手册）
+# 看板更新流程（运行时精简版）
 
-> 用户说 **「开始更新」/「应该更新了」** 时，按本流程执行。
-> 目标：拉取最新飞书聊天 → 增量分析 → 更新线上看板 → 汇报，全程无需用户手动操作网页。
+> 用户说「开始更新」时，优先使用 `workflow/dashboard-update.skill.md`。本文件保留为人类可读的流程契约；不要同时把本文件、总览、命令手册和脚本源码塞进日常 Agent 上下文。
 
-## 触发与前置
+## 固定步骤
 
-- 触发词：用户说「开始更新」「应该更新了」「帮我更新看板」等。
-- 前置：项目根目录 `.env` 已配置（`VITE_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`），Agent CLI 连线上库。
-
-## 执行步骤
-
-### 第 1 步：增量导出飞书聊天（机械化）
-
-```bash
-npm run update:export
-# 等价于: ~/feishu_export/bin/feishu-export --incremental --markdown
+```text
+prepare → review-packet 全量对账 → evidence 按需展开
+        → ops（或空 ops 结案）→ apply --dry-run → apply → verify
 ```
 
-- 输出到 `~/feishu_export/daily/`：最新 `range_*.json` + `range_*.md`（喂 AI 的 Markdown）。
-- 若提示 cookie 过期：让用户重新从浏览器导出飞书 cookies 覆盖 `~/feishu_export/cookies.json`。
-- 导出结果可能提示「没有新消息」——**仍需继续**：Codex/DSH 可能还有新工作，不能跳过分析。
+1. `npm run dashboard:prepare` 采集四源，产出：
+   - `workflow/review-packet.json`：日常唯一审查输入，包含每项 `source_id`、短摘录、任务线索与当前任务简表。
+   - `workflow/update-context.json`：原始证据库，不可整包读取。
+2. Agent 阅读知识库与审查包，对每个 `source_id` 给出 `mapped` / `irrelevant` / `needs_confirmation`。
+3. 不确定时才运行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开一个来源项。
+4. 输出 `ops.json` 必须带当前 `snapshot_id` 和全量 `reconciliation`。`ops: []` 合法，代表“已审查、无数据变更”。
+5. `dashboard:apply` 先 dry-run 再执行；机器校验快照健康、source_id 覆盖/唯一性、任务引用及操作预条件。
+6. `dashboard:verify` 通过后才推进分析游标。
 
-### 第 1.5 步：读取 Agent 工作摘要（真实工作进度第二/三来源）
+## 质量不变的原因
 
-```bash
-npm run update:codex   # 读取 Codex 会话摘要（~/.codex/sessions）
-npm run update:dsh     # 读取 DSH 会话摘要（~/.dsh/sessions，需本机 zstd）
-```
-
-- 输出每个会话：时间、工作目录（cwd）、用户请求、git commit 等。
-- **飞书是沟通记录，Codex/DSH 是实际干活记录**——都要看，互相印证。
-- 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把会话关联到看板任务。
-- DSH 会话包含用户用 DSH 处理的问题（如 BI 平台排查），是重要的进度来源。
-
-### 第 2 步：读取五份上下文（并行）
-
-1. **飞书增量聊天**：`~/feishu_export/daily/` 里最新的 `range_*.md`（可能为空）
-2. **Codex 工作摘要**：`npm run update:codex` 的输出
-3. **DSH 工作摘要**：`npm run update:dsh` 的输出
-4. **任务上下文库**：`docs/KNOWLEDGE_BASE.md`（任务别名映射、已确认事实、依赖关系）
-5. **当前线上任务**：`npm run agent -- list`（拿现有任务 id 与状态，避免重复创建）
-
-### 第 3 步：增量分析（可派子 Agent）
-
-把「飞书聊天 + Codex 摘要 + DSH 摘要 + KNOWLEDGE_BASE.md + 当前任务清单」一起交给子 Agent 分析，规则：
-
-- **三个数据源都要分析**：飞书无新消息不代表 Codex/DSH 没有新工作。
-- 先对照 KNOWLEDGE_BASE「任务别名映射」：命中的已有任务 → 更新该任务，**不新建**。
-- 新出现的任务 → 按看板数据模型（title/status/priority/progress/日期/时间线）提炼。
-- 口头确认、面聊信息以 KNOWLEDGE_BASE「已确认事实」为准，不被聊天推断覆盖。
-- 产出：结构化的「变更建议」—— 每个改动对应一条 CLI 命令（create/progress/schedule/block/unblock/complete/note/update/status）。
-
-### 第 4 步：执行 CLI 更新
-
-```bash
-npm run agent -- progress <id> --to 80 --note "..."
-npm run agent -- create --title "..." --end YYYY-MM-DD ...
-npm run agent -- schedule <id> --end YYYY-MM-DD --note "原因"
-npm run agent -- update <id> --description "..." --current_status "..." --note "..."
-npm run agent -- batch --file ops.json   # 改动多时用批量
-```
-
-- **状态类修改**（进度/状态/排期/阻塞/完成）只用专用命令；`update` 只能改非状态字段。
-- 先 `--dry-run` 预演再执行（可选）。
-
-### 第 5 步：回写 KNOWLEDGE_BASE
-
-分析中发现的新别名、新口头确认、新依赖 → 追加到 `docs/KNOWLEDGE_BASE.md` 对应小节，并 `git commit`。
-
-### 第 6 步：汇报
-
-向用户说明：本次更新了哪些任务（新增/进度/排期/阻塞/完成），是否有不确定点需要确认。**数据实时生效，用户刷新网页即见，无需重新部署。**
-
-## 常用命令速查
-
-```bash
-npm run update:export          # ① 导出飞书增量
-npm run update:codex           # ② 读取 Codex 工作摘要（真实干活记录）
-npm run agent -- list          # 看当前任务
-npm run agent -- get <id>      # 看任务详情+时间线
-npm run agent -- progress <id> --to 70 --note "..."
-npm run agent -- schedule <id> --end 2026-08-25 --note "..."
-npm run agent -- block <id> --reason "..."
-npm run agent -- unblock <id> --note "..."
-npm run agent -- complete <id> --note "..."
-npm run agent -- note <id> --type progress --content "..."
-npm run agent -- update <id> --description "..." --current_status "..." --note "..."
-npm run agent -- create --title "..." --priority normal --end YYYY-MM-DD
-```
-
-完整命令说明见 `docs/AGENT_GUIDE.md`。
-
-## 常见问题（实测踩坑记录）
-
-- **首次运行**不能用 `--incremental`（会提示"状态文件中没有上次同步记录"）——首次用 `--since YYYY-MM-DDT00:00 --markdown`，之后才有增量游标。
-- **会话打开失败（openfail）**：偶发，重跑一次并加 `--refresh-chats` 强制重扫会话列表即可。
-- **大量会话被"跳过（无更新）"**：正常，工具按会话最后活跃时间判断，只有有更新的会话才会打开。
-- **导出的消息多是闲聊/表情包**：正常，分析时要过滤掉（图片、表情、玩笑话），只提炼实质工作。
-- **本次无实质更新**：流程正常结束，看板不用改，向用户说明即可。
-- **cookies 过期**：工具提示登录态失效时，让用户重新导出飞书 cookies 覆盖 `~/feishu_export/cookies.json`。
-
-## 数据新鲜度规则（重要）
-
-- 用户说「开始更新」时，**默认重新执行 `dashboard:prepare` 拉最新数据**（增量，约 1 分钟），保证时效性——不直接使用定时任务的历史快照。
-- **唯一例外**：若 `workflow/update-context.json` 的 `generated_at` 在 10 分钟以内（如刚被定时任务刷新），可直接复用，跳过重拉。
-- 定时任务的作用是：① 到点提醒用户"有新数据可更新"；② 提供兜底快照（用户恰好在任务刚跑完时触发可复用）。它本身不分析、不写入。
-- 分析永远以「触发时刻重新拉取（或 10 分钟内新鲜快照）」的数据为准，避免用数小时前的旧数据。
+- 四类来源仍全部被盘点；遗漏会被 apply 拒绝。
+- 原始飞书、Codex、DSH 内容仍留在快照，可按 ID 展开，不会因摘要截断而丢失。
+- 无变更也有可追溯 changeset，避免下次重复审查同一窗口。
+- 只有工作流维护、排障或字段扩展时，才阅读 `WORKFLOW_OVERVIEW.md`、`AGENT_GUIDE.md`、`apply.mjs` 等完整资料。

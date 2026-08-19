@@ -96,13 +96,13 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ## 5. 一条龙更新流程（用户说「开始更新」触发）
 
 ```
-① dashboard:prepare   拉四类输入 → update-context.json + latest-report.md（增量 + 三日窗口 detail）
-② 读取 KNOWLEDGE_BASE + 全量对账（第四条铁律）
-③ 增量分析 + 产出变更建议 ops.json（先 --dry-run）
-④ dashboard:apply     执行
-⑤ dashboard:verify    校验不变量
+① dashboard:prepare   拉四类输入 → 原始快照 update-context.json + 紧凑 review-packet.json
+② 读取 KNOWLEDGE_BASE + review-packet，对每个 source_id 全量对账；仅歧义项展开原始证据
+③ 增量分析 + 产出变更建议 ops.json（含 snapshot_id、全量 reconciliation；先 --dry-run）
+④ dashboard:apply     执行；ops 为空时正式记录“无变更结案”
+⑤ dashboard:verify    校验不变量并推进本次已结案快照游标
 ⑥ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
-⑦ 汇报（含对账表：N 已映射 / M 无关 / X 补录）
+⑦ 汇报（含机器校验后的对账计数）
 ```
 
 **定时任务**（launchd，工作日 11:00/15:30/19:30）：只执行 `prepare --no-advance`——**机械拉取打包，不推进任何增量游标、不分析**；分析写入始终等用户说「开始更新」由 Agent 做（半自动设计，避免 LLM 误判自动写库）。
@@ -203,7 +203,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 外部审查提出 P0/P1 后已完成：
 1. **游标语义分离**：`captured_at`（采集快照时间）与 `.analysis-state.reviewed_at`（分析游标）分离；**仅 apply+verify 均成功、verify 通过时才推进分析游标**——分析中断不会再丢增量（此前手动 prepare 就会把游标前移）。
 2. **verify 真正校验**：新增引用完整性检查（孤儿时间线/孤儿计划块，线上模式经 Supabase REST 查询）；发现问题 `exit(1)`，不再把违规当正常快照；通过后推进分析游标。
-3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——默认拒绝，需 --force）；② 高风险操作（create/complete/block/delete/schedule）必须带 reconciliation（全量对账证据）；③ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；④ 执行后写 `workflow/last-changeset.json` 可追溯。
+3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——默认拒绝，需 --force）；② 当前审查包所有 source_id 必须有且仅有一个 reconciliation（机器全量对账证据）；③ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；④ 执行后写 `workflow/last-changeset.json` 可追溯，支持无变更结案。
 4. **第四数据源纳入 prepare**：白名单目录（Downloads/Desktop/Documents）扫描自分析游标以来的新文件，仅收集元数据（path/mtime/size/ext），输出到 `snapshot.sources.local_files`，不再靠人工记忆。
 5. **manifest/snapshot**：`update-context.json` 现含 `captured_at`、`snapshot_health`、`sources`（各源 ok/失败 + 计数 + 本地文件）。
 6. **通知**：真实进展与关键事件即时、纯 note 备注和普通字段编辑静默、批量显式 merge——由 CLI 命令类型内置默认 notify_mode 实现。

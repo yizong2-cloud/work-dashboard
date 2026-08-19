@@ -6,8 +6,8 @@
 //
 // 强化（2026-08-17 审查后）：
 //   1. source-health 闸门：快照 degraded（某数据源拉取失败）时默认拒绝 apply，需 --force
-//   2. 对账要求：含高风险操作（create/complete/block/delete/schedule）必须带 reconciliation
-//      （证明「全量对账」已做），且可关联 evidence
+//   2. 对账要求：当前审查包中的每个 source_id 都必须有且仅有一个 reconciliation
+//      （机器证明「全量对账」已做），且可关联 evidence
 //   3. 预条件校验：引用的任务必须存在；--dry-run 做真实可用的预检（任务存在/状态迁移/日期）
 //   4. changeset：apply 成功后写 workflow/last-changeset.json（可追溯本次变更）
 //
@@ -18,14 +18,14 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { validateReviewSpec } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const AGENT = path.join(ROOT, 'scripts', 'agent.js')
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
+const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 const CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
 
-// 高风险操作：必须已完成全量对账（reconciliation）才能执行
-const HIGH_RISK = ['create', 'complete', 'block', 'delete', 'schedule']
 const OP_RULES = {
   create: ['title'],
   progress: ['id', 'to'],
@@ -82,13 +82,17 @@ function main() {
   }
   const reconciliation = Array.isArray(spec) ? null : (spec.reconciliation || null)
   const ops = Array.isArray(spec) ? spec : spec.ops
-  if (!Array.isArray(ops) || ops.length === 0) fail('变更建议为空（应为数组或 { reconciliation?, ops:[...] }）')
+  if (!Array.isArray(ops)) fail('ops 必须是数组（允许空数组：表示已全量审查、无需写入）')
+
+  let snapshot = {}
+  let reviewPacket = null
+  try { snapshot = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8')) } catch { /* 下方按需拦截 */ }
+  try { reviewPacket = JSON.parse(fs.readFileSync(REVIEW_PACKET_FILE, 'utf8')) } catch { /* 下方按需拦截 */ }
 
   // ---- 0) source-health 闸门：快照 degraded（某源拉取失败）→ 默认拒绝 ----
   if (!args.force) {
     try {
-      const ctx = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'))
-      if (ctx.snapshot_health === 'degraded') {
+      if (snapshot.snapshot_health === 'degraded') {
         fail('当前快照 degraded（有数据源拉取失败），apply 默认拒绝。确认用 --force。')
       }
     } catch { /* 缺 context 不拦截 */ }
@@ -113,21 +117,9 @@ function main() {
     }
   }
 
-  // ---- 2) 对账要求：高风险操作必须带「非空且结构化」的 reconciliation ----
-  const hasHighRisk = ops.some((op) => HIGH_RISK.includes(op.op))
-  const VALID_DECISION = ['mapped', 'irrelevant', 'needs_confirmation']
-  if (hasHighRisk && !args.force) {
-    // 空数组也算未对账
-    if (!Array.isArray(reconciliation) || reconciliation.length === 0) {
-      fail('含高风险操作（create/complete/block/delete/schedule）但 reconciliation 为空/缺失。先完成全量对账或 --force。')
-    }
-    // 结构化校验：每条对账项必须有 source_id + 合法 decision；mapped 需 task_id
-    for (const [i, r] of reconciliation.entries()) {
-      if (!r || !r.source_id) errors.push(`reconciliation[${i}]: 缺 source_id`)
-      if (r && !VALID_DECISION.includes(r.decision)) errors.push(`reconciliation[${i}]: decision 非法（${r.decision}，应 ${VALID_DECISION.join('/')}）`)
-      if (r && r.decision === 'mapped' && !r.task_id) errors.push(`reconciliation[${i}]: mapped 项缺 task_id`)
-    }
-  }
+  // ---- 2) 对账要求：每一个快照证据都必须有且仅有一个结论 ----
+  // 这是「全量对账」的机器闸门；不再只检查“写过一些对账项”。
+  errors.push(...validateReviewSpec(snapshot.snapshot_id, reviewPacket, spec))
   if (errors.length > 0) {
     console.error('❌ 校验失败:')
     for (const e of errors) console.error(`  - ${e}`)
@@ -153,6 +145,11 @@ function main() {
         }
       }
     }
+    for (const [i, item] of (reconciliation || []).entries()) {
+      if (item?.decision === 'mapped' && item.task_id && !byId.has(item.task_id)) {
+        errors.push(`reconciliation[${i}]: mapped 的任务不存在 ${item.task_id}`)
+      }
+    }
   }
 
   if (errors.length > 0) {
@@ -161,34 +158,34 @@ function main() {
     process.exit(1)
   }
 
-  console.log(`共 ${ops.length} 条变更（快照${(reconciliation?.length ?? 0) ? `已对账 ${reconciliation.length} 项` : '未带对账'}），开始${args.dryRun ? '预演' : '执行'}…`)
+  const noChange = ops.length === 0
+  console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
   for (const [i, op] of ops.entries()) {
     const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')
     console.log(`  ${i + 1}. ${op.op} ${brief}`)
   }
 
   if (args.dryRun) {
-    console.log('✅ 预演通过（已校验字段/日期/任务存在/状态迁移；未写入）。去掉 --dry-run 执行。')
+    console.log(`✅ 预演通过（已校验完整对账、字段/日期/任务存在/状态迁移；${noChange ? '不会写入看板' : '未写入'}）。去掉 --dry-run 执行。`)
     return
   }
 
   // ---- 4) 执行 + changeset ----
   const changeset_id = `chg-${Date.now()}`
   let batchOut = ''
-  try {
-    batchOut = execFileSync('node', [AGENT, 'batch', '--file', args.file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
-    console.log(batchOut)
-  } catch (e) {
-    console.error(String(e.stdout || ''))
-    fail(`应用失败: ${String(e.stderr || e.message || '').slice(0, 500)}`)
+  if (!noChange) {
+    try {
+      batchOut = execFileSync('node', [AGENT, 'batch', '--file', args.file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+      console.log(batchOut)
+    } catch (e) {
+      console.error(String(e.stdout || ''))
+      fail(`应用失败: ${String(e.stderr || e.message || '').slice(0, 500)}`)
+    }
   }
   // 解析 batch 结果「批处理完成：N/M 成功」——部分失败不得当作「已全面完成」。
   const m = batchOut.match(/批处理完成：(\d+)\/(\d+) 成功/)
   const okCount = m ? Number(m[1]) : ops.length // 无该行时保守：视作未知 → 全成功才记录
   const allOk = okCount === ops.length
-  const snapshot = (() => {
-    try { return JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8')) } catch { return {} }
-  })()
   if (!allOk) {
     console.error(`❌ 批处理部分失败（成功 ${okCount}/${ops.length}），本次不标记为已 apply，分析游标不会推进。请修复失败项后重跑。`)
     process.exit(1)
@@ -196,7 +193,7 @@ function main() {
   try {
     fs.writeFileSync(CHANGESET_FILE, JSON.stringify({
       changeset_id, snapshot_id: snapshot.snapshot_id || null, all_ok: true,
-      applied_at: new Date().toISOString(), ops_count: ops.length,
+      applied_at: new Date().toISOString(), ops_count: ops.length, reviewed_no_change: noChange,
       ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null })),
       reconciliation: reconciliation || [],
     }, null, 2))

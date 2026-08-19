@@ -1,15 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "看板变更建议操作（ops）",
-  "description": "一条龙更新流程中 Agent 分析产出的变更建议格式。写入 workflow/ops.json（数组或 { ops: [...] }），由 npm run dashboard:apply 校验并执行。",
-  "oneOf": [
-    { "type": "array", "items": { "$ref": "#/$defs/op" } },
-    {
-      "type": "object",
-      "required": ["ops"],
-      "properties": { "ops": { "type": "array", "items": { "$ref": "#/$defs/op" } } }
-    }
-  ],
+  "description": "一条龙更新流程中 Agent 分析产出的变更建议格式。每次审查必须对当前 review-packet 的全部 source_id 作出结论；ops 可为空，表示无变更结案。",
+  "type": "object",
+  "required": ["snapshot_id", "reconciliation", "ops"],
+  "properties": {
+    "snapshot_id": { "type": "string", "description": "必须等于 workflow/review-packet.json 的 snapshot_id" },
+    "reconciliation": {
+      "type": "array",
+      "description": "review-packet 中每个 source_id 恰好一条结论",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "decision"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "decision": { "type": "string", "enum": ["mapped", "irrelevant", "needs_confirmation"] },
+          "task_id": { "type": "string", "description": "mapped 时必填" },
+          "evidence": { "type": "string", "description": "可选：简短判断依据" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ops": { "type": "array", "items": { "$ref": "#/$defs/op" } }
+  },
   "$defs": {
     "op": {
       "type": "object",
@@ -35,5 +48,6 @@
       },
       "additionalProperties": false
     }
-  }
+  },
+  "additionalProperties": false
 }
