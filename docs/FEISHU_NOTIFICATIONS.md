@@ -50,14 +50,14 @@ task_feedback_messages / threads        task_updates
 
 **推送意图由 Agent 显式声明**（`task_updates.notify_mode`）：`immediate` 秒推 / `merge` 同批合并 / `silent` 静默——不再用时间窗口猜测是否批量。
 
-## 已部署内容（2026-08-16）
+## 已部署内容（2026-08-20）
 
 1. **数据库**（`supabase/schema.sql`，已执行）：
    - `notification_outbox` 表（pending/sending/sent/failed/skipped、attempts、last_error、sent_at）；`decision_response_submitted` 由迁移 `0010` 加入
    - 三个触发器：`notify_task_update_trigger`（按 immediate/merge/silent 分流）、`notify_feedback_message_trigger`（首条=created，其余=replied）、`notify_feedback_status_trigger`（resolved/重开）
    - `public.retry_failed_notifications(max_attempts)`：把 failed 且未超次数的事件重新置 pending（webhook 监听 UPDATE 会重新投递）
    - pg_cron：每 5 分钟兜底投递 pending，每 15 分钟重试 failed（最多 5 次）；failed 按 attempts 递增退避；迁移 `0008_notification_delivery_cron.sql` / `0009_notification_retry_backoff.sql` 补齐调度与退避
-2. **Edge Function**（`supabase/functions/feishu-notify/`，已部署，卡片构建抽到 `cards.ts` 纯函数可单测）：
+2. **Edge Function**（`supabase/functions/feishu-notify/`，线上 version 14，卡片构建抽到 `cards.ts` 纯函数可单测）：
    - 验签 `x-dashboard-secret`；幂等 claim（只有 pending 能抢到）；失败回写 outbox=failed（**不靠 webhook 自动重试**，避免重复推送；由 retry 函数可控重试）
 3. **本地测试**：`npm test`（含 `scripts/notify-cards.test.js`：事件分类、深链接、原反馈摘要、聚合卡、不泄露密钥）
 

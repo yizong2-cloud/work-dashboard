@@ -128,7 +128,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | silent | `note --type note`、标题/描述等普通 `update`；`--at` 历史补记 | 只写时间线不推，进 19:30 日报 | 静默 |
 
 - 触发器 `notify_task_update`：历史补记(created_at 早 10min) 静默；silent 静默；merge 合并；其余立即。
-- 队列：`notification_outbox`（pending/sending/sent/failed/skipped）→ pg_net → feishu-notify → 飞书群卡片。
+- 队列：`notification_outbox`（pending/sending/sent/failed/skipped）→ pg_net → feishu-notify → 按事件分流到群机器人或 Leader 个人机器人。
 - **工作日日报卡**（cron 19:30 触发 `send_daily_report`）：已逾期/加急/阻塞/本周到期/未排期+原因/今日更新概览，逐条可点深链。
 - 卡片按钮智能跳转：逾期任务按钮「⚠️ 去更新进度」+ `?action=progress` 自动弹快速更新；反馈深链带 thread。
 - 历史补记(创建时点远早)不推送、拆分批不打扰：依赖 Agent 正确传 notify_mode。
