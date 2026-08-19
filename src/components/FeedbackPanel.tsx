@@ -24,6 +24,8 @@ interface FeedbackPanelProps {
   /** 变更后由父级刷新数据 */
   onChanged: () => void
   onNotify: (message: string) => void
+  /** 任务页的 Agent 处理入口：将留言明确放入处理箱，不改变底层线程模型。 */
+  agentMode?: boolean
 }
 
 export function FeedbackPanel({
@@ -35,6 +37,7 @@ export function FeedbackPanel({
   initialThreadId = null,
   onChanged,
   onNotify,
+  agentMode = false,
 }: FeedbackPanelProps) {
   const [role, setRole] = useState<FeedbackRole>(() =>
     localStorage.getItem(ROLE_KEY) === 'owner' ? 'owner' : 'leader',
@@ -55,6 +58,7 @@ export function FeedbackPanel({
   }, [initialThreadId])
 
   const openCount = threads.filter((t) => t.status !== 'resolved').length
+  const pendingLabel = agentMode ? '待处理' : '待回应'
 
   const sorted = useMemo(
     () => [...threads].sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
@@ -88,9 +92,9 @@ export function FeedbackPanel({
     setBusy(true)
     setError('')
     try {
-      await service.createThread(taskId, body, role)
+      await service.createThread(taskId, body, agentMode ? 'leader' : role)
       setNewBody('')
-      onNotify('反馈已发起')
+      onNotify(agentMode ? '已保存到处理箱，Agent 可按任务定位' : '反馈已发起')
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -135,11 +139,11 @@ export function FeedbackPanel({
     <section className="comment-panel card" id="comments">
       <div className="comment-panel-head">
         <div>
-          <span className="eyebrow">Leader feedback</span>
-          <h2>反馈线程</h2>
+          <span className="eyebrow">{agentMode ? 'Agent inbox' : 'Leader feedback'}</span>
+          <h2>{agentMode ? '给 Agent 的处理留言' : '反馈线程'}</h2>
         </div>
         <span className={`comment-count ${openCount > 0 ? 'comment-count-open' : ''}`}>
-          {openCount > 0 ? `${openCount} 待回应` : '全部已解决'}
+          {openCount > 0 ? `${openCount} ${pendingLabel}` : '全部已解决'}
         </span>
       </div>
 
@@ -151,7 +155,7 @@ export function FeedbackPanel({
           void submitNew()
         }}
       >
-        <div className="feedback-role-row">
+        {!agentMode && <div className="feedback-role-row">
           <span className="feedback-role-label">我是</span>
           <button type="button" className={`btn btn-sm ${role === 'leader' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => switchRole('leader')}>
             Leader
@@ -159,7 +163,7 @@ export function FeedbackPanel({
           <button type="button" className={`btn btn-sm ${role === 'owner' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => switchRole('owner')}>
             负责人（本人）
           </button>
-        </div>
+        </div>}
         <label className="comment-content-field">
           <span className="sr-only">反馈内容</span>
           <textarea
@@ -167,15 +171,15 @@ export function FeedbackPanel({
             onChange={(e) => setNewBody(e.target.value)}
             rows={3}
             maxLength={2000}
-            placeholder="写下建议、决策或需要跟进的问题…"
+            placeholder={agentMode ? '例如：预计完成时间记错了，改到 8 月 25 日；或：这个任务已经完成了。' : '写下建议、决策或需要跟进的问题…'}
             aria-label="反馈内容"
             autoFocus={autoFocus}
           />
         </label>
         <div className="comment-form-foot">
-          <span className="comment-hint">当前免登录，身份仅用于展示</span>
+          <span className="comment-hint">{agentMode ? '保存后会绑定当前任务；Agent 读取后再决定如何修改。' : '当前免登录，身份仅用于展示'}</span>
           <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? '提交中…' : '发起反馈'}
+            {busy ? '保存中…' : agentMode ? '保存到处理箱' : '发起反馈'}
           </button>
         </div>
         {error && <p className="form-error">{error}</p>}
@@ -219,7 +223,7 @@ export function FeedbackPanel({
             <article className="thread-item" key={thread.id}>
               <button className="thread-head" onClick={() => toggleThread(thread.id)}>
                 <span className={`thread-status st-${thread.status}`}>
-                  {FEEDBACK_STATUS_LABEL[thread.status]}
+                  {agentMode && thread.status === 'open' ? '待处理' : FEEDBACK_STATUS_LABEL[thread.status]}
                 </span>
                 <span className="thread-summary">
                   {thread.latest_message || `来自 ${thread.created_by || 'Leader'} 的反馈`}

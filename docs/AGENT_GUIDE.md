@@ -70,6 +70,8 @@ npm install        # 首次
 npm run agent -- list --status in_progress      # 按状态过滤；--interrupt 只看临时任务
 npm run agent -- list                           # 全部任务（拿 id 用）
 npm run agent -- get <id>                       # 任务详情 + 时间线
+npm run agent -- inbox --json                   # 读取处理箱；默认仅返回 open/in_progress 留言
+npm run agent -- inbox --all                    # 连已解决线程一起读取（只读）
 
 # 新增
 npm run agent -- create --title "任务名" \
@@ -178,10 +180,12 @@ npm run agent -- batch --file ops.json             # 再执行
 2. 用自然语言向用户总结：「已更新看板：XXX 进度 50% → 75%（完成 XX 模块）…」
 3. 如果用户是在网页上看的：**数据是动态的，无需重新部署**，刷新页面即可。
 
-## 10. 反馈线程（Leader 反馈，网页功能）
+## 10. 反馈线程与 Agent 处理箱
 
 - Leader 的反馈是**独立结构化数据**（`task_feedback_threads` / `task_feedback_messages`），不再使用 `💬` 前缀模拟。
 - 反馈在**网页**上操作（任务详情页 → 反馈线程）：发起、回复、标记处理中/解决、重新打开（已解决后回复自动重开）。
-- **Agent CLI 不直接改反馈**（反馈是 Leader ↔ 负责人对话；Agent 的任务更新走时间线）。如需在反馈中提到任务变化，通过 `progress/note` 等命令更新任务时间线即可，反馈与时间线是两条独立通道。
+- 任务详情页的「交给 Agent 处理」会把自然语言留言放入处理箱；网页「处理箱」可按任务定位并打开原线程。
+- Agent 用 `npm run agent -- inbox --json` 读取处理箱（默认只返回未解决线程；`--all` 可包含已解决）。读取是只读聚合，**不会自动把自然语言解释成字段修改**。
+- Agent 判断后仍须使用 `progress/update/schedule/block/complete` 等结构化命令落地，并用网页线程标记处理中/解决；这样保留原文、审计和人工复核。
 - 旧版本 `💬` 留言（task_updates 里）通过兼容读取继续展示为「历史留言」，数据不动。
 - 免登录：身份（Leader/本人）仅展示，不做身份校验。

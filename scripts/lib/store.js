@@ -181,6 +181,40 @@ function createLocalStore() {
       saveLocal(db)
       return task
     },
+    // ---- Agent 处理箱（只读聚合 + 状态回写） ----
+    async listAllFeedbackThreads() {
+      const db = loadLocal()
+      const messages = db.feedbackMessages ?? []
+      return (db.feedbackThreads ?? []).map((thread) => {
+        const latest = messages
+          .filter((message) => message.thread_id === thread.id)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+        return {
+          ...thread,
+          message_count: messages.filter((message) => message.thread_id === thread.id).length,
+          latest_message: latest?.body ?? '',
+          latest_message_at: latest?.created_at ?? thread.created_at,
+          latest_author: latest?.author_name ?? thread.created_by,
+        }
+      }).sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    },
+    async listFeedbackMessages(threadId) {
+      return (loadLocal().feedbackMessages ?? [])
+        .filter((message) => message.thread_id === threadId)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    },
+    async setFeedbackStatus(threadId, status, byName = 'agent') {
+      if (!['open', 'in_progress', 'resolved'].includes(status)) throw new Error(`非法反馈状态: ${status}`)
+      const db = loadLocal()
+      const thread = (db.feedbackThreads ?? []).find((item) => item.id === threadId)
+      if (!thread) throw new Error(`反馈线程不存在: ${threadId}`)
+      thread.status = status
+      thread.resolved_at = status === 'resolved' ? now() : null
+      thread.resolved_by = status === 'resolved' ? byName : ''
+      thread.updated_at = now()
+      saveLocal(db)
+      return thread
+    },
     async flushMerge() {
       return 0 // 本地模式无推送
     },
@@ -641,6 +675,55 @@ function createSupabaseStore(env) {
         p_created_by: update.created_by ?? 'agent',
         p_notify_mode: update.notify_mode ?? 'immediate',
         p_merge_key: update.merge_key ?? null,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
+    // ---- Agent 处理箱（service_role 读取线上线程） ----
+    async listAllFeedbackThreads() {
+      const { data: threads, error } = await client
+        .from('task_feedback_threads')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(500)
+      if (error) throw new Error(error.message)
+      const { data: messages, error: messageError } = await client
+        .from('task_feedback_messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (messageError) throw new Error(messageError.message)
+      const byThread = new Map()
+      for (const message of messages ?? []) {
+        const list = byThread.get(message.thread_id) ?? []
+        list.push(message)
+        byThread.set(message.thread_id, list)
+      }
+      return (threads ?? []).map((thread) => {
+        const list = byThread.get(thread.id) ?? []
+        const latest = list[list.length - 1]
+        return {
+          ...thread,
+          message_count: list.length,
+          latest_message: latest?.body ?? '',
+          latest_message_at: latest?.created_at ?? thread.created_at,
+          latest_author: latest?.author_name ?? thread.created_by,
+        }
+      })
+    },
+    async listFeedbackMessages(threadId) {
+      const { data, error } = await client
+        .from('task_feedback_messages')
+        .select('*')
+        .eq('thread_id', threadId)
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return data ?? []
+    },
+    async setFeedbackStatus(threadId, status, byName = 'agent') {
+      const { data, error } = await client.rpc('set_feedback_status', {
+        p_thread_id: threadId,
+        p_status: status,
+        p_by_name: byName,
       })
       if (error) throw new Error(error.message)
       return data

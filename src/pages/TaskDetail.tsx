@@ -86,6 +86,12 @@ export function TaskDetail() {
     void refresh()
   }
 
+  function focusAgentInbox() {
+    const composer = document.querySelector('#comments textarea[aria-label="反馈内容"]') as HTMLTextAreaElement | null
+    document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => composer?.focus(), 180)
+  }
+
   async function remove() {
     if (!task) return
     if (!window.confirm(`确定删除任务「${task.title}」？其时间线和留言也会一并删除。`)) return
@@ -130,7 +136,10 @@ export function TaskDetail() {
             <PriorityBadge priority={task.priority} />
             {task.is_interrupt_task && <span className="tag tag-interrupt">临时任务</span>}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setQuick(true)}>快速更新</button>
+          <div className="detail-actions">
+            <button className="btn btn-ghost btn-sm" onClick={focusAgentInbox}>交给 Agent 处理</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setQuick(true)}>快速更新</button>
+          </div>
         </div>
         <h1>{task.title}</h1>
         {task.description && <p className="detail-desc">{task.description}</p>}
@@ -177,6 +186,7 @@ export function TaskDetail() {
             legacyComments={legacyComments}
             autoFocus={focusFeedback}
             initialThreadId={focusThreadId}
+            agentMode
             onChanged={() => void refresh()}
             onNotify={notify}
           />

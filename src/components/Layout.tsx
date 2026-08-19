@@ -31,6 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>总览</NavLink>
             <NavLink to="/schedule" className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>日程</NavLink>
             <NavLink to="/decisions" className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>决策中心</NavLink>
+            <NavLink to="/inbox" className={({ isActive }) => `nav-link${isActive ? ' nav-link-active' : ''}`}>处理箱</NavLink>
           </nav>
         </div>
       </header>

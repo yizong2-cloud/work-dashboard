@@ -157,6 +157,34 @@ async function opGet(op) {
   return null
 }
 
+/**
+ * 读取处理箱：默认只返回未解决线程，给 Agent 一个稳定、可机器消费的入口。
+ * 这是只读聚合；自然语言不会在这里被自动解释成任务修改。
+ */
+async function opInbox(op) {
+  const status = op.status ? String(op.status) : null
+  if (status && !['open', 'in_progress', 'resolved'].includes(status)) {
+    fail(`非法处理箱状态: ${status}，可选: open / in_progress / resolved`)
+  }
+  const [threads, tasks] = await Promise.all([store.listAllFeedbackThreads(), store.listTasks()])
+  const byTask = new Map(tasks.map((task) => [task.id, task]))
+  const filtered = threads.filter((thread) => status ? thread.status === status : (op.all ? true : thread.status !== 'resolved'))
+  const items = await Promise.all(filtered.map(async (thread) => ({
+    ...thread,
+    task_title: byTask.get(thread.task_id)?.title ?? '',
+    messages: await store.listFeedbackMessages(thread.id),
+  })))
+  if (jsonOut) return items
+  human(`[数据模式] ${store.mode}${store.localFile ? `（文件: ${store.localFile}）` : ''}`)
+  if (items.length === 0) human('（处理箱为空）')
+  for (const item of items) {
+    human(`\n[${item.id}] ${item.task_title || item.task_id} · ${item.status} · ${item.updated_at}`)
+    for (const message of item.messages) human(`  ${message.author_name || message.author_role}: ${message.body}`)
+  }
+  human(`\n共 ${items.length} 条处理留言`)
+  return null
+}
+
 async function opCreate(op) {
   const title = requireOp(op, 'title', '任务名称')
   const input = {
@@ -548,6 +576,7 @@ function opHelp() {
 命令:
   list [--status 状态] [--interrupt]          列出任务（支持过滤）
   get <任务id>                                 查看任务详情 + 时间线
+  inbox [--all] [--status open|in_progress|resolved] 读取处理箱（默认仅未解决，支持 --json）
   create --title "任务名" [--description] [--status] [--priority]
         [--progress 0-100] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
         [--interrupt] [--note "创建说明"]       新建任务（自动记录时间线）
@@ -583,6 +612,7 @@ function opHelp() {
 const ops = {
   list: opList,
   get: opGet,
+  inbox: opInbox,
   create: opCreate,
   progress: opProgress,
   status: opStatus,

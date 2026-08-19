@@ -58,6 +58,29 @@ test('create 创建任务并写入初始时间线', () => {
   assert.match(g.stdout, /任务创建/)
 })
 
+test('inbox 默认只读未解决反馈，并输出任务定位与完整消息', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '处理箱测试任务')
+  const id = extractId(c.stdout)
+  const db = JSON.parse(fs.readFileSync(c.dbFile, 'utf8'))
+  const threadId = '11111111-1111-4111-8111-111111111111'
+  db.feedbackThreads = [{
+    id: threadId, task_id: id, status: 'open', created_at: '2026-08-20T01:00:00.000Z',
+    created_by: 'Leader', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:02:00.000Z',
+  }]
+  db.feedbackMessages = [{
+    id: '22222222-2222-4222-8222-222222222222', thread_id: threadId, body: '预计完成日期记错了，请改到周五。',
+    author_name: 'Leader', author_role: 'leader', created_at: '2026-08-20T01:02:00.000Z',
+  }]
+  fs.writeFileSync(c.dbFile, JSON.stringify(db, null, 2))
+  const r = run('inbox', '--json')
+  assert.ok(r.ok, r.stderr)
+  const items = JSON.parse(r.stdout)
+  assert.equal(items.length, 1)
+  assert.equal(items[0].task_title, '处理箱测试任务')
+  assert.equal(items[0].messages[0].body, '预计完成日期记错了，请改到周五。')
+})
+
 test('progress 原子更新：进度变更 + 时间线各一条', () => {
   const run = makeRunner()
   const c = run('create', '--title', '测试任务B')
