@@ -27,6 +27,9 @@ function nextAction({ packet, changeset, matched, ageHoursValue }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
   if (packet.snapshot_health === 'degraded') return '来源不完整：先修复失败来源，再决定是否更新看板'
   if (ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS) return '当前快照已超过 24 小时；先运行 npm run dashboard:prepare 获取新数据'
+  if (!packet.source_health || typeof packet.source_health !== 'object' || Object.keys(packet.source_health).length === 0) {
+    return '来源健康未记录（旧版快照）；先运行 npm run dashboard:prepare 获取带来源状态的新快照'
+  }
   if (!matched) return '当前快照尚未完成 apply + verify；先按更新流程审查并校验'
   return '当前快照已完成审查；等待下一次数据采集'
 }
@@ -34,6 +37,7 @@ function nextAction({ packet, changeset, matched, ageHoursValue }) {
 export function buildStatus({ packet, analysisState, changeset, now = new Date() }) {
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
   const ageHoursValue = ageHours(packet?.captured_at, now)
+  const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
   return {
     packet_available: Boolean(packet),
     snapshot_id: packet?.snapshot_id || null,
@@ -42,6 +46,7 @@ export function buildStatus({ packet, analysisState, changeset, now = new Date()
     snapshot_stale: ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS,
     snapshot_health: packet?.snapshot_health || 'missing',
     source_health: packet?.source_health || null,
+    source_health_recorded: sourceHealthRecorded,
     counts: packet?.counts || null,
     analysis_reviewed_at: analysisState?.reviewed_at || null,
     apply: {
@@ -69,10 +74,14 @@ export function formatStatus(status) {
   lines.push(`快照：${status.snapshot_health} · ${ageText(status.age_hours)} · ${status.snapshot_id}`)
   lines.push(`新鲜度：${status.snapshot_stale ? '已过期（超过 24 小时）' : '正常'}`)
   if (status.counts) lines.push(`证据：${status.counts.total} 条（高优先级 ${status.counts.high_priority} 条）`)
-  for (const [label, source] of Object.entries(status.source_health || {})) {
-    const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件' }[label] || label
-    const count = source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
-    lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${source.detail ? ` · ${source.detail}` : ''}`)
+  if (!status.source_health_recorded) {
+    lines.push('来源健康：⚠️ 未记录（旧版快照；建议重新运行 npm run dashboard:prepare）')
+  } else {
+    for (const [label, source] of Object.entries(status.source_health || {})) {
+      const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件' }[label] || label
+      const count = source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
+      lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${source.detail ? ` · ${source.detail}` : ''}`)
+    }
   }
   lines.push(`审查游标：${status.analysis_reviewed_at || '未推进'}`)
   lines.push(`apply：${status.apply.matched_snapshot ? '已匹配当前快照' : '尚未匹配当前快照'}`)
