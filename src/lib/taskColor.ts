@@ -4,7 +4,7 @@
 // 按 taskId 稳定哈希到调色板，无需存库、刷新不变。
 // ============================================================
 
-// 12 个高区分度色（色相拉开）；CSS 用 .task-color-<key> 定义底色/边框
+// 12 个低饱和、高区分度色（色相拉开）；CSS 用 .task-color-<key> 定义底色/边框
 export const TASK_COLOR_KEYS = [
   'sunset', 'ocean', 'forest', 'grape', 'gold', 'coral',
   'sky', 'lime', 'rose', 'slate', 'teal', 'amber',

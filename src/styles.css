@@ -3473,42 +3473,42 @@ h3,
   color: var(--muted);
 }
 /* ===== 任务稳定颜色（taskColor.ts）===== */
-.task-color-line-sunset{background:#f973161f;border:1px solid #f9731699;color:#1f2937;}
-.task-color-line-ocean{background:#0ea5e91f;border:1px solid #0ea5e999;color:#1f2937;}
-.task-color-line-forest{background:#22c55e1f;border:1px solid #22c55e99;color:#1f2937;}
-.task-color-line-grape{background:#8b5cf61f;border:1px solid #8b5cf699;color:#1f2937;}
-.task-color-line-gold{background:#d4a1061f;border:1px solid #d4a10699;color:#1f2937;}
-.task-color-line-coral{background:#f43f5e1f;border:1px solid #f43f5e99;color:#1f2937;}
-.task-color-line-sky{background:#06b6d41f;border:1px solid #06b6d499;color:#1f2937;}
-.task-color-line-lime{background:#65a30d1f;border:1px solid #65a30d99;color:#1f2937;}
-.task-color-line-rose{background:#ec48991f;border:1px solid #ec489999;color:#1f2937;}
-.task-color-line-slate{background:#64748b1f;border:1px solid #64748b99;color:#1f2937;}
-.task-color-line-teal{background:#0d94881f;border:1px solid #0d948899;color:#1f2937;}
-.task-color-line-amber{background:#d354001f;border:1px solid #d3540099;color:#1f2937;}
-.task-color-solid-sunset{background:#f97316;border:1px solid #f97316;color:#fff;}
-.task-color-solid-ocean{background:#0ea5e9;border:1px solid #0ea5e9;color:#fff;}
-.task-color-solid-forest{background:#22c55e;border:1px solid #22c55e;color:#fff;}
-.task-color-solid-grape{background:#8b5cf6;border:1px solid #8b5cf6;color:#fff;}
-.task-color-solid-gold{background:#d4a106;border:1px solid #d4a106;color:#fff;}
-.task-color-solid-coral{background:#f43f5e;border:1px solid #f43f5e;color:#fff;}
-.task-color-solid-sky{background:#06b6d4;border:1px solid #06b6d4;color:#fff;}
-.task-color-solid-lime{background:#65a30d;border:1px solid #65a30d;color:#fff;}
-.task-color-solid-rose{background:#ec4899;border:1px solid #ec4899;color:#fff;}
-.task-color-solid-slate{background:#64748b;border:1px solid #64748b;color:#fff;}
-.task-color-solid-teal{background:#0d9488;border:1px solid #0d9488;color:#fff;}
-.task-color-solid-amber{background:#d35400;border:1px solid #d35400;color:#fff;}
-.task-color-bar-sunset{border-left:4px solid #f97316;}
-.task-color-bar-ocean{border-left:4px solid #0ea5e9;}
-.task-color-bar-forest{border-left:4px solid #22c55e;}
-.task-color-bar-grape{border-left:4px solid #8b5cf6;}
-.task-color-bar-gold{border-left:4px solid #d4a106;}
-.task-color-bar-coral{border-left:4px solid #f43f5e;}
-.task-color-bar-sky{border-left:4px solid #06b6d4;}
-.task-color-bar-lime{border-left:4px solid #65a30d;}
-.task-color-bar-rose{border-left:4px solid #ec4899;}
-.task-color-bar-slate{border-left:4px solid #64748b;}
-.task-color-bar-teal{border-left:4px solid #0d9488;}
-.task-color-bar-amber{border-left:4px solid #d35400;}
+.task-color-line-sunset{background:#b8786b22;border:1px solid #b8786b88;color:#3f3436;}
+.task-color-line-ocean{background:#6f8fab22;border:1px solid #6f8fab88;color:#2f3945;}
+.task-color-line-forest{background:#739b7a22;border:1px solid #739b7a88;color:#334239;}
+.task-color-line-grape{background:#8c79ad22;border:1px solid #8c79ad88;color:#3d354b;}
+.task-color-line-gold{background:#b3945522;border:1px solid #b3945588;color:#443b2d;}
+.task-color-line-coral{background:#c4777822;border:1px solid #c4777888;color:#493538;}
+.task-color-line-sky{background:#6fabb422;border:1px solid #6fabb488;color:#304348;}
+.task-color-line-lime{background:#8e9d6622;border:1px solid #8e9d6688;color:#3e452f;}
+.task-color-line-rose{background:#b37d9822;border:1px solid #b37d9888;color:#47343e;}
+.task-color-line-slate{background:#7c859122;border:1px solid #7c859188;color:#353942;}
+.task-color-line-teal{background:#659c9122;border:1px solid #659c9188;color:#30433f;}
+.task-color-line-amber{background:#b27b5722;border:1px solid #b27b5788;color:#49382f;}
+.task-color-solid-sunset{background:#a96f63;border:1px solid #a96f63;color:#fffaf7;}
+.task-color-solid-ocean{background:#6686a4;border:1px solid #6686a4;color:#fffaf7;}
+.task-color-solid-forest{background:#668c6d;border:1px solid #668c6d;color:#fffaf7;}
+.task-color-solid-grape{background:#806c9f;border:1px solid #806c9f;color:#fffaf7;}
+.task-color-solid-gold{background:#a7894e;border:1px solid #a7894e;color:#fffaf7;}
+.task-color-solid-coral{background:#b56d70;border:1px solid #b56d70;color:#fffaf7;}
+.task-color-solid-sky{background:#609aa5;border:1px solid #609aa5;color:#fffaf7;}
+.task-color-solid-lime{background:#7f8f59;border:1px solid #7f8f59;color:#fffaf7;}
+.task-color-solid-rose{background:#a66f8a;border:1px solid #a66f8a;color:#fffaf7;}
+.task-color-solid-slate{background:#707984;border:1px solid #707984;color:#fffaf7;}
+.task-color-solid-teal{background:#598f84;border:1px solid #598f84;color:#fffaf7;}
+.task-color-solid-amber{background:#a66f4d;border:1px solid #a66f4d;color:#fffaf7;}
+.task-color-bar-sunset{border-left:4px solid #a96f63;}
+.task-color-bar-ocean{border-left:4px solid #6686a4;}
+.task-color-bar-forest{border-left:4px solid #668c6d;}
+.task-color-bar-grape{border-left:4px solid #806c9f;}
+.task-color-bar-gold{border-left:4px solid #a7894e;}
+.task-color-bar-coral{border-left:4px solid #b56d70;}
+.task-color-bar-sky{border-left:4px solid #609aa5;}
+.task-color-bar-lime{border-left:4px solid #7f8f59;}
+.task-color-bar-rose{border-left:4px solid #a66f8a;}
+.task-color-bar-slate{border-left:4px solid #707984;}
+.task-color-bar-teal{border-left:4px solid #598f84;}
+.task-color-bar-amber{border-left:4px solid #a66f4d;}
 
 /* ===== 本周视图 ===== */
 .week-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 18px;margin-bottom:14px;}
@@ -3566,18 +3566,18 @@ h3,
 }
 /* ===== 任务颜色圆点（QuickCard / 通用）===== */
 .task-color-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;margin-right:8px;}
-.task-color-sunset{background:#f97316;}
-.task-color-ocean{background:#0ea5e9;}
-.task-color-forest{background:#22c55e;}
-.task-color-grape{background:#8b5cf6;}
-.task-color-gold{background:#d4a106;}
-.task-color-coral{background:#f43f5e;}
-.task-color-sky{background:#06b6d4;}
-.task-color-lime{background:#65a30d;}
-.task-color-rose{background:#ec4899;}
-.task-color-slate{background:#64748b;}
-.task-color-teal{background:#0d9488;}
-.task-color-amber{background:#d35400;}
+.task-color-sunset{background:#a96f63;}
+.task-color-ocean{background:#6686a4;}
+.task-color-forest{background:#668c6d;}
+.task-color-grape{background:#806c9f;}
+.task-color-gold{background:#a7894e;}
+.task-color-coral{background:#b56d70;}
+.task-color-sky{background:#609aa5;}
+.task-color-lime{background:#7f8f59;}
+.task-color-rose{background:#a66f8a;}
+.task-color-slate{background:#707984;}
+.task-color-teal{background:#598f84;}
+.task-color-amber{background:#a66f4d;}
 /* 周视图/月历 风险样式（红边，不覆盖任务色） */
 .week-plan.is-blocked,.week-plan.is-urgent,.task-chip.is-blocked,.task-chip.is-urgent{outline:2px solid var(--danger);outline-offset:0;}
 .task-chip.is-overdue{outline:2px solid var(--warn);}
