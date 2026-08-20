@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
+import { CursorPresence } from './components/CursorPresence'
 import { Layout } from './components/Layout'
 
 // Keep the shell and navigation in the first request; load each work surface
@@ -28,6 +29,7 @@ function RouteLoading() {
 export default function App() {
   return (
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <CursorPresence />
       <Layout>
         <Suspense fallback={<RouteLoading />}>
           <Routes>

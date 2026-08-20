@@ -4954,19 +4954,90 @@ h3,
   .decision-bottom-bar { margin: 20px -13px -100px; padding: 12px 13px 16px; }
 }
 
-/* ---------- 桌面交互指针 ----------
-   保留输入框的文字光标和系统禁用态；只在精确指针设备上把可操作元素换成
-   与纸张/紫色基调一致的小星光指针。SVG 为代码资源，无需额外图片下载。 */
+/* ---------- 桌面星光指针 ----------
+   指针本体准确跟手，柔和光晕带极短惯性。只有 JS 成功启用后才隐藏系统光标，
+   输入与编辑区域始终保留文字光标，触控设备完全不加载此体验。 */
+.cursor-presence { display: none; }
+
 @media (hover: hover) and (pointer: fine) {
-  :is(
-    a[href],
-    button:not(:disabled),
-    [role="button"],
-    summary,
-    select,
-    input[type="checkbox"],
-    input[type="radio"]
-  ) {
-    cursor: url('./assets/cursor-sparkle.svg') 5 4, pointer;
+  html.cursor-presence-enabled,
+  html.cursor-presence-enabled body,
+  html.cursor-presence-enabled :is(a, button, [role="button"], summary, select, input[type="checkbox"], input[type="radio"]) {
+    cursor: none !important;
   }
+
+  html.cursor-presence-enabled :is(textarea, input:not([type="checkbox"]):not([type="radio"]), [contenteditable="true"]) {
+    cursor: text !important;
+  }
+
+  html.cursor-presence-enabled :is(button:disabled, input:disabled, select:disabled) {
+    cursor: not-allowed !important;
+  }
+
+  .cursor-presence {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    pointer-events: none;
+  }
+
+  .cursor-presence-aura {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    border: 1px solid rgba(120, 99, 189, 0.2);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(220, 204, 255, 0.3) 0%, rgba(220, 204, 255, 0.1) 42%, transparent 72%);
+    box-shadow: 0 0 22px rgba(120, 99, 189, 0.16);
+    opacity: 0.86;
+  }
+
+  .cursor-presence-pointer {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    opacity: 0;
+    transform-origin: 5px 4px;
+    transition: opacity 120ms ease;
+  }
+
+  .cursor-presence-pointer.is-visible { opacity: 1; }
+
+  .cursor-presence-pointer img {
+    width: 34px;
+    height: 34px;
+    filter: drop-shadow(0 3px 4px rgba(74, 52, 110, 0.22));
+    transform-origin: 5px 4px;
+    transition: transform 160ms ease, filter 160ms ease;
+  }
+
+  .cursor-presence-pointer.is-interactive img {
+    filter: drop-shadow(0 4px 7px rgba(120, 99, 189, 0.34));
+    transform: rotate(-5deg) scale(1.16);
+  }
+
+  .cursor-presence-pointer.is-pressing img { transform: scale(0.82); }
+
+  .cursor-presence-spark {
+    position: absolute;
+    color: #d99a3d;
+    font-family: Georgia, serif;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 1px 5px rgba(217, 154, 61, 0.34);
+    animation: cursor-spark-pulse 1.45s ease-in-out infinite;
+  }
+
+  .cursor-presence-spark-one { top: 1px; left: 29px; font-size: 15px; }
+  .cursor-presence-spark-two { top: 20px; left: 35px; font-size: 17px; animation-delay: 420ms; }
+
+  @keyframes cursor-spark-pulse {
+    0%, 100% { opacity: 0.38; transform: scale(0.72) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1.14) rotate(15deg); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-presence-spark { animation: none; }
 }
