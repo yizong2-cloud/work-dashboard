@@ -45,6 +45,48 @@ test('review attention explains ambiguity instead of pretending task urgency', (
   assert.equal(packet.counts.review_attention, packet.counts.high_priority)
 })
 
+test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    codex: [{ cwd: '/repo/a', userReqs: ['成就弹窗和徽章需要联调'] }],
+    codex_detail: [],
+    candidates: {
+      ...context.candidates,
+      codex: [{
+        cwd: '/repo/a',
+        hint: 'Fantasy 客户端',
+        tasks: ['Fantasy 试玩制作与多渠道适配', 'Fantasy 成就系统收尾'],
+        task_keywords: {
+          'Fantasy 试玩制作与多渠道适配': ['试玩', '可玩广告'],
+          'Fantasy 成就系统收尾': ['成就', '徽章'],
+        },
+      }],
+    },
+  })
+  const item = packet.review_items.find((row) => row.source_id === 'codex:0')
+  assert.deepEqual(item.candidate_tasks, ['Fantasy 成就系统收尾', 'Fantasy 试玩制作与多渠道适配'])
+  assert.equal(item.candidate_ranked_by, 'keyword_overlap')
+  assert.equal(item.candidate_count, 2)
+  assert.equal(item.review_reason, 'multiple_candidate_tasks')
+  assert.equal(item.review_priority, 'high')
+})
+
+test('multi-task candidates keep source-map order when curated keywords are absent', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    codex: [{ cwd: '/repo/a', userReqs: ['成就弹窗需要联调'] }],
+    codex_detail: [],
+    candidates: {
+      ...context.candidates,
+      codex: [{ cwd: '/repo/a', tasks: ['试玩任务', '成就任务'], hint: '多线客户端' }],
+    },
+  })
+  const item = packet.review_items.find((row) => row.source_id === 'codex:0')
+  assert.deepEqual(item.candidate_tasks, ['试玩任务', '成就任务'])
+  assert.equal(item.candidate_ranked_by, undefined)
+  assert.equal(item.review_reason, 'multiple_candidate_tasks')
+})
+
 test('coverage reports a missing source row instead of silently passing', () => {
   const coverage = buildCoverage({
     codex: [{ file: '/repo/a' }],

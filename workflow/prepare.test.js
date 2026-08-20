@@ -44,10 +44,12 @@ test('confirmed JigsawCard reverse-engineering directory maps to the leaderboard
       pattern: 'Unified_API_Playground/packages/jigsawcard',
       hint: 'JigsawCard 竞品触觉/震动反馈逆向',
       tasks: ['华容道排行榜功能（九月初预定）'],
+      task_keywords: { '华容道排行榜功能（九月初预定）': ['震动反馈'] },
     }],
   }, 'dsh')
   assert.deepEqual(result.unmapped, [])
   assert.deepEqual(result.hits[0].tasks, ['华容道排行榜功能（九月初预定）'])
+  assert.deepEqual(result.hits[0].task_keywords, { '华容道排行榜功能（九月初预定）': ['震动反馈'] })
 })
 
 test('Codex temporary sessions are excluded through source-map rules', () => {
@@ -102,4 +104,16 @@ test('detail summaries share the analysis cursor instead of rereading stale sess
   assert.deepEqual(buildDetailArgs('/tmp/workboard', 'dsh-summary.js', 3, null), [
     '/tmp/workboard/scripts/dsh-summary.js', '--days', '3', '--detail', '--json',
   ])
+})
+
+test('source-map task keywords only reference declared candidate tasks', () => {
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
+  for (const section of ['codex_cwd', 'feishu_chat']) {
+    for (const rule of sourceMap[section] || []) {
+      for (const [task, keywords] of Object.entries(rule.task_keywords || {})) {
+        assert.ok((rule.tasks || []).includes(task), `${section}:${rule.pattern} 的关键词引用了未声明任务 ${task}`)
+        assert.ok(Array.isArray(keywords) && keywords.every((item) => typeof item === 'string' && item.trim()), `${section}:${rule.pattern}:${task} 关键词必须是非空字符串数组`)
+      }
+    }
+  }
 })

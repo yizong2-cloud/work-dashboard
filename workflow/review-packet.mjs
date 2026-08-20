@@ -60,15 +60,39 @@ function candidateForGroup(ctx, group) {
   return (ctx.candidates?.feishu || []).find((item) => item.group === group) || null
 }
 
+// Candidate mappings are intentionally broad so a source directory/chat can
+// cover several related tasks. Only explicitly curated source-map keywords may
+// reorder them: deriving keywords from titles made generic words such as
+// “测试/反馈” look authoritative and increased the chance of false attribution.
+function rankCandidateTasks(candidate, evidenceText) {
+  const tasks = Array.isArray(candidate?.tasks) ? candidate.tasks : []
+  const keywordMap = candidate?.task_keywords
+  if (tasks.length < 2 || !keywordMap || typeof keywordMap !== 'object') return { tasks, applied: false }
+  const corpus = String(evidenceText || '').toLowerCase()
+  const ranked = tasks.map((task, index) => {
+    const keywords = Array.isArray(keywordMap[task]) ? keywordMap[task] : []
+    const matches = keywords.filter((term) => term && corpus.includes(String(term).toLowerCase()))
+    const score = matches.reduce((sum, term) => sum + Math.min(String(term).length, 8), 0)
+    return { task, index, score }
+  }).sort((a, b) => b.score - a.score || a.index - b.index)
+  return {
+    tasks: ranked.map(({ task }) => task),
+    applied: ranked[0].score > 0 && ranked[0].score > ranked[1].score,
+  }
+}
+
 // This is review effort, not task urgency. Keep the legacy review_priority
 // field for compatibility, but expose why an item needs human attention so an
 // Agent never treats it as the task's `priority` value.
-function reviewMeta(candidate, fallbackReason = null) {
+function reviewMeta(candidate, fallbackReason = null, evidenceText = '') {
   const candidateCount = Array.isArray(candidate?.tasks) ? candidate.tasks.length : 0
   const reviewReason = fallbackReason
     || (candidateCount === 0 ? 'no_candidate_mapping' : candidateCount > 1 ? 'multiple_candidate_tasks' : 'single_candidate')
+  const ranking = rankCandidateTasks(candidate, evidenceText)
   return {
     candidate_count: candidateCount,
+    candidate_tasks: ranking.tasks,
+    ...(ranking.applied ? { candidate_ranked_by: 'keyword_overlap' } : {}),
     review_priority: reviewReason === 'single_candidate' ? 'normal' : 'high',
     review_reason: reviewReason,
   }
@@ -170,7 +194,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt((session.userReqs || []).join('\n')),
-      ...reviewMeta(candidate),
+      ...reviewMeta(candidate, null, (session.userReqs || []).join('\n')),
     })
   }
 
@@ -185,7 +209,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt((session.userMsgs || []).join('\n')),
-      ...reviewMeta(candidate),
+      ...reviewMeta(candidate, null, (session.userMsgs || []).join('\n')),
     })
   }
 
@@ -200,7 +224,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
       excerpt: compactExcerpt(group.content),
-      ...reviewMeta(candidate),
+      ...reviewMeta(candidate, null, group.content),
     })
   }
 
@@ -214,7 +238,7 @@ export function buildReviewItems(ctx) {
       candidate_tasks: [],
       hint: '本地文件只采集元数据；按文件名判断，必要时展开或读取文件。',
       excerpt: `${file.ext || 'file'} · ${file.size || 0} bytes · ${file.path || ''}`,
-      ...reviewMeta(null, 'metadata_only'),
+      ...reviewMeta(null, 'metadata_only', file.name || file.path || ''),
     })
   }
   return items
@@ -232,7 +256,7 @@ export function buildReviewPacket(ctx) {
     review_contract: {
       required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
-      review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。',
+      review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。candidate_tasks 仅在 source-map 为任务明确配置关键词且证据唯一命中时做稳定排序；仍须人工确认，不代表自动归属。',
     },
     coverage: buildCoverage(ctx, items),
     counts: {

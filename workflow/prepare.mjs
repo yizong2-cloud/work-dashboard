@@ -147,7 +147,15 @@ function buildSessionCandidates(sessions, map, key) {
     if (matchPattern(map.ignored_cwd || [], cwd)) continue // source-map 明确标注的工具维护目录
     const rule = matchPattern(map.codex_cwd, cwd)
     if (rule) {
-      hits.push({ source: key, cwd, hint: rule.hint, tasks: rule.tasks || [], last: s.lastTs || s.lastTsMs || null, start: s.start || null })
+      hits.push({
+        source: key,
+        cwd,
+        hint: rule.hint,
+        tasks: rule.tasks || [],
+        ...(rule.task_keywords ? { task_keywords: rule.task_keywords } : {}),
+        last: s.lastTs || s.lastTsMs || null,
+        start: s.start || null,
+      })
     } else if (cwd) {
       unmapped.push(cwd)
     }
@@ -165,7 +173,12 @@ function buildFeishuCandidates(feishuText, map) {
   const unmappedGroups = new Set()
   for (const t of titles) {
     const rule = matchPattern(map.feishu_chat, t)
-    if (rule) hits.push({ group: t, hint: rule.hint, tasks: rule.tasks || [] })
+    if (rule) hits.push({
+      group: t,
+      hint: rule.hint,
+      tasks: rule.tasks || [],
+      ...(rule.task_keywords ? { task_keywords: rule.task_keywords } : {}),
+    })
     else unmappedGroups.add(t)
   }
   return { hits, unmappedGroups: [...unmappedGroups] }
