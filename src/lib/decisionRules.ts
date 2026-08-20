@@ -24,6 +24,59 @@ export interface ValidationResult {
   errors: string[]
 }
 
+/**
+ * 发布前的内容完整性提示。
+ *
+ * 这些不是数据契约错误：有些决策确实没有推荐项，或原文只给了极简选项。
+ * 但对“把决策文档转成可填写表单”的场景，它们是很容易丢失判断依据的信号，
+ * 因此由 CLI 以 warning 给发布 Agent，而不阻断人工发布。
+ */
+export function getDecisionQualityWarnings(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object') return []
+
+  const p = payload as Partial<DecisionFormPayload>
+  if (!Array.isArray(p.questions)) return []
+
+  const warnings: string[] = []
+  const hasText = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0
+
+  p.questions.forEach((q: DecisionQuestionPayload, index: number) => {
+    if (!q || typeof q !== 'object') return
+
+    const questionLabel = `第 ${index + 1} 题（${hasText(q.code) ? q.code.trim() : '无编号'}）`
+    const isChoice = q.type === 'single_choice' || q.type === 'multiple_choice'
+    const hasRecommendation = hasText(q.recommended_option_code)
+    const hasReason = hasText(q.recommended_reason)
+
+    if (isChoice && hasRecommendation && !hasReason) {
+      warnings.push(`${questionLabel} 已标记推荐项，但缺少 recommended_reason（填写者无法判断推荐依据）`)
+    }
+
+    if (isChoice && !hasRecommendation && hasReason) {
+      warnings.push(`${questionLabel} 写有 recommended_reason，但未指定 recommended_option_code`)
+    }
+
+    if (isChoice && Array.isArray(q.options)) {
+      q.options.forEach((option, optionIndex) => {
+        if (option && typeof option === 'object' && !hasText(option.detail)) {
+          const optionCode = hasText(option.code) ? option.code.trim() : String(optionIndex + 1)
+          warnings.push(`${questionLabel} 的选项 ${optionCode} 缺少 detail（建议说明该方案的影响或取舍）`)
+        }
+      })
+    }
+
+    if (!hasText(q.source_excerpt)) {
+      warnings.push(`${questionLabel} 缺少 source_excerpt（无法回溯原始决策依据）`)
+    }
+
+    if (!hasText(q.conversion_note)) {
+      warnings.push(`${questionLabel} 缺少 conversion_note（无法说明原文如何被转换为此题）`)
+    }
+  })
+
+  return warnings
+}
+
 export function validateDecisionPayload(payload: unknown): ValidationResult {
   const errors: string[] = []
 

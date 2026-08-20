@@ -11,6 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  getDecisionQualityWarnings,
   validateDecisionPayload,
   validateDecisionSubmission,
 } from '../src/lib/decisionRules.ts'
@@ -156,6 +157,51 @@ test('validateDecisionPayload：题号与选项重复、题型非法被拒', () 
   const resBadRec = validateDecisionPayload(badRec)
   assert.equal(resBadRec.valid, false)
   assert.match(resBadRec.errors.join(';'), /推荐项 code "Z" 不在已有选项中/)
+})
+
+test('getDecisionQualityWarnings：提示推荐理由、选项取舍与可追溯信息，但不阻断合法 payload', () => {
+  const payload = {
+    slug: 'quality-warning-test',
+    title: '质量提示测试',
+    questions: [{
+      code: 'D1',
+      title: '选择一个方向',
+      type: 'single_choice',
+      recommended_option_code: 'A',
+      options: [
+        { code: 'A', label: '方向 A' },
+        { code: 'B', label: '方向 B', detail: '保留更多后续调整空间' },
+      ],
+    }],
+  }
+
+  assert.equal(validateDecisionPayload(payload).valid, true)
+  const warnings = getDecisionQualityWarnings(payload)
+  assert.match(warnings.join(';'), /推荐项，但缺少 recommended_reason/)
+  assert.match(warnings.join(';'), /选项 A 缺少 detail/)
+  assert.match(warnings.join(';'), /缺少 source_excerpt/)
+  assert.match(warnings.join(';'), /缺少 conversion_note/)
+})
+
+test('getDecisionQualityWarnings：无可靠推荐不提示为缺陷，完整依据不产生提示', () => {
+  const payload = {
+    slug: 'quality-clean-test',
+    title: '质量提示干净测试',
+    questions: [{
+      code: 'D1',
+      title: '选择一个方向',
+      context: '两个方案均可行。',
+      source_excerpt: '原文没有推荐结论。',
+      conversion_note: '将开放讨论整理为单选题。',
+      type: 'single_choice',
+      options: [
+        { code: 'A', label: '方向 A', detail: '首版范围较小。' },
+        { code: 'B', label: '方向 B', detail: '后续扩展空间更大。' },
+      ],
+    }],
+  }
+
+  assert.deepEqual(getDecisionQualityWarnings(payload), [])
 })
 
 test('validateDecisionSubmission：草稿与关闭拦截、单选题多选/混选校验、禁止其他说明防绕过', () => {
@@ -482,6 +528,29 @@ test('decision:publish：一步保留原文并幂等返回同一分享链接', (
   const definitionConflict = runner.run('publish', '--file', payloadFile, '--source-file', sourceFile, '--json')
   assert.equal(definitionConflict.ok, false)
   assert.match(definitionConflict.stderr, /slug 已存在但表单定义或原始文档不同/)
+})
+
+test('decision:validate --json：返回非阻断质量提示', () => {
+  const runner = makeDecisionRunner()
+  const payloadFile = path.join(runner.dir, 'warning-form.json')
+  fs.writeFileSync(payloadFile, JSON.stringify({
+    slug: 'validate-warning-test',
+    title: '质量提示 CLI 测试',
+    questions: [{
+      code: 'D1',
+      title: '推荐但未说明',
+      type: 'single_choice',
+      recommended_option_code: 'A',
+      options: [{ code: 'A', label: '方案 A' }],
+    }],
+  }))
+
+  const result = runner.run('validate', '--file', payloadFile, '--json')
+  assert.ok(result.ok, result.stderr)
+  const parsed = JSON.parse(result.stdout)
+  assert.equal(parsed.valid, true)
+  assert.ok(parsed.warnings.length >= 3)
+  assert.match(parsed.warnings.join(';'), /缺少 recommended_reason/)
 })
 
 test('存储层：创建表单、多答卷独立提交、关闭拦截全链路', async () => {

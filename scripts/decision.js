@@ -18,7 +18,7 @@ import path from 'node:path'
 import { loadEnv } from './lib/env.js'
 import { parseArgs } from './lib/args.js'
 import { createStore } from './lib/store.js'
-import { validateDecisionPayload } from '../src/lib/decisionRules.ts'
+import { getDecisionQualityWarnings, validateDecisionPayload } from '../src/lib/decisionRules.ts'
 import { formatDecisionMarkdown, formatDecisionJson } from '../src/lib/decisionFormat.ts'
 
 const env = loadEnv()
@@ -72,6 +72,15 @@ function loadTextFromFile(filePath, label) {
 
 const normalizedText = (value) => String(value ?? '').trim()
 
+function reportQualityWarnings(payload) {
+  const warnings = getDecisionQualityWarnings(payload)
+  for (const warning of warnings) {
+    // stderr 保持 publish --json 的 stdout 契约稳定，且质量提示不应阻断发布。
+    console.error(`⚠️ 质量提示：${warning}`)
+  }
+  return warnings
+}
+
 function sameDecisionDefinition(existing, payload) {
   if (normalizedText(existing.title) !== normalizedText(payload.title)) return false
   if (normalizedText(existing.summary) !== normalizedText(payload.summary)) return false
@@ -121,10 +130,15 @@ async function handleValidate() {
     process.exit(1)
   }
 
+  const warnings = getDecisionQualityWarnings(payload)
+
   if (jsonOut) {
-    console.log(JSON.stringify({ valid: true, question_count: payload.questions.length }, null, 2))
+    console.log(JSON.stringify({ valid: true, question_count: payload.questions.length, warnings }, null, 2))
   } else {
     console.log(`✔ 校验通过：表单 "${payload.title}"（slug: ${payload.slug}），共 ${payload.questions.length} 道题`)
+    for (const warning of warnings) {
+      console.warn(`⚠️ 质量提示：${warning}`)
+    }
   }
 }
 
@@ -138,6 +152,8 @@ async function handleCreate() {
     }
     process.exit(1)
   }
+
+  reportQualityWarnings(payload)
 
   try {
     const created = await store.createDecisionForm(payload)
@@ -170,6 +186,8 @@ async function handlePublish() {
     }
     process.exit(1)
   }
+
+  reportQualityWarnings(payload)
 
   const slug = payload.slug.trim()
   try {
