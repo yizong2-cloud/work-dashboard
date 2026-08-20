@@ -48,6 +48,10 @@ export function getDecisionQualityWarnings(payload: unknown): string[] {
     const hasRecommendation = hasText(q.recommended_option_code)
     const hasReason = hasText(q.recommended_reason)
 
+    if (isChoice && !hasRecommendation) {
+      warnings.push(`${questionLabel} 未提供推荐项；若当前任务目标或已有证据足以支持倾向，请补充推荐与理由，否则可忽略此提示`)
+    }
+
     if (isChoice && hasRecommendation && !hasReason) {
       warnings.push(`${questionLabel} 已标记推荐项，但缺少 recommended_reason（填写者无法判断推荐依据）`)
     }

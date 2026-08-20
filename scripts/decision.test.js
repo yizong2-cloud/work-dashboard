@@ -183,7 +183,7 @@ test('getDecisionQualityWarnings：提示推荐理由、选项取舍与可追溯
   assert.match(warnings.join(';'), /缺少 conversion_note/)
 })
 
-test('getDecisionQualityWarnings：无可靠推荐不提示为缺陷，完整依据不产生提示', () => {
+test('getDecisionQualityWarnings：没有推荐时温和提示考虑给出建议，但不阻断合法 payload', () => {
   const payload = {
     slug: 'quality-clean-test',
     title: '质量提示干净测试',
@@ -201,7 +201,9 @@ test('getDecisionQualityWarnings：无可靠推荐不提示为缺陷，完整依
     }],
   }
 
-  assert.deepEqual(getDecisionQualityWarnings(payload), [])
+  const warnings = getDecisionQualityWarnings(payload)
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /未提供推荐项/)
 })
 
 test('validateDecisionSubmission：草稿与关闭拦截、单选题多选/混选校验、禁止其他说明防绕过', () => {
