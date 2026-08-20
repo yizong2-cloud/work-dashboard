@@ -4953,3 +4953,20 @@ h3,
   .identity-choice { width: 100%; text-align: center; }
   .decision-bottom-bar { margin: 20px -13px -100px; padding: 12px 13px 16px; }
 }
+
+/* ---------- 桌面交互指针 ----------
+   保留输入框的文字光标和系统禁用态；只在精确指针设备上把可操作元素换成
+   与纸张/紫色基调一致的小星光指针。SVG 为代码资源，无需额外图片下载。 */
+@media (hover: hover) and (pointer: fine) {
+  :is(
+    a[href],
+    button:not(:disabled),
+    [role="button"],
+    summary,
+    select,
+    input[type="checkbox"],
+    input[type="radio"]
+  ) {
+    cursor: url('./assets/cursor-sparkle.svg') 5 4, pointer;
+  }
+}
