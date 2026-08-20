@@ -10,6 +10,8 @@ data
 *.tsbuildinfo
 workflow/update-context.json
 workflow/review-packet.json
+workflow/last-healthy-context.json
+workflow/last-healthy-review-packet.json
 workflow/latest-report.md
 workflow/ops.json
 workflow/.analysis-state.json

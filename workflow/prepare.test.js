@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, resolveFeishuPaths, unmappedCwdRequired } from './prepare.mjs'
+import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -116,4 +116,39 @@ test('source-map task keywords only reference declared candidate tasks', () => {
       }
     }
   }
+})
+
+test('degraded prepare preserves the previous healthy snapshot while replacing latest', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-snapshots-'))
+  const files = {
+    context: path.join(dir, 'update-context.json'),
+    packet: path.join(dir, 'review-packet.json'),
+    lastHealthyContext: path.join(dir, 'last-healthy-context.json'),
+    lastHealthyPacket: path.join(dir, 'last-healthy-review-packet.json'),
+  }
+  try {
+    const healthy = { snapshot_id: 'healthy-1', snapshot_health: 'ok' }
+    assert.equal(persistSnapshotFiles({ ctx: healthy, reviewPacket: healthy, files }).last_healthy_updated, true)
+    const degraded = { snapshot_id: 'degraded-2', snapshot_health: 'degraded' }
+    assert.equal(persistSnapshotFiles({ ctx: degraded, reviewPacket: degraded, files }).last_healthy_updated, false)
+    assert.equal(JSON.parse(fs.readFileSync(files.context, 'utf8')).snapshot_id, 'degraded-2')
+    assert.equal(JSON.parse(fs.readFileSync(files.packet, 'utf8')).snapshot_id, 'degraded-2')
+    assert.equal(JSON.parse(fs.readFileSync(files.lastHealthyContext, 'utf8')).snapshot_id, 'healthy-1')
+    assert.equal(JSON.parse(fs.readFileSync(files.lastHealthyPacket, 'utf8')).snapshot_id, 'healthy-1')
+    assert.equal(hasMatchingHealthySnapshot(files.lastHealthyContext, files.lastHealthyPacket), true)
+    fs.writeFileSync(files.lastHealthyPacket, JSON.stringify({ snapshot_id: 'mismatch', snapshot_health: 'ok' }))
+    assert.equal(hasMatchingHealthySnapshot(files.lastHealthyContext, files.lastHealthyPacket), false)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('degraded prepare notification never claims the dashboard is ready', () => {
+  const failed = snapshotNotification({ snapshotHealth: 'degraded', failedCount: 1, noScheduleCount: 13, lastHealthyAvailable: true })
+  assert.equal(failed.title, '看板采集未完成')
+  assert.match(failed.body, /最近健康快照已保留，仅供诊断/)
+  assert.doesNotMatch(failed.body, /开始更新|已就绪/)
+  const healthy = snapshotNotification({ snapshotHealth: 'ok', failedCount: 0, noScheduleCount: 13, lastHealthyAvailable: true })
+  assert.equal(healthy.title, '看板数据已就绪')
+  assert.match(healthy.body, /13 个活跃任务未排期/)
 })

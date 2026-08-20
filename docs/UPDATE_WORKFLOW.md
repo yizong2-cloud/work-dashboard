@@ -12,8 +12,9 @@ prepare → review-packet 全量对账 → evidence 按需展开
 1. `npm run dashboard:prepare` 采集四源，产出：
    - `workflow/review-packet.json`：日常唯一审查输入，包含每项 `source_id`、短摘录、任务线索与当前任务简表。
    - `workflow/update-context.json`：原始证据库，不可整包读取。
+   - 最近一次健康快照另存为 `last-healthy-*.json`，只供采集故障时按 ID 对照，不参与当前对账或 apply。
 2. Agent 阅读知识库与审查包，对每个 `source_id` 给出 `mapped` / `irrelevant` / `needs_confirmation`。
-3. 不确定时才运行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开一个来源项。
+3. 不确定时才运行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开一个来源项。只有排障时才可追加 `--last-healthy`，且不得据此生成当前快照的 ops。
 4. 输出 `ops.json` 必须带当前 `snapshot_id` 和全量 `reconciliation`。`ops: []` 合法，代表“已审查、无数据变更”。回复只引用 apply 生成的对账摘要，不重复逐条表格。
 5. `dashboard:apply` 先 dry-run 再执行；机器校验快照健康、source_id 覆盖/唯一性、任务引用及操作预条件。
 6. `dashboard:verify` 通过后才推进分析游标。

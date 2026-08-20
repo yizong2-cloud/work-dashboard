@@ -11,6 +11,7 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 
 1. `cd /Users/zongyi/work-dashboard && npm run dashboard:prepare`
 2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，立即报告 JSON 中的 `next_action` 并停止；此时不要把知识库或审查条目加载进上下文。
+   - 状态中若出现 `last_healthy`，它只是采集故障的诊断参照；不得读取它来生成 ops，也不得用它替代当前快照 apply。
 3. 仅在预检通过后读取 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
    - 审查包包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，及候选任务和短摘录。
    - 不得直接读取或打印整个 `update-context.json`、完整飞书导出、会话列表或工具源码。

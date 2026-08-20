@@ -50,7 +50,58 @@ const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS |
 const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : DEFAULT_FEISHU_TIMEOUT_MS
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
 const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
+const LAST_HEALTHY_CONTEXT_FILE = path.join(ROOT, 'workflow', 'last-healthy-context.json')
+const LAST_HEALTHY_PACKET_FILE = path.join(ROOT, 'workflow', 'last-healthy-review-packet.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
+
+function writeJsonAtomic(file, value) {
+  const temporary = `${file}.tmp-${process.pid}-${Date.now()}`
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(value, null, 2), { mode: 0o600 })
+    fs.renameSync(temporary, file)
+  } finally {
+    try { if (fs.existsSync(temporary)) fs.unlinkSync(temporary) } catch { /* best effort cleanup */ }
+  }
+}
+
+export function persistSnapshotFiles({ ctx, reviewPacket, files }) {
+  writeJsonAtomic(files.context, ctx)
+  writeJsonAtomic(files.packet, reviewPacket)
+  if (ctx.snapshot_health === 'ok') {
+    writeJsonAtomic(files.lastHealthyContext, ctx)
+    writeJsonAtomic(files.lastHealthyPacket, reviewPacket)
+    return { last_healthy_updated: true, snapshot_id: ctx.snapshot_id }
+  }
+  return { last_healthy_updated: false, snapshot_id: null }
+}
+
+export function hasMatchingHealthySnapshot(contextFile, packetFile) {
+  try {
+    const context = JSON.parse(fs.readFileSync(contextFile, 'utf8'))
+    const packet = JSON.parse(fs.readFileSync(packetFile, 'utf8'))
+    return context.snapshot_health === 'ok'
+      && packet.snapshot_health === 'ok'
+      && Boolean(context.snapshot_id)
+      && context.snapshot_id === packet.snapshot_id
+  } catch {
+    return false
+  }
+}
+
+export function snapshotNotification({ snapshotHealth, failedCount, noScheduleCount, lastHealthyAvailable }) {
+  if (snapshotHealth !== 'ok') {
+    return {
+      title: '看板采集未完成',
+      body: `${failedCount || 1} 个数据源步骤失败；${lastHealthyAvailable ? '最近健康快照已保留，仅供诊断，' : ''}请修复后重试`,
+    }
+  }
+  return {
+    title: '看板数据已就绪',
+    body: noScheduleCount > 0
+      ? `${noScheduleCount} 个活跃任务未排期；数据源已拉取，可说"开始更新"`
+      : '数据源已拉取，可说"开始更新"',
+  }
+}
 
 // 分析游标 = 上次「apply + verify 都成功」的时间（由 verify 在通过后推进）。
 // 与「采集生成」分离：prepare 只管采集/打包，不推进分析游标——
@@ -405,9 +456,17 @@ function main() {
     board,
     knowledge_base: knowledgeBase.slice(0, 40000),
   }
-  fs.writeFileSync(CONTEXT_FILE, JSON.stringify(ctx, null, 2))
   const reviewPacket = buildReviewPacket(ctx)
-  fs.writeFileSync(REVIEW_PACKET_FILE, JSON.stringify(reviewPacket, null, 2))
+  const snapshotPersistence = persistSnapshotFiles({
+    ctx,
+    reviewPacket,
+    files: {
+      context: CONTEXT_FILE,
+      packet: REVIEW_PACKET_FILE,
+      lastHealthyContext: LAST_HEALTHY_CONTEXT_FILE,
+      lastHealthyPacket: LAST_HEALTHY_PACKET_FILE,
+    },
+  })
 
   // ---- 规则化报告（无需 LLM）----
   const unfinished = (t) => t.status !== 'completed' && t.status !== 'cancelled'
@@ -459,12 +518,17 @@ function main() {
   }
   console.log(`[prepare] ✅ 完成: ${CONTEXT_FILE}`)
   console.log(`[prepare] 审查包: ${REVIEW_PACKET_FILE}（${reviewPacket.counts.total} 条证据）`)
+  console.log(snapshotPersistence.last_healthy_updated
+    ? `[prepare] 最近健康快照已更新: ${LAST_HEALTHY_PACKET_FILE}`
+    : `[prepare] 最近健康快照未改动（当前快照 ${snapshot_health}）`)
   console.log(`[prepare] 报告: ${REPORT_FILE}`)
-  if (noSchedule.length > 0) {
-    notify('看板数据已就绪', `${noSchedule.length} 个活跃任务未排期；数据源已拉取，可说"开始更新"`)
-  } else {
-    notify('看板数据已就绪', '数据源已拉取，可说"开始更新"')
-  }
+  const notification = snapshotNotification({
+    snapshotHealth: snapshot_health,
+    failedCount: failed.length,
+    noScheduleCount: noSchedule.length,
+    lastHealthyAvailable: hasMatchingHealthySnapshot(LAST_HEALTHY_CONTEXT_FILE, LAST_HEALTHY_PACKET_FILE),
+  })
+  notify(notification.title, notification.body)
 }
 
 export { buildSessionCandidates, unmappedCwdRequired }

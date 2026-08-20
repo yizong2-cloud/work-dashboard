@@ -8,6 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
+const LAST_HEALTHY_CONTEXT_FILE = path.join(ROOT, 'workflow', 'last-healthy-context.json')
+const LAST_HEALTHY_PACKET_FILE = path.join(ROOT, 'workflow', 'last-healthy-review-packet.json')
 const ANALYSIS_STATE_FILE = path.join(ROOT, 'workflow', '.analysis-state.json')
 const CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
 const STALE_AFTER_HOURS = 24
@@ -23,10 +25,13 @@ function ageHours(iso, now) {
   return Math.max(0, now.getTime() - timestamp) / 3_600_000
 }
 
-function nextAction({ packet, changeset, matched, ageHoursValue }) {
+function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
   if (packet.coverage?.complete === false) return '审查索引不完整：先重新运行 npm run dashboard:prepare，禁止对账或写入'
-  if (packet.snapshot_health === 'degraded') return '来源不完整：先修复失败来源，再决定是否更新看板'
+  if (packet.snapshot_health === 'degraded') {
+    const reference = lastHealthy?.available ? `；最近健康快照 ${lastHealthy.snapshot_id} 仅供诊断，不能替代当前快照 apply` : ''
+    return `来源不完整：先修复失败来源，再决定是否更新看板${reference}`
+  }
   if (ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS) return '当前快照已超过 24 小时；先运行 npm run dashboard:prepare 获取新数据'
   if (!packet.source_health || typeof packet.source_health !== 'object' || Object.keys(packet.source_health).length === 0) {
     return '来源健康未记录（旧版快照）；先运行 npm run dashboard:prepare 获取带来源状态的新快照'
@@ -35,10 +40,22 @@ function nextAction({ packet, changeset, matched, ageHoursValue }) {
   return '当前快照已完成审查；等待下一次数据采集'
 }
 
-export function buildStatus({ packet, analysisState, changeset, now = new Date() }) {
+export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, analysisState, changeset, now = new Date() }) {
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
   const ageHoursValue = ageHours(packet?.captured_at, now)
   const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
+  const lastHealthyValid = lastHealthyContext?.snapshot_health === 'ok'
+    && lastHealthyPacket?.snapshot_health === 'ok'
+    && Boolean(lastHealthyContext?.snapshot_id)
+    && lastHealthyContext.snapshot_id === lastHealthyPacket.snapshot_id
+  const lastHealthy = {
+    available: lastHealthyValid,
+    snapshot_id: lastHealthyValid ? lastHealthyPacket.snapshot_id : null,
+    captured_at: lastHealthyValid ? lastHealthyPacket.captured_at || null : null,
+    age_hours: lastHealthyValid ? ageHours(lastHealthyPacket.captured_at, now) : null,
+    same_as_latest: lastHealthyValid && lastHealthyPacket.snapshot_id === packet?.snapshot_id,
+    reference_only: lastHealthyValid && packet?.snapshot_health === 'degraded',
+  }
   return {
     packet_available: Boolean(packet),
     snapshot_id: packet?.snapshot_id || null,
@@ -50,13 +67,14 @@ export function buildStatus({ packet, analysisState, changeset, now = new Date()
     source_health_recorded: sourceHealthRecorded,
     counts: packet?.counts || null,
     coverage: packet?.coverage || null,
+    last_healthy: lastHealthy,
     analysis_reviewed_at: analysisState?.reviewed_at || null,
     apply: {
       matched_snapshot: matched,
       changeset_id: matched ? changeset.changeset_id || null : null,
       reviewed_no_change: matched ? changeset.reviewed_no_change === true : false,
     },
-    next_action: nextAction({ packet, changeset, matched, ageHoursValue }),
+    next_action: nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy }),
   }
 }
 
@@ -74,6 +92,9 @@ export function formatStatus(status) {
     return lines.join('\n')
   }
   lines.push(`快照：${status.snapshot_health} · ${ageText(status.age_hours)} · ${status.snapshot_id}`)
+  if (status.last_healthy?.available && !status.last_healthy.same_as_latest) {
+    lines.push(`最近健康快照：${ageText(status.last_healthy.age_hours)} · ${status.last_healthy.snapshot_id}${status.last_healthy.reference_only ? '（仅供诊断，不可 apply）' : ''}`)
+  }
   lines.push(`新鲜度：${status.snapshot_stale ? '已过期（超过 24 小时）' : '正常'}`)
   if (status.counts) {
     const attention = status.counts.review_attention ?? status.counts.high_priority ?? 0
@@ -101,6 +122,8 @@ export function main(argv = process.argv.slice(2)) {
   const packet = readJson(PACKET_FILE)
   const status = buildStatus({
     packet,
+    lastHealthyContext: readJson(LAST_HEALTHY_CONTEXT_FILE),
+    lastHealthyPacket: readJson(LAST_HEALTHY_PACKET_FILE),
     analysisState: readJson(ANALYSIS_STATE_FILE),
     changeset: readJson(CHANGESET_FILE),
   })

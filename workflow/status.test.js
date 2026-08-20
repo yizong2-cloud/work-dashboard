@@ -20,6 +20,54 @@ test('status 在 degraded 快照时指出失败来源和恢复动作', () => {
   assert.match(formatStatus(status), /飞书/)
 })
 
+test('status 显示最近健康快照但明确禁止替代当前 degraded 快照', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-degraded', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'degraded',
+      source_health: { feishu: { ok: false, count: null, detail: '导出失败' } }, counts: { total: 3, high_priority: 1 },
+    },
+    lastHealthyContext: {
+      snapshot_id: 'snap-healthy', captured_at: '2026-08-20T08:00:00Z', snapshot_health: 'ok',
+    },
+    lastHealthyPacket: {
+      snapshot_id: 'snap-healthy', captured_at: '2026-08-20T08:00:00Z', snapshot_health: 'ok',
+    },
+    changeset: null,
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.last_healthy.available, true)
+  assert.equal(status.last_healthy.snapshot_id, 'snap-healthy')
+  assert.equal(status.last_healthy.reference_only, true)
+  assert.match(status.next_action, /仅供诊断，不能替代当前快照 apply/)
+  assert.match(formatStatus(status), /最近健康快照：4 小时前 · snap-healthy（仅供诊断，不可 apply）/)
+})
+
+test('status 不重复展示与当前快照相同的健康副本', () => {
+  const packet = {
+    snapshot_id: 'snap-current', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+    source_health: { feishu: { ok: true, count: 4 } }, counts: { total: 4, high_priority: 0 },
+  }
+  const status = buildStatus({
+    packet,
+    lastHealthyContext: packet,
+    lastHealthyPacket: packet,
+    changeset: null,
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.last_healthy.same_as_latest, true)
+  assert.doesNotMatch(formatStatus(status), /最近健康快照/)
+})
+
+test('status 忽略不成对或损坏的健康副本', () => {
+  const status = buildStatus({
+    packet: { snapshot_id: 'snap-degraded', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'degraded' },
+    lastHealthyContext: { snapshot_id: 'healthy-context', snapshot_health: 'ok' },
+    lastHealthyPacket: { snapshot_id: 'healthy-packet', snapshot_health: 'ok' },
+  })
+  assert.equal(status.last_healthy.available, false)
+  assert.doesNotMatch(status.next_action, /最近健康快照/)
+})
+
 test('status blocks an incomplete review index even when source health is ok', () => {
   const status = buildStatus({
     packet: {

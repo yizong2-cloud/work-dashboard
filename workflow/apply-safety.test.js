@@ -5,6 +5,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+test('apply 只读取当前快照，不把最近健康副本当成写入依据', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'workflow', 'apply.mjs'), 'utf8')
+  assert.doesNotMatch(source, /last-healthy|lastHealthy/i)
+})
+
 test('自动化 apply 拒绝 delete 操作，删除不进入普通更新通道', () => {
   const file = path.join(os.tmpdir(), `workboard-delete-${Date.now()}.json`)
   const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))

@@ -15,13 +15,15 @@
 | `npm run dashboard:status [-- --json]` | 只读查看最近快照、四个来源、审查游标和 apply 匹配状态；不展开原始快照、不写数据库。 |
 | `npm run dashboard:notify-status [-- --json]` | 只读查看 Supabase 通知 outbox 的 pending/failed/重试摘要；仅使用本机 service role，不输出 payload。 |
 | `npm run dashboard:release-status [-- --json]` | 只读核对本地迁移与线上迁移、`feishu-notify` 版本；不执行部署。 |
-| `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开一条原始会话/飞书群/本地文件元数据。 |
+| `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开当前快照的一条原始会话/飞书群/本地文件元数据。 |
 | `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
 
 飞书导出默认超时 600 秒（完整刷新可能覆盖多个活跃会话）；确需更短或更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`。导出器对单个会话另有独立预算，登录态失效、单会话失败或总超时都不会复用旧导出。Cookie 和输出目录默认使用 `~/feishu_export`；若本机存在维护中的 `~/feishu-export-public/bin/feishu-export`，prepare 会优先使用它，否则回退到 `~/feishu_export/bin/feishu-export`。也可通过 `WORKBOARD_FEISHU_BIN`、`WORKBOARD_FEISHU_COOKIES`、`WORKBOARD_FEISHU_OUTPUT_DIR` 覆盖（支持 `~/...`），便于切换导出器而不改代码。
+
+每次健康采集还会保留 `last-healthy-context.json` 与 `last-healthy-review-packet.json`。后续采集失败时，当前 `update-context.json` / `review-packet.json` 仍记录失败并阻止 apply；健康副本不会被覆盖，只能用 `npm run dashboard:evidence -- --id <source_id> --last-healthy` 做排障对照，不能作为写入依据。
 
 ## 一条龙流程（用户说「开始更新」时）
 
@@ -45,7 +47,7 @@ npm run dashboard:verify                         # ④ 校验
 ## 定时任务（工作日每天 3 次自动准备）
 
 - 安装：`npm run dashboard:cron:install`（**周一至周五** 的 **11:00 / 15:30 / 19:30** 自动跑 `prepare`，完成后发 macOS 通知）
-- 通知内容会提示「活跃任务未排期数量」，提醒你有数据可更新
+- 健康采集会提示「活跃任务未排期数量」；采集失败则明确提示修复来源，不会误报“数据已就绪”
 - 你看到通知后说「开始更新」→ Agent 走上面的一条龙（分析+写入）
 - 日志：`~/Library/Logs/work-dashboard-prepare.{out,err}.log`
 - 卸载：`npm run dashboard:cron:uninstall`；状态：`launchctl list | grep workdashboard`
