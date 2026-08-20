@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
+import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -151,4 +151,20 @@ test('degraded prepare notification never claims the dashboard is ready', () => 
   const healthy = snapshotNotification({ snapshotHealth: 'ok', failedCount: 0, noScheduleCount: 13, lastHealthyAvailable: true })
   assert.equal(healthy.title, '看板数据已就绪')
   assert.match(healthy.body, /13 个活跃任务未排期/)
+})
+
+test('async command runner captures output and reports nonzero exits', async () => {
+  const ok = await run(process.execPath, ['-e', 'process.stdout.write("ready")'], 5000)
+  assert.equal(ok.ok, true)
+  assert.equal(ok.stdout, 'ready')
+  const failed = await run(process.execPath, ['-e', 'process.stderr.write("broken"); process.exit(3)'], 5000)
+  assert.equal(failed.ok, false)
+  assert.equal(failed.code, 3)
+  assert.equal(failed.stderr, 'broken')
+})
+
+test('async command runner terminates commands that exceed their budget', async () => {
+  const result = await run(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], 50)
+  assert.equal(result.ok, false)
+  assert.equal(result.timed_out, true)
 })

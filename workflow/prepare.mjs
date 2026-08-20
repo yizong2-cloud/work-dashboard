@@ -9,7 +9,7 @@
 // 无人值守（不交互；失败会记录到报告与 stderr）。
 // ============================================================
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -267,19 +267,51 @@ function unmappedCwdRequired(unmapped) {
   // 不在这里维护按目录名猜测的隐式白名单，避免漏掉新项目。
   return Array.isArray(unmapped) && unmapped.length > 0
 }
-function run(cmd, args, timeoutMs = 120000) {
-  try {
-    const stdout = execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs })
-    return { ok: true, stdout: String(stdout), stderr: '' }
-  } catch (e) {
-    return {
-      ok: false,
-      stdout: String(e.stdout || ''),
-      stderr: String(e.stderr || e.message || ''),
-      code: e.code || null,
-      timed_out: e.code === 'ETIMEDOUT' || e.signal === 'SIGTERM',
+export function run(cmd, args, timeoutMs = 120000, { stream = false } = {}) {
+  return new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    let settled = false
+    let forceKillTimer = null
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 5000)
+    }, timeoutMs)
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (forceKillTimer) clearTimeout(forceKillTimer)
+      resolve(result)
     }
-  }
+    child.stdout.on('data', (chunk) => {
+      const text = String(chunk)
+      stdout += text
+      if (stream) process.stdout.write(text)
+    })
+    child.stderr.on('data', (chunk) => {
+      const text = String(chunk)
+      stderr += text
+      if (stream) process.stderr.write(text)
+    })
+    child.once('error', (error) => finish({
+      ok: false,
+      stdout,
+      stderr: stderr || error.message,
+      code: error.code || null,
+      timed_out: timedOut,
+    }))
+    child.once('close', (code, signal) => finish({
+      ok: code === 0 && !timedOut,
+      stdout,
+      stderr,
+      code: code ?? signal ?? null,
+      timed_out: timedOut,
+    }))
+  })
 }
 
 function latestFile(dir, re, minMtime = 0) {
@@ -310,7 +342,7 @@ function summarizeStep(line) {
   return keep.join(' | ').slice(0, 400)
 }
 
-function main() {
+async function main() {
   const steps = []
   // 说明：prepare 全程无状态重叠窗口（Codex/DSH 用 --since-time=分析游标、飞书用 --since=分析游标、
   // 本地文件自分析游标起）——不推进任何游标；分析游标仅由 verify 在「本快照已成功 apply」后推进。
@@ -324,7 +356,7 @@ function main() {
   const feishuArgs = buildFeishuArgs(LAST_AT, FEISHU_COOKIES, DAILY_DIR)
   const feishuStartedAt = Date.now()
   const feishuRes = fs.existsSync(FEISHU_COOKIES)
-    ? run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS)
+    ? await run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS, { stream: true })
     : { ok: false, stdout: '', stderr: 'cookies.json 不存在', code: 'MISSING_COOKIES', timed_out: false }
   const feishuIncomplete = feishuRes.ok && feishuOutputIncomplete(feishuRes.stdout)
   const feishuOk = feishuRes.ok && !feishuIncomplete
@@ -351,7 +383,7 @@ function main() {
   // ---- 2. Codex 摘要（增量窗口 + 详情，分析无需再翻原始文件）----
   const codexArgs = [path.join(ROOT, 'scripts', 'codex-summary.js'), '--days', String(DAYS), '--json']
   if (LAST_AT) codexArgs.push('--since-time', LAST_AT)
-  const codexRes = run('node', codexArgs, 240000)
+  const codexRes = await run('node', codexArgs, 240000)
   let codex = []
   if (codexRes.ok) {
     try {
@@ -366,7 +398,7 @@ function main() {
   // ---- 3. DSH 摘要（增量窗口 + 详情）----
   const dshArgs = [path.join(ROOT, 'scripts', 'dsh-summary.js'), '--days', String(DAYS), '--json']
   if (LAST_AT) dshArgs.push('--since-time', LAST_AT)
-  const dshRes = run('node', dshArgs, 240000)
+  const dshRes = await run('node', dshArgs, 240000)
   let dsh = []
   if (dshRes.ok) {
     try {
@@ -379,7 +411,7 @@ function main() {
   }
 
   // ---- 4. 当前看板 ----
-  const boardRes = run('node', [path.join(ROOT, 'scripts', 'agent.js'), 'list', '--json'], 60000)
+  const boardRes = await run('node', [path.join(ROOT, 'scripts', 'agent.js'), 'list', '--json'], 60000)
   let board = []
   if (boardRes.ok) {
     try {
@@ -409,8 +441,8 @@ function main() {
 
   // ---- 详情：增量窗口内会话的完整对话内容（分析者第一步就能看到具体说了什么）----
   const detailArgs = (extra) => buildDetailArgs(ROOT, extra, DAYS, LAST_AT)
-  const codexDetailRes = run('node', detailArgs('codex-summary.js'), 240000)
-  const dshDetailRes = run('node', detailArgs('dsh-summary.js'), 240000)
+  const codexDetailRes = await run('node', detailArgs('codex-summary.js'), 240000)
+  const dshDetailRes = await run('node', detailArgs('dsh-summary.js'), 240000)
   let codexDetail = []
   let dshDetail = []
   try { codexDetail = JSON.parse(codexDetailRes.stdout) } catch { codexDetail = [] }
@@ -533,4 +565,9 @@ function main() {
 
 export { buildSessionCandidates, unmappedCwdRequired }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`[prepare] 未处理异常: ${error.message}`)
+    process.exit(1)
+  })
+}

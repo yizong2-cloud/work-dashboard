@@ -23,6 +23,8 @@
 
 飞书导出默认超时 600 秒（完整刷新可能覆盖多个活跃会话）；确需更短或更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`。导出器对单个会话另有独立预算，登录态失效、单会话失败或总超时都不会复用旧导出。Cookie 和输出目录默认使用 `~/feishu_export`；若本机存在维护中的 `~/feishu-export-public/bin/feishu-export`，prepare 会优先使用它，否则回退到 `~/feishu_export/bin/feishu-export`。也可通过 `WORKBOARD_FEISHU_BIN`、`WORKBOARD_FEISHU_COOKIES`、`WORKBOARD_FEISHU_OUTPUT_DIR` 覆盖（支持 `~/...`），便于切换导出器而不改代码。
 
+`dashboard:prepare` 会实时透传飞书导出器的会话序号、名称、耗时与失败状态；Codex / DSH 等短步骤仍保持紧凑输出，避免长采集阶段看起来无响应。
+
 每次健康采集还会保留 `last-healthy-context.json` 与 `last-healthy-review-packet.json`。后续采集失败时，当前 `update-context.json` / `review-packet.json` 仍记录失败并阻止 apply；健康副本不会被覆盖，只能用 `npm run dashboard:evidence -- --id <source_id> --last-healthy` 做排障对照，不能作为写入依据。
 
 ## 一条龙流程（用户说「开始更新」时）
