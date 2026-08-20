@@ -18,6 +18,7 @@ const INTERACTIVE_SELECTOR = [
 export function CursorPresence() {
   const pointerRef = useRef<HTMLDivElement>(null)
   const auraRef = useRef<HTMLDivElement>(null)
+  const burstRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)')
@@ -25,7 +26,8 @@ export function CursorPresence() {
 
     const pointer = pointerRef.current
     const aura = auraRef.current
-    if (!pointer || !aura) return
+    const burst = burstRef.current
+    if (!pointer || !aura || !burst) return
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let targetX = -100
@@ -37,7 +39,7 @@ export function CursorPresence() {
     document.documentElement.classList.add('cursor-presence-enabled')
 
     const paintAura = () => {
-      aura.style.transform = `translate3d(${auraX - 32}px, ${auraY - 32}px, 0)`
+      aura.style.transform = `translate3d(${auraX - 38}px, ${auraY - 31}px, 0)`
     }
 
     const animateAura = () => {
@@ -65,7 +67,17 @@ export function CursorPresence() {
       }
     }
 
-    const onPointerDown = () => pointer.classList.add('is-pressing')
+    const onPointerDown = (event: PointerEvent) => {
+      pointer.classList.add('is-pressing')
+      const target = event.target instanceof Element ? event.target : null
+      if (!target?.closest(INTERACTIVE_SELECTOR)) return
+
+      burst.style.transform = `translate3d(${event.clientX - 21}px, ${event.clientY - 21}px, 0)`
+      burst.classList.remove('is-active')
+      // 强制重启一次性点击墨点动画；不创建额外 DOM，也不会积累节点。
+      void burst.offsetWidth
+      burst.classList.add('is-active')
+    }
     const onPointerUp = () => pointer.classList.remove('is-pressing')
     const hidePointer = () => pointer.classList.remove('is-visible')
 
@@ -91,6 +103,9 @@ export function CursorPresence() {
   return (
     <div className="cursor-presence" aria-hidden="true">
       <div ref={auraRef} className="cursor-presence-aura" />
+      <div ref={burstRef} className="cursor-presence-burst">
+        <span>✦</span><span>·</span><span>✧</span>
+      </div>
       <div ref={pointerRef} className="cursor-presence-pointer">
         <img src={cursorSparkle} alt="" />
         <span className="cursor-presence-spark cursor-presence-spark-one">✦</span>
