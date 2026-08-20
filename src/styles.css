@@ -4962,7 +4962,7 @@ h3,
 @media (hover: hover) and (pointer: fine) {
   html.cursor-presence-enabled,
   html.cursor-presence-enabled body,
-  html.cursor-presence-enabled :is(a, button, [role="button"], summary, select, input[type="checkbox"], input[type="radio"]) {
+  html.cursor-presence-enabled * {
     cursor: none !important;
   }
 
@@ -4970,7 +4970,16 @@ h3,
     cursor: text !important;
   }
 
-  html.cursor-presence-enabled :is(button:disabled, input:disabled, select:disabled) {
+  html.cursor-presence-enabled [contenteditable="true"] * {
+    cursor: text !important;
+  }
+
+  html.cursor-presence-enabled :is(button:disabled, input:disabled, select:disabled, [aria-disabled="true"]),
+  html.cursor-presence-enabled :is(button:disabled, input:disabled, select:disabled, [aria-disabled="true"]) * {
+    cursor: not-allowed !important;
+  }
+
+  html.cursor-presence-enabled input:disabled:not([type="checkbox"]):not([type="radio"]) {
     cursor: not-allowed !important;
   }
 
@@ -4990,6 +4999,11 @@ h3,
     background: radial-gradient(ellipse at 45% 50%, rgba(209, 193, 246, 0.26) 0%, rgba(226, 210, 255, 0.13) 42%, transparent 72%);
     filter: blur(1.5px);
     opacity: 0.9;
+  }
+
+  .cursor-presence-aura.is-hidden,
+  .cursor-presence-aura.is-native-cursor {
+    opacity: 0;
   }
 
   .cursor-presence-burst {
@@ -5030,6 +5044,7 @@ h3,
   }
 
   .cursor-presence-pointer.is-visible { opacity: 1; }
+  .cursor-presence-pointer.is-native-cursor { opacity: 0; }
 
   .cursor-presence-pointer img {
     width: 34px;

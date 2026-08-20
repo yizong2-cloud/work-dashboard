@@ -11,6 +11,16 @@ const INTERACTIVE_SELECTOR = [
   'input[type="radio"]',
 ].join(', ')
 
+const NATIVE_CURSOR_SELECTOR = [
+  'textarea',
+  'input:not([type="checkbox"]):not([type="radio"])',
+  '[contenteditable="true"]',
+  'button:disabled',
+  'input:disabled',
+  'select:disabled',
+  '[aria-disabled="true"]',
+].join(', ')
+
 /**
  * 桌面端专用的指针陪伴效果。
  * 指针本体精确跟随，光晕以轻微惯性追随；触控设备和减少动态偏好自动停用。
@@ -56,9 +66,13 @@ export function CursorPresence() {
       targetY = event.clientY
       pointer.style.transform = `translate3d(${targetX - 5}px, ${targetY - 4}px, 0)`
       pointer.classList.add('is-visible')
+      aura.classList.remove('is-hidden')
 
       const target = event.target instanceof Element ? event.target : null
-      pointer.classList.toggle('is-interactive', !!target?.closest(INTERACTIVE_SELECTOR))
+      const usesNativeCursor = !!target?.closest(NATIVE_CURSOR_SELECTOR)
+      aura.classList.toggle('is-native-cursor', usesNativeCursor)
+      pointer.classList.toggle('is-native-cursor', usesNativeCursor)
+      pointer.classList.toggle('is-interactive', !usesNativeCursor && !!target?.closest(INTERACTIVE_SELECTOR))
 
       if (reduceMotion) {
         auraX = targetX
@@ -70,7 +84,7 @@ export function CursorPresence() {
     const onPointerDown = (event: PointerEvent) => {
       pointer.classList.add('is-pressing')
       const target = event.target instanceof Element ? event.target : null
-      if (!target?.closest(INTERACTIVE_SELECTOR)) return
+      if (target?.closest(NATIVE_CURSOR_SELECTOR) || !target?.closest(INTERACTIVE_SELECTOR)) return
 
       burst.style.transform = `translate3d(${event.clientX - 21}px, ${event.clientY - 21}px, 0)`
       burst.classList.remove('is-active')
@@ -79,7 +93,10 @@ export function CursorPresence() {
       burst.classList.add('is-active')
     }
     const onPointerUp = () => pointer.classList.remove('is-pressing')
-    const hidePointer = () => pointer.classList.remove('is-visible')
+    const hidePointer = () => {
+      pointer.classList.remove('is-visible')
+      aura.classList.add('is-hidden')
+    }
 
     window.addEventListener('pointermove', onPointerMove, { passive: true })
     window.addEventListener('pointerdown', onPointerDown, { passive: true })
