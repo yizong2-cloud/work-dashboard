@@ -35,8 +35,8 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 
 完整逐项结论由 `ops.json` 保存并由 `dashboard:apply` 机器校验；回复不要重复粘贴整张表，只需报告机器生成的对账摘要（总数、已映射、无关、待确认，以及少量待确认 source_id）。这样减少上下文，同时保留完整审计证据。
 
-1. `codex_detail` 每个会话：逐条标注归属（→ 任务 X / 工具维护 / 无关），**不许只看增量数或跳过**——长会话可能 start 早于窗口但内容极重要（如成就 13 小时会话）。
-2. `dsh_detail` 每个会话：同上。
+1. `review-packet.json` 中每个 `codex:*` source_id：逐条标注归属（→ 任务 X / 工具维护 / 无关），**不许只看增量数或跳过**——摘要器按最后活动时间纳入跨窗口长会话。
+2. 每个 `dsh:*` source_id：同上。标准 JSON 扫描已包含审查所需文本，不再重复生成 detail 副本。
 3. 飞书增量每个会话：确认有无未映射到看板的消息。
 4. **本地新文件（prepare 已自动白名单扫描 Downloads/Desktop/Documents 元数据 → `sources.local_files`）**：对 apk/pdf/md 等产物/需求结合 `source-map.json` 判断归属；不在候选提示里的新文件也要核对。
 5. 回复输出格式：`对账共 N 项：已映射 A、无关 B、待确认 C；本次补录 X 项`，完整逐项记录保留在 `ops.json`。
@@ -55,6 +55,6 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 
 ## 质量
 
-- `npm test`：本地测试集（CLI/卡片构建/摘要器，本地隔离，绝不碰线上；数量以 `npm test` 实际执行为准），当前 45 用例全绿
+- `npm test`：本地测试集（CLI/卡片构建/摘要器，本地隔离，绝不碰线上；数量以 `npm test` 实际执行为准）
 - `npm run build`：TS 严格编译 + Vite 构建
 - 数据库 CHECK 约束兜底：`completed→progress=100 且 actual_end_date 非空`、`blocked→block_reason 非空`

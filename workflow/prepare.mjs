@@ -124,11 +124,8 @@ export function buildFeishuArgs(lastAt, cookiesPath, outputDir) {
   return args
 }
 
-// Detail extraction must use the same analysis cursor as the compact summary.
-// Otherwise prepare rereads older sessions only to discard them later, inflating
-// local IO and the context packet while offering no new evidence.
-export function buildDetailArgs(root, scriptName, days, lastAt) {
-  const args = [path.join(root, 'scripts', scriptName), '--days', String(days), '--detail', '--json']
+export function buildSummaryArgs(root, scriptName, days, lastAt) {
+  const args = [path.join(root, 'scripts', scriptName), '--days', String(days), '--json']
   if (lastAt) args.push('--since-time', lastAt)
   return args
 }
@@ -188,7 +185,7 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// 从 codex_detail / dsh_detail 会话（含 cwd）生成候选；unmapped 收集未映射目录提醒
+// 从一次扫描得到的 Codex / DSH 会话（含 cwd）生成候选；unmapped 收集未映射目录提醒
 function buildSessionCandidates(sessions, map, key) {
   const hits = []
   const unmapped = []
@@ -235,10 +232,10 @@ function buildFeishuCandidates(feishuText, map) {
   return { hits, unmappedGroups: [...unmappedGroups] }
 }
 
-function buildCandidates({ codexDetail, dshDetail, feishuText, board }) {
+function buildCandidates({ codexSessions, dshSessions, feishuText, board }) {
   const map = loadSourceMap()
-  const codexCand = buildSessionCandidates(codexDetail, map, 'codex')
-  const dshCand = buildSessionCandidates(dshDetail, map, 'dsh')
+  const codexCand = buildSessionCandidates(codexSessions, map, 'codex')
+  const dshCand = buildSessionCandidates(dshSessions, map, 'dsh')
   const feishuCand = buildFeishuCandidates(feishuText, map)
   // 未排期 / 已逾期（Leader 核心痛点提示）
   const today = todayStr()
@@ -380,9 +377,8 @@ async function main() {
     file: feishuFile,
   })
 
-  // ---- 2. Codex 摘要（增量窗口 + 详情，分析无需再翻原始文件）----
-  const codexArgs = [path.join(ROOT, 'scripts', 'codex-summary.js'), '--days', String(DAYS), '--json']
-  if (LAST_AT) codexArgs.push('--since-time', LAST_AT)
+  // ---- 2. Codex 摘要（一次扫描即含完整审查字段）----
+  const codexArgs = buildSummaryArgs(ROOT, 'codex-summary.js', DAYS, LAST_AT)
   const codexRes = await run('node', codexArgs, 240000)
   let codex = []
   if (codexRes.ok) {
@@ -395,9 +391,8 @@ async function main() {
     steps.push({ name: 'Codex 摘要', ok: false, detail: codexRes.stderr.slice(0, 200) })
   }
 
-  // ---- 3. DSH 摘要（增量窗口 + 详情）----
-  const dshArgs = [path.join(ROOT, 'scripts', 'dsh-summary.js'), '--days', String(DAYS), '--json']
-  if (LAST_AT) dshArgs.push('--since-time', LAST_AT)
+  // ---- 3. DSH 摘要（一次扫描即含完整审查字段）----
+  const dshArgs = buildSummaryArgs(ROOT, 'dsh-summary.js', DAYS, LAST_AT)
   const dshRes = await run('node', dshArgs, 240000)
   let dsh = []
   if (dshRes.ok) {
@@ -439,25 +434,16 @@ async function main() {
   const dshOk = !dshRes || dshRes.ok
   const snapshot_health = feishuOk && codexOk && dshOk ? 'ok' : 'degraded'
 
-  // ---- 详情：增量窗口内会话的完整对话内容（分析者第一步就能看到具体说了什么）----
-  const detailArgs = (extra) => buildDetailArgs(ROOT, extra, DAYS, LAST_AT)
-  const codexDetailRes = await run('node', detailArgs('codex-summary.js'), 240000)
-  const dshDetailRes = await run('node', detailArgs('dsh-summary.js'), 240000)
-  let codexDetail = []
-  let dshDetail = []
-  try { codexDetail = JSON.parse(codexDetailRes.stdout) } catch { codexDetail = [] }
-  try { dshDetail = JSON.parse(dshDetailRes.stdout) } catch { dshDetail = [] }
-
   // ---- 候选提示（规则化线索，供 Agent 分析优先参考，降低从零提炼的漏/错）----
-  const candidates = buildCandidates({ codexDetail, dshDetail, feishuText, board })
+  const candidates = buildCandidates({ codexSessions: codex, dshSessions: dsh, feishuText, board })
   steps.push({ name: '候选提示', ok: true, detail: `codex命中${candidates.codex.length} dsh命中${candidates.dsh.length} 飞书群命中${candidates.feishu.length} 未映射目录${candidates.unmapped_cwd.length} 未排期${candidates.unscheduled.length} 逾期${candidates.overdue.length}` })
 
-  // 摘要步骤报告（增量数 + 同一分析窗口的 detail 数；增量可能为 0 但窗口内仍有长会话内容）
+  // 摘要步骤报告：标准 JSON 已包含审查文本，并按最后活动时间纳入跨窗口长会话。
   if (!steps.some((s) => s.name === 'Codex 摘要')) {
-    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（详情窗口共 ${codexDetail.length} 个，含跨窗口长会话）` })
+    steps.push({ name: 'Codex 摘要', ok: true, detail: `${codex.length} 个增量（单次扫描，含跨窗口长会话）` })
   }
   if (!steps.some((s) => s.name === 'DSH 摘要')) {
-    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个增量（详情窗口共 ${dshDetail.length} 个，含跨窗口长会话）` })
+    steps.push({ name: 'DSH 摘要', ok: true, detail: `${dsh.length} 个增量（单次扫描，含跨窗口长会话）` })
   }
 
   // ---- 打包 context ----
@@ -482,8 +468,6 @@ async function main() {
     feishu: { latest_file: feishuFile, content: redactSensitiveValue(feishuText) },
     codex: redactSensitiveValue(codex),
     dsh: redactSensitiveValue(dsh),
-    codex_detail: redactSensitiveValue(codexDetail),
-    dsh_detail: redactSensitiveValue(dshDetail),
     candidates,
     board,
     knowledge_base: knowledgeBase.slice(0, 40000),

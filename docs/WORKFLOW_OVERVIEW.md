@@ -22,7 +22,7 @@
   ④ 本地新文件 ~/Downloads 等（apk/pdf/md 需求文档/素材）  ← prepare 白名单扫描元数据（snapshot.sources.local_files）
         │ 读取器 scripts/ (codex-summary.js / dsh-summary.js / feishu-export 外部工具)
         ▼
-   prepare.mjs ──打包──▶ workflow/update-context.json + latest-report.md（增量 + 三日窗口 detail）
+   prepare.mjs ──打包──▶ workflow/update-context.json + review-packet.json（单次扫描 + 跨窗口活动兜底）
         │ 定时任务(lunchd)：工作日 11:00/15:30/19:30 跑 prepare（--no-advance 只拉不推进游标）
         ▼
    Agent(LLM) 分析：结合 docs/KNOWLEDGE_BASE.md 识别/合并任务 → 产出变更建议
@@ -117,7 +117,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | 会话文件 mtime | ~/.codex/sessions | 摘要器收集用 mtime 过滤（续旧对话也能读到） |
 
 ### 第四条铁律：每次「开始更新」必须全量对账（防漏）
-背景：曾因「增量数=0 就跳过」「文件名日期过滤漏续对话」「cron 推游标」「只看增量不看 detail」反复漏工作。故规定：**分析完成前必须逐会话核对 codex_detail/dsh_detail + 飞书每个会话 + 扫描 ~/Downloads 近 2 小时新文件**，逐项结论写入 `ops.json`，回复只报机器生成摘要。宁可多报"无关"，不可漏报"有工作"。
+背景：曾因「增量数=0 就跳过」「文件名日期过滤漏续对话」「cron 推游标」「只审查前几条详情」反复漏工作。故规定：**分析完成前必须核对 review-packet 中每个 Codex/DSH/飞书/本地 source_id**，逐项结论写入 `ops.json`，回复只报机器生成摘要。摘要器按最后活动时间纳入跨窗口长会话，标准 JSON 已含审查文本，不再重复扫描 detail 副本。宁可多报"无关"，不可漏报"有工作"。
 
 ## 6. 通知分层（2026-08-17 起，无时间窗口）
 
@@ -167,7 +167,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 2. ~~收集按文件名日期过滤~~ → 续旧对话（文件名日期旧、mtime 新）漏 → 改按 mtime 过滤。
 3. ~~cron prepare 推进游标~~ → cron 拉到数据却把下次窗口起点推走、丢增量 → 加 `--no-advance`（cron 只拉不推进游标）。
 4. ~~飞书 --incremental 复用缓存会话列表~~ → 高琦 updateTime 陈旧被 skip 漏两周 → 加 `--refresh-chats`。
-5. ~~只看增量数不看 detail~~ → 增量 0 但三日窗口 detail 里有内容 → 立「全量对账铁律」。
+5. ~~只看增量数或前 5 条 detail~~ → 跨窗口会话被跳过 → 改按最后活动时间纳入，并以审查包全 source_id 对账。
 6. ~~update 不写时间线~~ → 改原子 RPC + 自动变更摘要时间线。
 7. ~~status 可直切 blocked/completed~~ → 强制 domain 命令 + DB CHECK 兜底。
 8. ~~data 约束可绕过~~ → completed→100%&actual_date、blocked→reason 非空 的 DB CHECK。

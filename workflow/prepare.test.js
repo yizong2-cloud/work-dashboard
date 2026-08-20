@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildDetailArgs, buildFeishuArgs, buildSessionCandidates, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -97,13 +97,11 @@ test('prepare passes overridden Cookie and output paths to any exporter', () => 
   ])
 })
 
-test('detail summaries share the analysis cursor instead of rereading stale sessions', () => {
-  assert.deepEqual(buildDetailArgs('/tmp/workboard', 'codex-summary.js', 3, '2026-08-19T10:00:00.000Z'), [
-    '/tmp/workboard/scripts/codex-summary.js', '--days', '3', '--detail', '--json', '--since-time', '2026-08-19T10:00:00.000Z',
+test('Codex and DSH each use one full JSON scan bound to the analysis cursor', () => {
+  assert.deepEqual(buildSummaryArgs('/tmp/workboard', 'codex-summary.js', 3, '2026-08-19T10:00:00.000Z'), [
+    '/tmp/workboard/scripts/codex-summary.js', '--days', '3', '--json', '--since-time', '2026-08-19T10:00:00.000Z',
   ])
-  assert.deepEqual(buildDetailArgs('/tmp/workboard', 'dsh-summary.js', 3, null), [
-    '/tmp/workboard/scripts/dsh-summary.js', '--days', '3', '--detail', '--json',
-  ])
+  assert.doesNotMatch(buildSummaryArgs('/tmp/workboard', 'dsh-summary.js', 3, null).join(' '), /--detail/)
 })
 
 test('source-map task keywords only reference declared candidate tasks', () => {
