@@ -5,14 +5,17 @@ export function feishuFailureDetail({ stderr = '', code = null, timed_out = fals
   if (incomplete) {
     return '飞书导出出现会话打开/读取失败，本次不使用部分结果；请检查 Cookies 与飞书页面状态后重试'
   }
+  if (code === 'MISSING_COOKIES' || /cookies?\.json 不存在|找不到 Cookies 文件/i.test(text)) {
+    return `飞书 Cookies 文件不存在：${cookiesPath}；请导出后放到该路径，或设置 WORKBOARD_FEISHU_COOKIES`
+  }
   if (/页面已完成加载.*会话列表没有出现|会话列表没有出现/i.test(text)) {
     return '飞书页面已加载但会话列表未出现；可能是登录态未被浏览器接受、租户页面未初始化或前端资源被拦截。请用 --no-headless 观察后重试'
   }
   if (/本次导出未完成|会话读取失败/i.test(text)) {
-    return '飞书导出包含未完成会话，本次不使用部分结果且不推进游标；可提高 FEISHU_CHAT_TIMEOUT_MS 或用 --limit-chats 定位异常会话'
+    return '飞书导出包含未完成会话，本次不使用部分结果且不推进游标；请从诊断 JSON 的 failedChats 读取会话 ID，再用 --chat-id 隔离重试'
   }
   if (/连续 \d+ 个会话无法打开/i.test(text)) {
-    return '飞书会话切换连续失败，本次不使用部分结果且不推进游标；可重试导出，或用 --limit-chats 缩小范围定位异常会话'
+    return '飞书会话切换连续失败，本次不使用部分结果且不推进游标；可重试导出，或用诊断 JSON 的 failedChats[].id 配合 --chat-id 定位'
   }
   if (/未能进入飞书|登录态|cookies?/i.test(text)) {
     return `飞书登录态可能已失效，请重新导出浏览器 Cookies 到 ${cookiesPath}`

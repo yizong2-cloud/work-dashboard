@@ -211,6 +211,10 @@ test('failed or empty Feishu collection never reuses a previous export', () => {
 
 test('Feishu collection failures explain recovery without exposing raw command noise', () => {
   assert.match(
+    feishuFailureDetail({ stderr: 'cookies.json 不存在', code: 'MISSING_COOKIES' }, '/tmp/cookies.json'),
+    /Cookies 文件不存在：\/tmp\/cookies\.json.*WORKBOARD_FEISHU_COOKIES/,
+  )
+  assert.match(
     feishuFailureDetail({ stderr: '未能进入飞书（登录态可能已过期，请重新导出浏览器 Cookies）' }, '/tmp/cookies.json'),
     /重新导出浏览器 Cookies.*\/tmp\/cookies\.json/,
   )
@@ -222,11 +226,11 @@ test('Feishu collection failures explain recovery without exposing raw command n
   )
   assert.match(
     feishuFailureDetail({ stderr: '本次导出未完成：1 个会话读取失败；输出仅供诊断' }, '/tmp/cookies.json'),
-    /不使用部分结果.*FEISHU_CHAT_TIMEOUT_MS/,
+    /不使用部分结果.*failedChats.*--chat-id/,
   )
   assert.match(
     feishuFailureDetail({ stderr: '连续 3 个会话无法打开（A:openfail, B:openfail, C:openfail）' }, '/tmp/cookies.json'),
-    /会话切换连续失败.*--limit-chats/,
+    /会话切换连续失败.*failedChats\[\]\.id.*--chat-id/,
   )
 })
 
