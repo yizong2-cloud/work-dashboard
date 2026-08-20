@@ -22,6 +22,7 @@
   --violet-weak: #f0ebfa;
   --paper-line: rgba(112, 91, 145, 0.045);
   --font-display: 'Kaiti SC', STKaiti, KaiTi, 'FZKai-Z03S', 'PingFang SC', sans-serif;
+  --font-body: 'LXGW WenKai Screen', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --radius: 18px;
   --shadow: 3px 4px 0 rgba(109, 88, 145, 0.055), 0 12px 30px rgba(68, 53, 88, 0.045);
 }
@@ -40,8 +41,7 @@ body {
     linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
   background-size: 24px 24px;
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
