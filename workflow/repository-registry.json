@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "repositories": [
+    {"id": "jigsaw-android", "path": "~/StudioProjects/jigsaw-android", "kind": "git", "products": ["fantasy"], "agentsRequired": true},
+    {"id": "classic-jigsaw-android", "path": "~/StudioProjects/classic-jigsaw-android", "kind": "git", "products": ["legacy", "peace", "countryside"], "agentsRequired": true},
+    {"id": "jigsaw-api", "path": "~/jigsaw-cms/jigsaw-api", "kind": "git", "products": ["fantasy", "legacy", "peace"], "agentsRequired": true},
+    {"id": "jigsaw-ui", "path": "~/jigsaw-cms/jigsaw-ui", "kind": "git", "products": ["fantasy", "legacy", "peace"], "agentsRequired": true},
+    {"id": "classic-jigsaw-api", "path": "~/classic-cms/classic-jigsaw-api", "kind": "git", "products": ["countryside"], "agentsRequired": true},
+    {"id": "classic-jigsaw-ui", "path": "~/classic-cms/classic-jigsaw-ui", "kind": "git", "products": ["countryside"], "agentsRequired": true},
+    {"id": "jigsolitaire-api", "path": "~/jigsolitaire-cms/jigsolitaire-api", "kind": "git", "products": ["jigslide", "xiaomi"], "agentsRequired": true},
+    {"id": "jigsolitaire-ui", "path": "~/jigsolitaire-cms/jigsolitaire-ui", "kind": "git", "products": ["jigslide", "xiaomi"], "agentsRequired": true},
+    {"id": "work-dashboard", "path": "~/work-dashboard", "kind": "git", "products": [], "agentsRequired": true},
+    {"id": "bi-cli", "path": "~/bi-cli", "kind": "git", "products": ["fantasy", "legacy", "peace", "countryside"], "agentsRequired": true},
+    {"id": "jigsaw-cms-workspace", "path": "~/jigsaw-cms", "kind": "workspace", "products": ["fantasy", "legacy", "peace"], "agentsRequired": true},
+    {"id": "classic-cms-workspace", "path": "~/classic-cms", "kind": "workspace", "products": ["countryside"], "agentsRequired": false},
+    {"id": "jigsolitaire-cms-workspace", "path": "~/jigsolitaire-cms", "kind": "workspace", "products": ["jigslide", "xiaomi"], "agentsRequired": true}
+  ],
+  "products": {
+    "fantasy": {"clientRepo": "jigsaw-android", "clientBranch": "dev", "cmsRepos": ["jigsaw-api", "jigsaw-ui"], "cmsBranch": "develop", "cmsProduct": "fantasy", "biProductId": "62c65b72172a360bb0088a30", "cli": "jigsaw-cms"},
+    "legacy": {"clientRepo": "classic-jigsaw-android", "clientBranch": "legacy/dev", "cmsRepos": ["jigsaw-api", "jigsaw-ui"], "cmsBranch": "develop", "cmsProduct": "classic", "biProductId": "660a5d104c85736a81d2a26a", "cli": "jigsaw-cms"},
+    "peace": {"clientRepo": "classic-jigsaw-android", "clientBranch": "breeze/dev", "cmsRepos": ["jigsaw-api", "jigsaw-ui"], "cmsBranch": "develop", "cmsProduct": "peace", "biProductId": "6a1532b4371d175894b52c0c", "cli": "jigsaw-cms"},
+    "countryside": {"clientRepo": "classic-jigsaw-android", "clientBranch": "countryside/dev", "cmsRepos": ["classic-jigsaw-api", "classic-jigsaw-ui"], "cmsBranch": "develop", "cmsProduct": "countryside", "biProductId": "68da550fc01de7aa55799afe", "cli": "countryside-cms"},
+    "jigslide": {"clientRepo": "jigsaw-card-solitaire", "clientBranch": null, "cmsRepos": ["jigsolitaire-api", "jigsolitaire-ui"], "cmsBranch": "develop", "cmsProduct": "jigsaw", "biProductId": null, "cli": "jscms"},
+    "xiaomi": {"clientRepo": null, "clientBranch": null, "cmsRepos": ["jigsolitaire-api", "jigsolitaire-ui"], "cmsBranch": "develop", "cmsProduct": "xiaomi", "biProductId": null, "cli": "jscms"}
+  },
+  "commands": {
+    "bi": {"sourceRepo": "bi-cli"},
+    "jigsaw-cms": {"sourceRepo": "jigsaw-ui"},
+    "countryside-cms": {"sourceRepo": "classic-jigsaw-ui"},
+    "jscms": {"sourceRepo": "jigsolitaire-api"}
+  }
+}
