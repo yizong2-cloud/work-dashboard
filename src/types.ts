@@ -116,9 +116,17 @@ export type FeedbackRole = 'leader' | 'owner'
 
 export type FeedbackStatus = 'open' | 'in_progress' | 'resolved'
 
+/**
+ * 反馈的业务归属。两类内容必须分开：
+ * - leader_feedback：Leader 与负责人的协作讨论；
+ * - agent_instruction：负责人留给 Agent 的待处理指令。
+ */
+export type FeedbackKind = 'leader_feedback' | 'agent_instruction'
+
 export interface FeedbackThread {
   id: string
   task_id: string
+  kind: FeedbackKind
   status: FeedbackStatus
   created_at: string
   created_by: string

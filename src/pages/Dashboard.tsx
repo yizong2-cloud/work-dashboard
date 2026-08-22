@@ -107,7 +107,7 @@ export function Dashboard() {
   const unresolvedThreads = useMemo(
     () =>
       allThreads
-        .filter((t) => t.status !== 'resolved')
+        .filter((t) => (t.kind ?? 'leader_feedback') === 'leader_feedback' && t.status !== 'resolved')
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [allThreads],
   )

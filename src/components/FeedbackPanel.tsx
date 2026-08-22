@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FeedbackMessage, FeedbackRole, FeedbackStatus, FeedbackThread } from '../types'
+import type { FeedbackKind, FeedbackMessage, FeedbackRole, FeedbackStatus, FeedbackThread } from '../types'
 import type { FeedbackService, LegacyComment } from '../lib/feedbackService'
 import { feedbackDisplayName } from '../lib/feedbackRules'
 import { shortDateTime } from '../lib/format'
@@ -24,8 +24,8 @@ interface FeedbackPanelProps {
   /** 变更后由父级刷新数据 */
   onChanged: () => void
   onNotify: (message: string) => void
-  /** 任务页的 Agent 处理入口：将留言明确放入处理箱，不改变底层线程模型。 */
-  agentMode?: boolean
+  /** Leader 协作反馈与给 Agent 的处理指令是两个独立入口，不能互相改名替代。 */
+  kind: FeedbackKind
 }
 
 export function FeedbackPanel({
@@ -37,8 +37,9 @@ export function FeedbackPanel({
   initialThreadId = null,
   onChanged,
   onNotify,
-  agentMode = false,
+  kind,
 }: FeedbackPanelProps) {
+  const agentMode = kind === 'agent_instruction'
   const [role, setRole] = useState<FeedbackRole>(() =>
     localStorage.getItem(ROLE_KEY) === 'owner' ? 'owner' : 'leader',
   )
@@ -57,12 +58,16 @@ export function FeedbackPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialThreadId])
 
-  const openCount = threads.filter((t) => t.status !== 'resolved').length
+  const scopedThreads = useMemo(
+    () => threads.filter((thread) => (thread.kind ?? 'leader_feedback') === kind),
+    [kind, threads],
+  )
+  const openCount = scopedThreads.filter((t) => t.status !== 'resolved').length
   const pendingLabel = agentMode ? '待处理' : '待回应'
 
   const sorted = useMemo(
-    () => [...threads].sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    [threads],
+    () => [...scopedThreads].sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [scopedThreads],
   )
 
   function switchRole(next: FeedbackRole) {
@@ -92,7 +97,7 @@ export function FeedbackPanel({
     setBusy(true)
     setError('')
     try {
-      await service.createThread(taskId, body, agentMode ? 'leader' : role)
+      await service.createThread(taskId, body, agentMode ? 'owner' : role, kind)
       setNewBody('')
       onNotify(agentMode ? '已保存到处理箱，Agent 可按任务定位' : '反馈已发起')
       onChanged()
@@ -136,7 +141,7 @@ export function FeedbackPanel({
   }
 
   return (
-    <section className="comment-panel card" id="comments">
+    <section className="comment-panel card" id={agentMode ? 'agent-inbox' : 'comments'}>
       <div className="comment-panel-head">
         <div>
           <span className="eyebrow">{agentMode ? 'Agent inbox' : 'Leader feedback'}</span>
@@ -186,7 +191,7 @@ export function FeedbackPanel({
       </form>
 
       {/* 历史留言（兼容只读） */}
-      {legacyComments.length > 0 && (
+      {!agentMode && legacyComments.length > 0 && (
         <details className="feedback-legacy">
           <summary>历史留言（{legacyComments.length} 条，来自旧版本，只读）</summary>
           <div className="comment-list">
@@ -208,11 +213,11 @@ export function FeedbackPanel({
 
       {/* 反馈线程列表 */}
       <div className="comment-list">
-        {sorted.length === 0 && legacyComments.length === 0 ? (
+        {sorted.length === 0 && (agentMode || legacyComments.length === 0) ? (
           <div className="comment-empty">
             <div className="comment-empty-art" aria-hidden="true">
               <img src={COMMENT_MASCOT} alt="" loading="lazy" decoding="async" />
-              <span>还没有反馈。Leader 的留言会以线程形式出现在这里，可回复、可标记解决。</span>
+              <span>{agentMode ? '还没有待处理留言。写下任务问题后，Agent 会从处理箱读取。' : '还没有反馈。Leader 的留言会以线程形式出现在这里，可回复、可标记解决。'}</span>
             </div>
           </div>
         ) : null}

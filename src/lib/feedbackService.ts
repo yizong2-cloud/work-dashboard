@@ -6,10 +6,10 @@
 // ============================================================
 
 import type { DB } from './db'
-import type { FeedbackMessage, FeedbackRole, FeedbackStatus, FeedbackThread } from '../types'
+import type { FeedbackKind, FeedbackMessage, FeedbackRole, FeedbackStatus, FeedbackThread } from '../types'
 import type { TaskUpdate } from '../types'
 import { commentBody, isComment } from './comments'
-import { feedbackDisplayName, isValidFeedbackStatus, validateFeedbackBody, validateFeedbackRole } from './feedbackRules'
+import { feedbackDisplayName, isValidFeedbackKind, isValidFeedbackStatus, validateFeedbackBody, validateFeedbackRole } from './feedbackRules'
 
 /** 历史留言（来自 task_updates 的 💬 note，兼容只读） */
 export interface LegacyComment {
@@ -28,10 +28,10 @@ export interface FeedbackService {
   /** 任务的全部反馈线程 + 历史留言 */
   listThreads(taskId: string): Promise<{ threads: FeedbackThread[]; legacyComments: LegacyComment[] }>
   /** 全部线程（Dashboard 统计/最近反馈） */
-  listAllThreads(): Promise<FeedbackThread[]>
+  listAllThreads(kind?: FeedbackKind): Promise<FeedbackThread[]>
   listMessages(threadId: string): Promise<FeedbackMessage[]>
   /** 发起反馈（leader 视角）；role 默认 leader */
-  createThread(taskId: string, body: string, role?: FeedbackRole): Promise<FeedbackThread>
+  createThread(taskId: string, body: string, role?: FeedbackRole, kind?: FeedbackKind): Promise<FeedbackThread>
   /** 回复线程；role 默认 owner（负责人）；已解决线程回复后自动重新打开 */
   reply(threadId: string, body: string, role?: FeedbackRole): Promise<FeedbackMessage>
   /** 状态迁移（resolved 记录解决者）；任务负责人标记解决 */
@@ -65,19 +65,20 @@ export function createFeedbackService(db: DB, opts: FeedbackServiceOptions): Fee
       return { threads, legacyComments }
     },
 
-    async listAllThreads() {
-      return db.listAllFeedbackThreads()
+    async listAllThreads(kind) {
+      return db.listAllFeedbackThreads(kind)
     },
 
     async listMessages(threadId) {
       return db.listFeedbackMessages(threadId)
     },
 
-    async createThread(taskId, body, role) {
+    async createThread(taskId, body, role, kind = 'leader_feedback') {
       const err = validateFeedbackBody(body)
       if (err) throw new Error(err)
       const r = roleOr(role, 'leader')
-      return db.createFeedbackThread(taskId, body.trim(), feedbackDisplayName(r, who()), r)
+      if (!isValidFeedbackKind(kind)) throw new Error('非法反馈类型')
+      return db.createFeedbackThread(taskId, body.trim(), feedbackDisplayName(r, who()), r, kind)
     },
 
     async reply(threadId, body, role) {

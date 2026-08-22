@@ -199,6 +199,7 @@ grant execute on function public.create_task_with_note(text, jsonb, text, text) 
 create table if not exists public.task_feedback_threads (
   id          uuid primary key default gen_random_uuid(),
   task_id     uuid not null references public.tasks(id) on delete cascade,
+  kind        text not null default 'leader_feedback' check (kind in ('leader_feedback','agent_instruction')),
   status      text not null default 'open' check (status in ('open','in_progress','resolved')),
   created_at  timestamptz not null default now(),
   created_by  text not null default '',
@@ -217,6 +218,7 @@ create table if not exists public.task_feedback_messages (
 );
 
 create index if not exists task_feedback_threads_task_idx on public.task_feedback_threads (task_id);
+create index if not exists task_feedback_threads_kind_updated_idx on public.task_feedback_threads (kind, updated_at desc);
 create index if not exists task_feedback_messages_thread_idx on public.task_feedback_messages (thread_id);
 
 drop trigger if exists task_feedback_threads_set_updated_at on public.task_feedback_threads;
@@ -229,7 +231,8 @@ create or replace function public.create_feedback_thread(
   p_task_id uuid,
   p_body text,
   p_author_name text default '',
-  p_author_role text default 'leader'
+  p_author_role text default 'leader',
+  p_kind text default 'leader_feedback'
 ) returns public.task_feedback_threads
 language plpgsql
 security definer
@@ -239,8 +242,14 @@ begin
   if p_body is null or btrim(p_body) = '' then
     raise exception '反馈内容不能为空';
   end if;
-  insert into public.task_feedback_threads (task_id, status, created_by)
-  values (p_task_id, 'open', p_author_name)
+  if p_author_role not in ('leader', 'owner') then
+    raise exception '非法反馈角色: %', p_author_role;
+  end if;
+  if p_kind not in ('leader_feedback', 'agent_instruction') then
+    raise exception '非法反馈类型: %', p_kind;
+  end if;
+  insert into public.task_feedback_threads (task_id, kind, status, created_by)
+  values (p_task_id, p_kind, 'open', p_author_name)
   returning * into v_thread;
   insert into public.task_feedback_messages (thread_id, body, author_name, author_role)
   values (v_thread.id, p_body, p_author_name, p_author_role);
@@ -308,7 +317,7 @@ begin
 end;
 $$;
 
-grant execute on function public.create_feedback_thread(uuid, text, text, text) to anon, authenticated;
+grant execute on function public.create_feedback_thread(uuid, text, text, text, text) to anon, authenticated;
 grant execute on function public.add_feedback_reply(uuid, text, text, text) to anon, authenticated;
 grant execute on function public.set_feedback_status(uuid, text, text) to anon, authenticated;
 
@@ -479,7 +488,12 @@ language plpgsql
 security definer
 as $$
 declare v_count int;
+declare v_kind text;
 begin
+  select kind into v_kind from public.task_feedback_threads where id = new.thread_id;
+  if v_kind = 'agent_instruction' then
+    return new;
+  end if;
   select count(*) into v_count from public.task_feedback_messages where thread_id = new.thread_id;
   insert into public.notification_outbox (event_type, source_key, payload)
   values (
@@ -509,6 +523,9 @@ language plpgsql
 security definer
 as $$
 begin
+  if new.kind = 'agent_instruction' then
+    return new;
+  end if;
   -- 仅「解决 ↔ 非解决」变化才通知；open→in_progress 这类普通状态流转不发（避免噪音）
   if (old.status = 'resolved') <> (new.status = 'resolved') then
     insert into public.notification_outbox (event_type, source_key, payload)

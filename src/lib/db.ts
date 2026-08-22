@@ -15,6 +15,7 @@ import type {
   DecisionFormPayload,
   DecisionResponse,
   FeedbackMessage,
+  FeedbackKind,
   FeedbackRole,
   FeedbackStatus,
   FeedbackThread,
@@ -62,12 +63,12 @@ export interface DB {
 
   // ---- 反馈线程（任务一） ----
   /** 某任务的全部反馈线程（含 message_count / 最新消息摘要） */
-  listFeedbackThreads(taskId: string): Promise<FeedbackThread[]>
+  listFeedbackThreads(taskId: string, kind?: FeedbackKind): Promise<FeedbackThread[]>
   /** 全部反馈线程（Dashboard 未解决统计用） */
-  listAllFeedbackThreads(): Promise<FeedbackThread[]>
+  listAllFeedbackThreads(kind?: FeedbackKind): Promise<FeedbackThread[]>
   listFeedbackMessages(threadId: string): Promise<FeedbackMessage[]>
   /** 原子创建线程（线程 + 首条消息） */
-  createFeedbackThread(taskId: string, body: string, authorName: string, authorRole: FeedbackRole): Promise<FeedbackThread>
+  createFeedbackThread(taskId: string, body: string, authorName: string, authorRole: FeedbackRole, kind: FeedbackKind): Promise<FeedbackThread>
   /** 原子回复（线程已解决时自动重新打开） */
   addFeedbackMessage(threadId: string, body: string, authorName: string, authorRole: FeedbackRole): Promise<FeedbackMessage>
   /** 状态迁移（resolved 记录解决者与时间） */

@@ -166,7 +166,7 @@ async function opInbox(op) {
   if (status && !['open', 'in_progress', 'resolved'].includes(status)) {
     fail(`非法处理箱状态: ${status}，可选: open / in_progress / resolved`)
   }
-  const [threads, tasks] = await Promise.all([store.listAllFeedbackThreads(), store.listTasks()])
+  const [threads, tasks] = await Promise.all([store.listAllFeedbackThreads('agent_instruction'), store.listTasks()])
   const byTask = new Map(tasks.map((task) => [task.id, task]))
   const filtered = threads.filter((thread) => status ? thread.status === status : (op.all ? true : thread.status !== 'resolved'))
   const items = await Promise.all(filtered.map(async (thread) => ({
@@ -195,7 +195,7 @@ async function opInboxStatus(op) {
     human(`[dry-run] 处理留言 ${id} → ${to}`)
     return null
   }
-  const thread = await store.setFeedbackStatus(id, to, who)
+  const thread = await store.setFeedbackStatus(id, to, who, 'agent_instruction')
   human(`✅ 处理留言 ${id} 已标记为 ${to}`)
   return thread
 }

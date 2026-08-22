@@ -220,17 +220,18 @@ export function createLocalDB(): DB {
 
     // ---- 反馈线程（任务一） ----
 
-    async listFeedbackThreads(taskId) {
+    async listFeedbackThreads(taskId, kind) {
       const store = load()
       return store.feedbackThreads
-        .filter((t) => t.task_id === taskId)
+        .filter((t) => t.task_id === taskId && (!kind || (t.kind ?? 'leader_feedback') === kind))
         .map((t) => enrichThread(t, store))
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     },
 
-    async listAllFeedbackThreads() {
+    async listAllFeedbackThreads(kind) {
       const store = load()
       return store.feedbackThreads
+        .filter((t) => !kind || (t.kind ?? 'leader_feedback') === kind)
         .map((t) => enrichThread(t, store))
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     },
@@ -241,13 +242,14 @@ export function createLocalDB(): DB {
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
     },
 
-    async createFeedbackThread(taskId, body, authorName, authorRole) {
+    async createFeedbackThread(taskId, body, authorName, authorRole, kind) {
       if (!body || !body.trim()) throw new Error('反馈内容不能为空')
       const store = load()
       if (!store.tasks.some((t) => t.id === taskId)) throw new Error(`任务不存在: ${taskId}`)
       const thread: FeedbackThread = {
         id: newId('ft'),
         task_id: taskId,
+        kind,
         status: 'open',
         created_at: now(),
         created_by: authorName || '',

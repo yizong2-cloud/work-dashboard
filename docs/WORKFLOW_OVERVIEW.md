@@ -67,7 +67,7 @@
 
 - **tasks**：id、title、description、status(planned/in_progress/blocked/paused/completed/cancelled)、priority(**urgent**/high/normal/low)、progress(0-100)、start_date、expected_end_date、actual_end_date、current_status(一句话现状)、block_reason、is_interrupt_task、created_at、updated_at
 - **task_updates（时间线）**：id、task_id、type(progress/status_change/schedule_change/blocked/unblocked/interrupt/note/completed/**urgent/deurgent/nudge**)、content、old/new_expected_end_date、created_at、created_by、**notify_mode(immediate/merge/silent)**、**merge_key**
-- **task_feedback_threads**（Leader 反馈线程）：status(open/in_progress/resolved)
+- **task_feedback_threads**（协作反馈 / Agent 指令）：`kind` 为 `leader_feedback` 或 `agent_instruction`，均有 status(open/in_progress/resolved)
 - **task_feedback_messages**（线程消息）：author_role(leader/owner)
 - **task_plan_blocks / task_plan_block_changes**（日粒度计划块 + 调整历史）
 

@@ -183,9 +183,11 @@ npm run agent -- batch --file ops.json             # 再执行
 
 ## 10. 反馈线程与 Agent 处理箱
 
-- Leader 的反馈是**独立结构化数据**（`task_feedback_threads` / `task_feedback_messages`），不再使用 `💬` 前缀模拟。
-- 反馈在**网页**上操作（任务详情页 → 反馈线程）：发起、回复、标记处理中/解决、重新打开（已解决后回复自动重开）。
-- 任务详情页的「交给 Agent 处理」会把自然语言留言放入处理箱；网页「处理箱」可按任务定位并打开原线程。
+- **Leader 留言**与**给 Agent 的处理指令**是两类独立结构化数据（同表以 `kind` 区分），不能用一个面板改名替代另一个：
+  - `leader_feedback`：Leader 与负责人的协作反馈，可回复、标记处理中/解决；
+  - `agent_instruction`：负责人交给 Agent 的自然语言处理指令，只在网页「处理箱」与 Agent CLI 中汇总。
+- 任务详情页会同时显示两块入口。Leader 反馈仍按原语义保留；「交给 Agent 处理」只聚焦 Agent 指令输入框。
+- Agent 指令不会触发 Leader 群反馈通知，避免把内部处理要求误发到协作群。
 - Agent 用 `npm run agent -- inbox --json` 读取处理箱（默认只返回未解决线程；`--all` 可包含已解决）。读取是只读聚合，**不会自动把自然语言解释成字段修改**。
 - Agent 判断后仍须使用 `progress/update/schedule/block/complete` 等结构化命令落地，并用网页线程标记处理中/解决；这样保留原文、审计和人工复核。
 - 旧版本 `💬` 留言（task_updates 里）通过兼容读取继续展示为「历史留言」，数据不动。

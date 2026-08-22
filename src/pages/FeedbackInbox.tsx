@@ -25,7 +25,7 @@ export function FeedbackInbox() {
     setLoading(true)
     setError('')
     try {
-      const [nextThreads, nextTasks] = await Promise.all([feedback.listAllThreads(), db.listTasks()])
+      const [nextThreads, nextTasks] = await Promise.all([feedback.listAllThreads('agent_instruction'), db.listTasks()])
       setThreads(nextThreads)
       setTasks(nextTasks)
     } catch (e) {
@@ -89,7 +89,7 @@ export function FeedbackInbox() {
                 <p className="inbox-message"><MessageSquare size={15} />{thread.latest_message || '打开任务查看留言内容'}</p>
                 <span className="inbox-meta">{thread.created_by || 'Leader'} · {thread.message_count ?? 1} 条消息</span>
               </div>
-              <Link className="btn btn-ghost btn-sm inbox-open-link" to={`/task/${thread.task_id}?comment=1&thread=${thread.id}`}>
+              <Link className="btn btn-ghost btn-sm inbox-open-link" to={`/task/${thread.task_id}?agent=1&thread=${thread.id}`}>
                 打开任务 <ArrowRight size={15} />
               </Link>
             </article>

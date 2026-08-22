@@ -66,17 +66,24 @@ test('inbox 默认只读未解决反馈，并输出任务定位与完整消息',
   const threadId = '11111111-1111-4111-8111-111111111111'
   db.feedbackThreads = [{
     id: threadId, task_id: id, status: 'open', created_at: '2026-08-20T01:00:00.000Z',
-    created_by: 'Leader', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:02:00.000Z',
+    kind: 'agent_instruction', created_by: '本人', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:02:00.000Z',
+  }, {
+    id: '33333333-3333-4333-8333-333333333333', task_id: id, status: 'open', created_at: '2026-08-20T01:00:00.000Z',
+    kind: 'leader_feedback', created_by: 'Leader', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:03:00.000Z',
   }]
   db.feedbackMessages = [{
     id: '22222222-2222-4222-8222-222222222222', thread_id: threadId, body: '预计完成日期记错了，请改到周五。',
-    author_name: 'Leader', author_role: 'leader', created_at: '2026-08-20T01:02:00.000Z',
+    author_name: '本人', author_role: 'owner', created_at: '2026-08-20T01:02:00.000Z',
+  }, {
+    id: '44444444-4444-4444-8444-444444444444', thread_id: '33333333-3333-4333-8333-333333333333', body: '请确认排期。',
+    author_name: 'Leader', author_role: 'leader', created_at: '2026-08-20T01:03:00.000Z',
   }]
   fs.writeFileSync(c.dbFile, JSON.stringify(db, null, 2))
   const r = run('inbox', '--json')
   assert.ok(r.ok, r.stderr)
   const items = JSON.parse(r.stdout)
   assert.equal(items.length, 1)
+  assert.equal(items[0].kind, 'agent_instruction')
   assert.equal(items[0].task_title, '处理箱测试任务')
   assert.equal(items[0].messages[0].body, '预计完成日期记错了，请改到周五。')
   const resolved = run('inbox-status', threadId, '--to', 'resolved')

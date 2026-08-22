@@ -33,7 +33,9 @@ export function TaskDetail() {
   const [toast, setToast] = useState('')
 
   const focusThreadId = searchParams.get('thread')
-  const focusFeedback = searchParams.get('comment') === '1' || !!focusThreadId
+  const isAgentThread = searchParams.get('agent') === '1'
+  const focusFeedback = searchParams.get('comment') === '1' || (!!focusThreadId && !isAgentThread)
+  const focusAgentInstruction = isAgentThread
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -87,8 +89,8 @@ export function TaskDetail() {
   }
 
   function focusAgentInbox() {
-    const composer = document.querySelector('#comments textarea[aria-label="反馈内容"]') as HTMLTextAreaElement | null
-    document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const composer = document.querySelector('#agent-inbox textarea[aria-label="反馈内容"]') as HTMLTextAreaElement | null
+    document.getElementById('agent-inbox')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     window.setTimeout(() => composer?.focus(), 180)
   }
 
@@ -185,8 +187,19 @@ export function TaskDetail() {
             threads={threads}
             legacyComments={legacyComments}
             autoFocus={focusFeedback}
-            initialThreadId={focusThreadId}
-            agentMode
+            initialThreadId={isAgentThread ? null : focusThreadId}
+            kind="leader_feedback"
+            onChanged={() => void refresh()}
+            onNotify={notify}
+          />
+          <FeedbackPanel
+            taskId={task.id}
+            service={feedback}
+            threads={threads}
+            legacyComments={[]}
+            autoFocus={focusAgentInstruction}
+            initialThreadId={isAgentThread ? focusThreadId : null}
+            kind="agent_instruction"
             onChanged={() => void refresh()}
             onNotify={notify}
           />

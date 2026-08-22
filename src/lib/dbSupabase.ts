@@ -142,22 +142,23 @@ export function createSupabaseDB(client: SupabaseClient): DB {
 
     // ---- 反馈线程（任务一） ----
 
-    async listFeedbackThreads(taskId) {
-      const { data, error } = await client
+    async listFeedbackThreads(taskId, kind) {
+      let query = client
         .from('task_feedback_threads')
         .select('*, task_feedback_messages(count)')
         .eq('task_id', taskId)
-        .order('updated_at', { ascending: false })
+      if (kind) query = query.eq('kind', kind)
+      const { data, error } = await query.order('updated_at', { ascending: false })
       if (error) throw new Error(error.message)
       return enrichFeedbackThreads((data ?? []) as Array<Record<string, unknown>>)
     },
 
-    async listAllFeedbackThreads() {
-      const { data, error } = await client
+    async listAllFeedbackThreads(kind) {
+      let query = client
         .from('task_feedback_threads')
         .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(200)
+      if (kind) query = query.eq('kind', kind)
+      const { data, error } = await query.order('updated_at', { ascending: false }).limit(200)
       if (error) throw new Error(error.message)
       return enrichFeedbackThreads((data ?? []) as Array<Record<string, unknown>>)
     },
@@ -172,12 +173,13 @@ export function createSupabaseDB(client: SupabaseClient): DB {
       return (data ?? []) as FeedbackMessage[]
     },
 
-    async createFeedbackThread(taskId, body, authorName, authorRole) {
+    async createFeedbackThread(taskId, body, authorName, authorRole, kind) {
       const { data, error } = await client.rpc('create_feedback_thread', {
         p_task_id: taskId,
         p_body: body,
         p_author_name: authorName,
         p_author_role: authorRole,
+        p_kind: kind,
       })
       if (error) throw new Error(error.message)
       return data as FeedbackThread

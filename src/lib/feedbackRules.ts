@@ -3,10 +3,11 @@
 // 供前端 service 与测试共用；数据库层（schema.sql RPC）也会强制同样的规则。
 // ============================================================
 
-import type { FeedbackRole, FeedbackStatus } from '../types'
+import type { FeedbackKind, FeedbackRole, FeedbackStatus } from '../types'
 
 export const FEEDBACK_ROLES: FeedbackRole[] = ['leader', 'owner']
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ['open', 'in_progress', 'resolved']
+export const FEEDBACK_KINDS: FeedbackKind[] = ['leader_feedback', 'agent_instruction']
 export const FEEDBACK_BODY_MAX = 2000
 
 /** 校验反馈/回复正文；返回错误信息，合法返回 null */
@@ -25,6 +26,10 @@ export function validateFeedbackRole(role: string): FeedbackRole | null {
 /** 校验线程状态迁移：目标必须合法；resolved 是终态（新回复会自动重新打开） */
 export function isValidFeedbackStatus(status: string): status is FeedbackStatus {
   return FEEDBACK_STATUSES.includes(status as FeedbackStatus)
+}
+
+export function isValidFeedbackKind(kind: string): kind is FeedbackKind {
+  return FEEDBACK_KINDS.includes(kind as FeedbackKind)
 }
 
 /** 展示名：有署名用署名，否则按角色给默认名 */

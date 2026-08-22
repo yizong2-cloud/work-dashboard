@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   FEEDBACK_BODY_MAX,
+  isValidFeedbackKind,
   feedbackDisplayName,
   isValidFeedbackStatus,
   validateFeedbackBody,
@@ -15,6 +16,11 @@ import {
 } from '../src/lib/feedbackRules.ts'
 import { COMMENT_PREFIX, commentBody, encodeComment, isComment } from '../src/lib/comments.ts'
 import { summarizeFeedbackThreads } from '../src/lib/feedbackSummary.ts'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 test('validateFeedbackBody：空/空白/超长被拒，合法通过', () => {
   assert.equal(validateFeedbackBody(''), '内容不能为空')
@@ -41,11 +47,23 @@ test('isValidFeedbackStatus：open/in_progress/resolved', () => {
   assert.equal(isValidFeedbackStatus(''), false)
 })
 
+test('isValidFeedbackKind：Leader 反馈与 Agent 指令是两种不同业务数据', () => {
+  assert.equal(isValidFeedbackKind('leader_feedback'), true)
+  assert.equal(isValidFeedbackKind('agent_instruction'), true)
+  assert.equal(isValidFeedbackKind('anything_else'), false)
+})
+
 test('feedbackDisplayName：无署名按角色给默认，有署名用署名', () => {
   assert.equal(feedbackDisplayName('leader', ''), 'Leader')
   assert.equal(feedbackDisplayName('owner', ''), '本人')
   assert.equal(feedbackDisplayName('leader', ' 张三 '), '张三')
   assert.equal(feedbackDisplayName('owner', '宗意'), '宗意')
+})
+
+test('任务详情同时保留 Leader 反馈与 Agent 处理入口，不能用一个面板改名替代另一个', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'src/pages/TaskDetail.tsx'), 'utf8')
+  assert.match(source, /<FeedbackPanel[\s\S]*?kind="leader_feedback"/)
+  assert.match(source, /<FeedbackPanel[\s\S]*?kind="agent_instruction"/)
 })
 
 test('历史留言兼容：💬 前缀 note 识别与剥离（旧版本数据不丢失）', () => {

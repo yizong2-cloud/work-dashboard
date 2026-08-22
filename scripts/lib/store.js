@@ -182,10 +182,10 @@ function createLocalStore() {
       return task
     },
     // ---- Agent 处理箱（只读聚合 + 状态回写） ----
-    async listAllFeedbackThreads() {
+    async listAllFeedbackThreads(kind) {
       const db = loadLocal()
       const messages = db.feedbackMessages ?? []
-      return (db.feedbackThreads ?? []).map((thread) => {
+      return (db.feedbackThreads ?? []).filter((thread) => !kind || (thread.kind ?? 'leader_feedback') === kind).map((thread) => {
         const latest = messages
           .filter((message) => message.thread_id === thread.id)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
@@ -203,11 +203,12 @@ function createLocalStore() {
         .filter((message) => message.thread_id === threadId)
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
     },
-    async setFeedbackStatus(threadId, status, byName = 'agent') {
+    async setFeedbackStatus(threadId, status, byName = 'agent', kind) {
       if (!['open', 'in_progress', 'resolved'].includes(status)) throw new Error(`非法反馈状态: ${status}`)
       const db = loadLocal()
       const thread = (db.feedbackThreads ?? []).find((item) => item.id === threadId)
       if (!thread) throw new Error(`反馈线程不存在: ${threadId}`)
+      if (kind && (thread.kind ?? 'leader_feedback') !== kind) throw new Error('该反馈不属于 Agent 处理箱')
       thread.status = status
       thread.resolved_at = status === 'resolved' ? now() : null
       thread.resolved_by = status === 'resolved' ? byName : ''
@@ -680,12 +681,12 @@ function createSupabaseStore(env) {
       return data
     },
     // ---- Agent 处理箱（service_role 读取线上线程） ----
-    async listAllFeedbackThreads() {
-      const { data: threads, error } = await client
+    async listAllFeedbackThreads(kind) {
+      let query = client
         .from('task_feedback_threads')
         .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(500)
+      if (kind) query = query.eq('kind', kind)
+      const { data: threads, error } = await query.order('updated_at', { ascending: false }).limit(500)
       if (error) throw new Error(error.message)
       const { data: messages, error: messageError } = await client
         .from('task_feedback_messages')
@@ -719,7 +720,16 @@ function createSupabaseStore(env) {
       if (error) throw new Error(error.message)
       return data ?? []
     },
-    async setFeedbackStatus(threadId, status, byName = 'agent') {
+    async setFeedbackStatus(threadId, status, byName = 'agent', kind) {
+      if (kind) {
+        const { data: thread, error: readError } = await client
+          .from('task_feedback_threads')
+          .select('kind')
+          .eq('id', threadId)
+          .maybeSingle()
+        if (readError) throw new Error(readError.message)
+        if (!thread || thread.kind !== kind) throw new Error('该反馈不属于 Agent 处理箱')
+      }
       const { data, error } = await client.rpc('set_feedback_status', {
         p_thread_id: threadId,
         p_status: status,
