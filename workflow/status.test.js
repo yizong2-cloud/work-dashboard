@@ -130,3 +130,19 @@ test('status 将当前快照的待确认计划作为下一步，而非要求重�
   assert.match(status.next_action, /不要重新 prepare/)
   assert.match(formatStatus(status), /待确认：⏸️ 1 项/)
 })
+
+test('status 将当前快照的推送预览作为下一步，等待用户确认', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-publish', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 1 } }, counts: { total: 1, high_priority: 1 },
+    },
+    publishPreview: {
+      state: 'awaiting_owner_confirmation', snapshot_id: 'snap-publish', operations: [{ index: 1 }],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.publish.awaiting_confirmation, true)
+  assert.match(status.next_action, /确认推送/)
+  assert.match(formatStatus(status), /待推送审核：⏸️ 1 项/)
+})

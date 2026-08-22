@@ -5,12 +5,22 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 
 # 更新个人工作进度看板
 
-仓库：`/Users/zongyi/work-dashboard`。
+唯一流程契约：本文件。仓库：`/Users/zongyi/Workspace/work-dashboard`。
+
+飞书采集由两部分组合，但只有一条 Workboard 工作流：
+
+- 日常更新只能运行 `npm run dashboard:prepare`；不要直接调用任何 `feishu-export`。
+- 聊天采集核心是 `/Users/zongyi/Workspace/feishu-export-public/bin/feishu-export`。
+- `/Users/zongyi/Workspace/feishu_export` 保存本机 Cookies、导出结果和表格/专项脚本；它向聊天核心提供私有运行数据，不是第二套 Workboard 流程。
+- 本 Skill 的个人级安装副本位于 `~/.agents/skills/dashboard-update`，由 `npm run dashboard:skill:install` 从本文件同步；不要直接维护安装副本。`~/.codex/skills` 不再保留同名兼容副本，避免 Codex 重复发现。
 
 ## 流程
 
-1. `cd /Users/zongyi/work-dashboard && npm run dashboard:prepare`
-2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，立即报告 JSON 中的 `next_action` 并停止；此时不要把知识库或审查条目加载进上下文。
+1. `cd /Users/zongyi/Workspace/work-dashboard && npm run dashboard:prepare`
+2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，不得读取知识库/审查条目，也不得生成 ops 或 apply；但“停止看板写入”不等于“停止排障”。
+   - 飞书诊断 JSON 含 `failedChats` 且 Cookies 仍有效时，在同一任务内先用公开聊天核心和 `--chat-id` 隔离重试，必须带 `--no-update-state`。隔离成功后重新运行一次 `dashboard:prepare`。
+   - 若隔离成功但完整采集继续随机换不同会话 `openfail`，将其视为批量切换缺陷：在 `/Users/zongyi/Workspace/feishu-export-public` 复现、修复并补回归测试，再重新运行 `dashboard:prepare`；不要把某个联系人误报为“会话损坏”，也不要只汇报失败后结束任务。
+   - 只有登录态/Cookies 失效、飞书外部状态持续不可用，或完成一次有回归测试的代码修复后完整采集仍失败，才报告 JSON 中的 `next_action` 并停止。排障期间始终保留安全闸门，不得使用部分导出或旧健康快照 apply。
    - 状态中若出现 `last_healthy`，它只是采集故障的诊断参照；不得读取它来生成 ops，也不得用它替代当前快照 apply。
 3. 仅在预检通过后读取 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
    - 审查包包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，及候选任务和短摘录。
@@ -30,11 +40,14 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
    - 不得只在汇报里写“待确认 N 项”；必须给出 `source_id`、短证据、候选任务和要用户决定的事项。
    - 此时 `ops.json` 与 `pending-plan.json` 是冻结的可续办计划；用户回复后先运行 `npm run dashboard:pending -- show`，再对每项使用 `dashboard:pending resolve --source <id> --decision mapped|irrelevant --task <uuid> --reason "<用户确认>"`。**不得重新运行 prepare**，除非用户明确说“开始更新”或快照已过期/异常。
    - 所有待确认项解决后，才继续 dry-run/apply/verify。
-7. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
-   - apply 会拒绝遗漏、重复、旧快照或未知 source_id 的对账；无变更会写审查结案，不改任务数据，verify 仍可安全推进游标。
-   - `snapshot_health=degraded` 或 `coverage.complete=false` 时不要 apply，也不要用 `--force` 绕过；先修复采集或重新 prepare。
-8. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
-9. 汇报使用 `dashboard:apply` 输出的对账摘要与通知意图；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
+7. 先运行 `npm run dashboard:apply -- --dry-run`；通过后运行 `npm run dashboard:publish -- preview`。
+   - 将 `dashboard:publish -- preview` 的**完整输出**发给用户：它是待写入看板和待进入飞书投递队列的唯一预览，运行本身不写数据库、不发飞书。
+   - 预览发出后立刻停止。不得运行 `dashboard:apply`、`dashboard:verify`，也不得以“已更新”“已推送”措辞汇报。
+8. 只有用户在当前对话明确回复 **「确认推送」**，才依序运行：`npm run dashboard:publish -- confirm --phrase "确认推送"` → `npm run dashboard:apply` → `npm run dashboard:verify`。
+   - “可以”“继续”“看起来没问题”等泛泛回复不构成确认；用户要求修改、补充或重新分析时，修改 `ops.json` 后必须重新 dry-run 和 preview。预览、快照、ops 或 reconciliation 任一变化都会使旧确认自动失效。
+   - apply 会拒绝遗漏、重复、旧快照、未知 source_id、未解决待确认项或没有当前预览确认的写入；无变更也需要确认后才记录审查结案。`--force` 不能绕过来源健康或人工确认闸门。
+9. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
+10. 推送后汇报 apply 对账摘要、通知意图和 `dashboard:notify-status` 的实际队列状态；不要把“进入投递队列”表述成“已送达”。逐项审计证据以 `ops.json` 与 changeset 为准。
 
 ## 红线
 

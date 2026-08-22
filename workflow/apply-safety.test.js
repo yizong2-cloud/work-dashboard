@@ -19,12 +19,19 @@ test('自动化 apply 拒绝 delete 操作，删除不进入普通更新通道',
   fs.writeFileSync(file, JSON.stringify({ snapshot_id: context.snapshot_id, reconciliation, ops: [{ op: 'delete', id: 'task-1' }] }))
   try {
     assert.throws(
-      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--force'], { encoding: 'utf8', stdio: 'pipe' }),
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
       (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('未知操作 "delete"'),
     )
   } finally {
     fs.rmSync(file, { force: true })
   }
+})
+
+test('apply 的 --force 不能绕过任何安全闸门', () => {
+  assert.throws(
+    () => execFileSync('node', ['workflow/apply.mjs', '--force'], { encoding: 'utf8', stdio: 'pipe' }),
+    (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('不再支持 --force'),
+  )
 })
 
 test('apply 不允许带着 needs_confirmation 写入看板', () => {
@@ -39,7 +46,7 @@ test('apply 不允许带着 needs_confirmation 写入看板', () => {
   fs.writeFileSync(file, JSON.stringify({ snapshot_id: context.snapshot_id, reconciliation, ops: [] }))
   try {
     assert.throws(
-      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--force'], { encoding: 'utf8', stdio: 'pipe' }),
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
       (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('待确认'),
     )
   } finally {
@@ -69,8 +76,24 @@ test('百分比进度不能只写 progress note 而不更新任务字段', () =>
   }))
   try {
     assert.throws(
-      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--force'], { encoding: 'utf8', stdio: 'pipe' }),
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
       (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('必须改用 progress 操作'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
+test('实际 apply 没有当前预览确认时必须停止', () => {
+  const file = path.join(os.tmpdir(), `workboard-unapproved-${Date.now()}.json`)
+  const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
+  const packet = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'review-packet.json'), 'utf8'))
+  const reconciliation = packet.review_items.map((item) => ({ source_id: item.source_id, decision: 'irrelevant' }))
+  fs.writeFileSync(file, JSON.stringify({ snapshot_id: context.snapshot_id, reconciliation, ops: [] }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('确认推送'),
     )
   } finally {
     fs.rmSync(file, { force: true })

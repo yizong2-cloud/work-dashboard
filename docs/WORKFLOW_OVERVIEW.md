@@ -9,14 +9,14 @@
 ## 0. 一句话定位
 
 > 一个向 Leader 持续透明展示个人任务/进度/排期/阻塞/变化原因的轻量个人工作看板。
-> 维护方式：**本人用自然语言说「开始更新」，Agent 自动更新网站**；本人不做手动网页维护。
+> 维护方式：本人说「开始更新」后，Agent 自动采集、分析并生成更新预览；**只有本人明确回复「确认推送」后**，才更新看板并触发飞书通知。
 > 核心难点：把散落在飞书/Codex/DSH/本地文件里的真实工作，**可靠、无遗漏**地提炼成看板上的任务进展。
 
 ## 1. 系统架构
 
 ```text
 数据源（四类，互相印证）
-  ① 飞书聊天   ~/feishu_export/daily/range_*.md/.json   （沟通/排期/阻塞/需求）
+  ① 飞书聊天   ~/Workspace/feishu_export/daily/range_*.md/.json   （沟通/排期/阻塞/需求）
   ② Codex 会话 ~/.codex/sessions/**/rollout-*.jsonl      （实际开发记录）
   ③ DSH 会话   ~/.dsh/sessions/**/session.jsonl.zstd     （DSH 处理的问题）
   ④ 本地新文件 ~/Downloads 等（apk/pdf/md 需求文档/素材）  ← prepare 白名单扫描元数据（snapshot.sources.local_files）
@@ -28,6 +28,7 @@
    Agent(LLM) 分析：结合 docs/KNOWLEDGE_BASE.md 识别/合并任务 → 产出变更建议
         │ 遵守「第四条铁律：全量对账」；逐项对账写入 ops.json，回复只报摘要
         │ 遇 needs_confirmation → pending-plan.json 保存问题 → 用户确认后原快照续办（不重采集）
+        │ 无歧义 → publish-preview.json 冻结拟写入/飞书意图 → 用户「确认推送」后才 apply
         ▼
    Agent CLI scripts/agent.js（唯一写入口，原子 RPC）
         ▼
@@ -48,9 +49,10 @@
 | **Agent CLI** | `scripts/agent.js` | Agent 更新数据唯一通道（60 行命令） |
 | Codex 摘要器 | `scripts/codex-summary.js` | 读 `~/.codex/sessions` 提炼会话（**按 mtime 过滤**） |
 | DSH 摘要器 | `scripts/dsh-summary.js` | 读 `~/.dsh/sessions`（zstd 解压） |
-| 飞书导出 | 优先 `~/feishu-export-public/bin/feishu-export`，否则 `~/feishu_export/bin/feishu-export` | cookies + 无头 Chrome 拉聊天 |
+| 飞书聊天导出 | `~/Workspace/feishu-export-public/bin/feishu-export` | 公开仓库提供聊天核心；`~/Workspace/feishu_export/cookies.json` 提供本机认证，结果写回本地目录 |
 | prepare | `workflow/prepare.mjs` | 拉四类输入 + 打包 context + 报告 + 增量游标管理 |
 | 待确认计划 | `workflow/pending.mjs` | 保存逐项确认单；确认后原子修正单个 source_id，不重写整份 ops |
+| 发布审批 | `workflow/publish.mjs` | 生成可读预览，绑定快照和 ops 指纹；只有用户明确确认才允许 apply |
 | apply/verify | `workflow/apply.mjs` / `verify.mjs` | 执行 ops.json / 校验不变量 |
 | 定时任务 | `workflow/install-cron.mjs`（launchd） | 工作日 3 次自动 prepare（--no-advance） |
 | 数据库契约 | `supabase/schema.sql` | 建表 + RLS + 触发器 + 约束（幂等） |
@@ -59,7 +61,7 @@
 | 反馈/计划 | `src/lib/feedbackService.ts` 等 | Leader 反馈线程、日粒度计划块/日程 |
 | 部署 | `.github/workflows/deploy.yml` | push main → GitHub Pages |
 
-> 飞书导出器位于 Workboard 仓库之外，需单独维护。维护中的公开版本在页面结构不兼容时会快速失败，并对临时会话切换失败做有限重试；连续多个会话无法打开也会中止本次导出。`prepare` 还会拒绝带有会话级失败的部分导出，避免把不完整聊天记录当成正常增量。`WORKBOARD_FEISHU_BIN` 可显式覆盖默认选择。
+> 飞书导出器位于 Workboard 仓库之外，需单独维护。公开仓库是聊天核心的源码主线；本地 `feishu_export` 目录保存 Cookies、导出结果及表格/专项工具，不再维护平行的 Workboard 聊天实现。公开核心在页面结构不兼容时会快速失败，并对临时会话切换失败做有限重试；`prepare` 还会拒绝带有会话级失败的部分导出。`WORKBOARD_FEISHU_BIN` 只供紧急诊断覆盖。
 
 ## 3. 数据模型（唯一契约，与 schema.sql 一致）
 
@@ -105,10 +107,11 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ③ 增量分析 + 产出变更建议 ops.json（含 snapshot_id、全量 reconciliation；先 --dry-run）
 ④ 有 needs_confirmation → dashboard:pending hold 输出逐项确认单并停止
 ⑤ 用户确认 → dashboard:pending resolve 只修正对应 source_id（不重新 prepare）
-⑥ dashboard:apply     执行；ops 为空时正式记录“无变更结案”
-⑦ dashboard:verify    校验不变量并推进本次已结案快照游标
-⑧ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
-⑨ 汇报（含机器校验后的对账计数与通知意图）
+⑥ 无待确认 → dashboard:publish preview 输出拟写入内容与飞书意图，发给用户后停止
+⑦ 用户明确「确认推送」→ dashboard:publish confirm → dashboard:apply 执行
+⑧ dashboard:verify    校验不变量并推进本次已结案快照游标
+⑨ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
+⑩ 汇报（含机器校验后的对账计数、通知意图与实际队列状态）
 ```
 
 **定时任务**（launchd，工作日 11:00/15:30/19:30）：只执行 `prepare --no-advance`——**机械拉取打包，不推进任何增量游标、不分析**；分析写入始终等用户说「开始更新」由 Agent 做（半自动设计，避免 LLM 误判自动写库）。
@@ -117,7 +120,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | 层 | 位置 | 语义 |
 | --- | --- | --- |
 | update-context.generated_at | workflow/update-context.json | Codex/DSH 增量窗口起点（=上次「分析完成」时间，仅手动 prepare 推进；cron 用 --no-advance 不推进） |
-| 飞书 .state.lastSync | ~/feishu_export/daily/.state.json | 飞书增量起点（cron 不推进） |
+| 飞书 .state.lastSync | ~/Workspace/feishu_export/daily/.state.json | 飞书增量起点（cron 不推进） |
 | 会话文件 mtime | ~/.codex/sessions | 摘要器收集用 mtime 过滤（续旧对话也能读到） |
 
 ### 第四条铁律：每次「开始更新」必须全量对账（防漏）
@@ -125,6 +128,9 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 
 ### 待确认续办闸门（2026-08-22）
 `needs_confirmation` 不是普通汇总数字，而是当前更新的暂停态：`dashboard:pending hold` 将 source_id、短证据、候选任务和待决定事项冻结到 `pending-plan.json`，并要求 Agent 直接向用户逐项提问。`apply` 与 `verify` 会拒绝带未解决确认项的快照，防止一边有歧义一边写库或推进游标。用户回答后，`dashboard:pending resolve` 以原子方式只更新对应 reconciliation；同一健康快照内必须续办，不重新采集或重做全量分析。
+
+### 发布审批闸门（2026-08-23）
+“开始更新”只授权采集、分析和生成预览，不授权写库或飞书投递。`dashboard:publish preview` 把当前 `ops.json` 的每一项拟写入、飞书意图、快照 ID 与内容指纹冻结到本地审批记录；Agent 必须将完整预览发给用户并停止。仅当用户明确回复「确认推送」后，Agent 才能运行 confirm，再执行 apply。apply 会校验审批记录与当前快照、reconciliation、ops 的指纹完全一致，因此任何改动都会自动作废旧确认；`--force` 也不能绕过这条闸门。
 
 ## 6. 通知分层（2026-08-17 起，无时间窗口）
 
@@ -139,7 +145,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 - **工作日日报卡**（cron 19:30 触发 `send_daily_report`）：已逾期/加急/阻塞/本周到期/未排期+原因/今日更新概览，逐条可点深链。
 - 卡片按钮智能跳转：逾期任务按钮「⚠️ 去更新进度」+ `?action=progress` 自动弹快速更新；反馈深链带 thread。
 - 历史补记(创建时点远早)不推送、拆分批不打扰：依赖 Agent 正确传 notify_mode。
-- `progress.to` 是唯一的任务百分比变更；带百分比的文字不能只写 `note(type=progress)`。apply 会记录通知**意图**（入队/静默/历史），送达状态须由 `dashboard:notify-status` 单独检查。
+- `progress.to` 是唯一的任务百分比变更；带百分比的文字不能只写 `note(type=progress)`。publish preview 与 apply 会记录通知**意图**（入队/静默/历史），送达状态须由 `dashboard:notify-status` 单独检查。
 
 ## 7. 任务知识库（KNOWLEDGE_BASE.md）
 
@@ -213,7 +219,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 外部审查提出 P0/P1 后已完成：
 1. **游标语义分离**：`captured_at`（采集快照时间）与 `.analysis-state.reviewed_at`（分析游标）分离；**仅 apply+verify 均成功、verify 通过时才推进分析游标**——分析中断不会再丢增量（此前手动 prepare 就会把游标前移）。
 2. **verify 真正校验**：新增引用完整性检查（孤儿时间线/孤儿计划块，线上模式经 Supabase REST 查询）；发现问题 `exit(1)`，不再把违规当正常快照；通过后推进分析游标。
-3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——默认拒绝，需 --force）；② 当前审查包所有 source_id 必须有且仅有一个 reconciliation（机器全量对账证据）；③ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；④ 执行后写 `workflow/last-changeset.json` 可追溯，支持无变更结案。
+3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——一律拒绝）；② 当前审查包所有 source_id 必须有且仅有一个 reconciliation（机器全量对账证据）；③ 当前预览必须有用户「确认推送」的同指纹审批；④ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；⑤ 执行后写 `workflow/last-changeset.json` 可追溯，支持无变更结案。
 4. **第四数据源纳入 prepare**：白名单目录（Downloads/Desktop/Documents）扫描自分析游标以来的新文件，仅收集元数据（path/mtime/size/ext），输出到 `snapshot.sources.local_files`，不再靠人工记忆。
 5. **manifest/snapshot**：`update-context.json` 现含 `captured_at`、`snapshot_health`、`sources`（各源 ok/失败 + 计数 + 本地文件）。
 6. **通知**：真实进展与关键事件即时、纯 note 备注和普通字段编辑静默、批量显式 merge——由 CLI 命令类型内置默认 notify_mode 实现。
@@ -237,6 +243,6 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | `docs/SETUP.md` | 部署教程 |
 | `docs/PROJECT_PLAN.md` | 原始方案文档 |
 | `supabase/schema.sql` | 数据契约 |
-| `workflow/prepare.mjs` / `pending.mjs` / `apply.mjs` / `verify.mjs` / `install-cron.mjs` | 流水线与可续办确认闸门 |
+| `workflow/prepare.mjs` / `pending.mjs` / `publish.mjs` / `apply.mjs` / `verify.mjs` / `install-cron.mjs` | 流水线、归属确认与发布审批闸门 |
 | `scripts/agent.js` + `scripts/*.test.js` | CLI 与测试 |
 | `scripts/codex-summary.js` / `dsh-summary.js` | 摘要器 |

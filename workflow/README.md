@@ -16,12 +16,16 @@
 | `npm run dashboard:notify-status [-- --json]` | 只读查看 Supabase 通知 outbox 的 pending/failed/重试摘要；仅使用本机 service role，不输出 payload。 |
 | `npm run dashboard:release-status [-- --json]` | 只读核对本地迁移与线上迁移、`feishu-notify` 版本；不执行部署。 |
 | `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开当前快照的一条原始会话/飞书群/本地文件元数据。 |
-| `npm run dashboard:apply -- --file ops.json` | 校验并执行变更建议（先 `-- --dry-run` 预演） |
+| `npm run dashboard:publish -- preview` | 冻结并输出拟写入内容及飞书通知意图；不写库、不推送，供用户审核。 |
+| `npm run dashboard:publish -- confirm --phrase "确认推送"` | 记录用户对当前预览的明确确认；快照或 ops 变化会使确认失效。 |
+| `npm run dashboard:apply -- --file ops.json` | 仅在当前预览已获确认时执行；`-- --dry-run` 可随时预演，不写入。 |
 | `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
 
-飞书导出默认超时 600 秒（完整刷新可能覆盖多个活跃会话）；确需更短或更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`。导出器对单个会话另有独立预算，登录态失效、单会话失败或总超时都不会复用旧导出。Cookie 和输出目录默认使用 `~/feishu_export`；若本机存在维护中的 `~/feishu-export-public/bin/feishu-export`，prepare 会优先使用它，否则回退到 `~/feishu_export/bin/feishu-export`。也可通过 `WORKBOARD_FEISHU_BIN`、`WORKBOARD_FEISHU_COOKIES`、`WORKBOARD_FEISHU_OUTPUT_DIR` 覆盖（支持 `~/...`），便于切换导出器而不改代码。
+飞书导出默认超时 600 秒（完整刷新可能覆盖多个活跃会话）；确需更短或更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`。导出器对单个会话另有独立预算，登录态失效、单会话失败或总超时都不会复用旧导出。聊天采集核心固定为 `~/Workspace/feishu-export-public/bin/feishu-export`；Cookie 为 `~/Workspace/feishu_export/cookies.json`，输出为 `~/Workspace/feishu_export/daily`。也就是说，公开仓库提供代码，本地目录提供私有认证与运行数据。`WORKBOARD_FEISHU_BIN` 只供紧急诊断显式覆盖，不构成第二套例行工作流。
+
+日常只运行 `npm run dashboard:prepare`，不要直接运行任一 `feishu-export`。仓库内 `workflow/dashboard-update.skill.md` 是唯一 Skill 源文件；修改后运行 `npm run dashboard:skill:install`，并以 `npm run dashboard:skill:check` 确认 `.agents`/`.codex` 副本没有漂移。
 
 `dashboard:prepare` 会实时透传飞书导出器的会话序号、名称、耗时与失败状态；Codex / DSH 等短步骤仍保持紧凑输出，避免长采集阶段看起来无响应。
 
@@ -31,7 +35,8 @@
 
 ```text
 prepare → Agent 分析 review-packet.json（结合 KNOWLEDGE_BASE；按需展开 evidence）
-        → 产出 workflow/ops.json → apply --dry-run → apply → verify → 回写知识库 → 汇报
+        → 产出 workflow/ops.json → apply --dry-run → publish preview → 用户确认
+        → confirm → apply → verify → 回写知识库 → 汇报
 ```
 
 对应命令序列：
@@ -41,8 +46,11 @@ npm run dashboard:prepare                        # ① 拉数据，生成 review
 # Agent 读取 review-packet.json + docs/KNOWLEDGE_BASE.md；有歧义才展开原始 evidence
 # 产出 workflow/ops.json：每个 source_id 一条 reconciliation，ops 可为空（无变更结案）；回复使用 apply 输出的摘要，不重复粘贴逐项表格
 npm run dashboard:apply -- --dry-run             # ② 预演
-npm run dashboard:apply                          # ③ 执行
-npm run dashboard:verify                         # ④ 校验
+npm run dashboard:publish -- preview             # ③ 将完整预览发给用户；到此停止，绝不写入/推送
+# 用户明确回复“确认推送”后：
+npm run dashboard:publish -- confirm --phrase "确认推送"
+npm run dashboard:apply                          # ④ 写入，并由 outbox 触发通知
+npm run dashboard:verify                         # ⑤ 校验
 # 新别名/事实回写 KNOWLEDGE_BASE 并 git commit
 ```
 
@@ -57,7 +65,6 @@ npm run dashboard:verify                         # ④ 校验
 > 说明：定时任务只做**机械的拉取与打包**（安全、无写入）；分析判断交给 Agent 在你确认后执行，
 > 避免 LLM 误判直接自动写库。如后续要「全自动分析写入」，需要接入 LLM API + 高风险变更人工闸门。
 
-## DSH Skill（可选）
+## Dashboard Skill
 
-`workflow/dashboard-update.skill.md` 是按 DSH skill 格式（SKILL.md + frontmatter）写的技能草稿，
-供在 DSH 中把「更新看板」变成可调用的技能；注册方式随 DSH 版本而定，本文件为独立交付物。
+`workflow/dashboard-update.skill.md` 是唯一维护源。运行 `npm run dashboard:skill:install` 会把它复制到标准个人目录 `~/.agents/skills/dashboard-update/SKILL.md`；`npm run dashboard:skill:check` 用于检查副本漂移。不要直接编辑安装目录中的副本，也不要在 `~/.codex/skills` 保留同名兼容副本，以免 Codex 重复发现。

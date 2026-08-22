@@ -5,20 +5,22 @@
 // 校验后通过 agent.js batch 执行。
 //
 // 强化（2026-08-17 审查后）：
-//   1. source-health 闸门：快照 degraded（某数据源拉取失败）时默认拒绝 apply，需 --force
+//   1. source-health 闸门：快照 degraded（某数据源拉取失败）时拒绝 apply
 //   2. 对账要求：当前审查包中的每个 source_id 都必须有且仅有一个 reconciliation
 //      （机器证明「全量对账」已做），且可关联 evidence
 //   3. 预条件校验：引用的任务必须存在；--dry-run 做真实可用的预检（任务存在/状态迁移/日期）
 //   4. changeset：apply 成功后写 workflow/last-changeset.json（可追溯本次变更）
 //
-// 用法: node workflow/apply.mjs [--file ops.json] [--dry-run] [--force]
+// 用法: node workflow/apply.mjs [--file ops.json] [--dry-run]
 // ============================================================
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { approvalMatchesSpec, consumeApproval, DEFAULT_APPROVAL_FILE, markPreviewApplied } from './publish.mjs'
 import { summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { notificationIntentFor, summarizeNotificationIntents } from './operation-intent.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const AGENT = path.join(ROOT, 'scripts', 'agent.js')
@@ -68,23 +70,9 @@ function fail(msg) {
 
 // Keep notification semantics visible at the workflow seam. This is an intent
 // summary, not a claim that Feishu has already delivered the outbox event.
-export function notificationIntentFor(op) {
-  if (op.at) return 'historical'
-  if (op.op === 'note') return (op.type ?? 'progress') === 'note' && !op.notify ? 'silent' : 'immediate'
-  if (op.op === 'update') {
-    return op.notify || op.current_status !== undefined || op.priority !== undefined ? 'immediate' : 'silent'
-  }
-  return 'immediate'
-}
-
-export function summarizeNotificationIntents(ops) {
-  const summary = { immediate: 0, silent: 0, historical: 0 }
-  for (const op of ops || []) summary[notificationIntentFor(op)] += 1
-  return summary
-}
-
 function main() {
   const args = parseArgs(process.argv.slice(2))
+  if (args.force) fail('不再支持 --force 绕过来源健康或人工确认闸门')
   let raw
   try {
     raw = fs.readFileSync(args.file, 'utf8')
@@ -105,15 +93,6 @@ function main() {
   let reviewPacket = null
   try { snapshot = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8')) } catch { /* 下方按需拦截 */ }
   try { reviewPacket = JSON.parse(fs.readFileSync(REVIEW_PACKET_FILE, 'utf8')) } catch { /* 下方按需拦截 */ }
-
-  // ---- 0) source-health 闸门：快照 degraded（某源拉取失败）→ 默认拒绝 ----
-  if (!args.force) {
-    try {
-      if (snapshot.snapshot_health === 'degraded') {
-        fail('当前快照 degraded（有数据源拉取失败），apply 默认拒绝。确认用 --force。')
-      }
-    } catch { /* 缺 context 不拦截 */ }
-  }
 
   // ---- 1) 字段校验 ----
   const errors = []
@@ -159,7 +138,23 @@ function main() {
     process.exit(1)
   }
 
-  // ---- 3) 预条件：引用的任务必须存在（真实可用的预检）----
+  // ---- 3) 人工发布确认：dry-run 可自由运行；真实写入必须消费与当前
+  // 快照和全部 ops 精确匹配的确认记录。内容或快照有任何变化都会失效。 ----
+  if (!args.dryRun) {
+    const approval = (() => {
+      try { return JSON.parse(fs.readFileSync(DEFAULT_APPROVAL_FILE, 'utf8')) } catch { return null }
+    })()
+    if (!approvalMatchesSpec(approval, spec)) {
+      fail('尚未获得当前更新预览的用户“确认推送”。先运行 dashboard:publish -- preview 并发给用户；收到确认后运行 dashboard:publish -- confirm --phrase "确认推送"。')
+    }
+    try {
+      if (snapshot.snapshot_health === 'degraded') {
+        fail('当前快照 degraded（有数据源拉取失败），禁止 apply；先修复来源并重新 prepare。')
+      }
+    } catch { /* 缺 context 不拦截 */ }
+  }
+
+  // ---- 4) 预条件：引用的任务必须存在（真实可用的预检）----
   const tasks = loadTasks()
   const byId = tasks ? new Map(tasks.map((t) => [t.id, t])) : null
   if (byId) {
@@ -207,8 +202,11 @@ function main() {
     return
   }
 
-  // ---- 4) 执行 + changeset ----
+  // ---- 5) 执行 + changeset ----
   const changeset_id = `chg-${Date.now()}`
+  // Confirmation is single-use. If execution partially fails, a newly reviewed
+  // preview and a fresh owner confirmation are required before any retry.
+  consumeApproval(spec)
   let batchOut = ''
   if (!noChange) {
     try {
@@ -235,10 +233,11 @@ function main() {
       ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null })),
       reconciliation: reconciliation || [],
     }, null, 2))
+    markPreviewApplied(spec, changeset_id)
     console.log(`✅ changeset 已记录: ${changeset_id}`)
   } catch { /* 记录失败不阻断 */ }
 }
 
-export { main }
+export { main, notificationIntentFor, summarizeNotificationIntents }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

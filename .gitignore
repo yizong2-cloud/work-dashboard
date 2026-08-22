@@ -15,5 +15,7 @@ workflow/last-healthy-review-packet.json
 workflow/latest-report.md
 workflow/ops.json
 workflow/pending-plan.json
+workflow/publish-preview.json
+workflow/publish-approval.json
 workflow/.analysis-state.json
 workflow/last-changeset.json

@@ -2,7 +2,9 @@
 
 你现在进入 **Workboard 全系统持续迭代模式**。目标不是修一个孤立页面或功能，而是在不破坏现有可用能力和用户满意的视觉基调前提下，持续提升整套“工作信息采集 → 分析决策 → 安全写入 → 通知与网站呈现 → 复盘维护”的实际效用、可靠性和体验。
 
-仓库：`/Users/zongyi/work-dashboard`
+仓库：`/Users/zongyi/Workspace/work-dashboard`
+
+日常看板更新只有仓库内 `workflow/dashboard-update.skill.md` 定义的一条流程。飞书聊天核心来自 `~/Workspace/feishu-export-public`，私有 Cookies、输出和专项工具位于 `~/Workspace/feishu_export`；不要把这两个目录解释成两套 Workboard 流程。
 
 ## 总目标
 
@@ -19,7 +21,7 @@
    - Codex / DSH 会话摘要：长会话续写、无效系统提示过滤、目录/项目映射、产出/提交识别、去重和成本。
    - 本地文件扫描：白名单、隐私、噪音、与任务的可追溯关联。
 2. **中间工作流与 Agent 体验**
-   - `prepare → review-packet → reconciliation → apply → verify` 的正确性、上下文成本、失败恢复、无变更结案和审计。
+   - `prepare → review-packet → reconciliation → dry-run → 用户预览确认 → apply → verify` 的正确性、上下文成本、失败恢复、无变更结案和审计；未经「确认推送」不得写库或触发飞书。
    - 任务知识库、source map、候选提示、歧义/待确认处理是否降低误判而非制造机械规则。
    - Agent 的 Skill、命令接口、错误信息和文档是否让普通更新不必阅读大段源码或原始材料。
 3. **数据、通知与运维**

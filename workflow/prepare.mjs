@@ -25,12 +25,11 @@ function expandHome(value, home) {
 }
 
 export function resolveFeishuPaths(home = os.homedir(), env = process.env) {
-  const base = path.join(home, 'feishu_export')
-  const maintained = path.join(home, 'feishu-export-public', 'bin', 'feishu-export')
-  const defaultBin = fs.existsSync(maintained) ? maintained : path.join(base, 'bin', 'feishu-export')
+  const base = path.join(home, 'Workspace', 'feishu_export')
+  const defaultBin = path.join(home, 'Workspace', 'feishu-export-public', 'bin', 'feishu-export')
   return {
-    // Prefer the maintained/public exporter when it is installed locally. Keep
-    // the legacy copy as a fallback so existing machines continue to work.
+    // Workboard has one canonical chat collector. The private feishu_export
+    // directory stores local data and table tooling, not a fallback collector.
     bin: expandHome(env.WORKBOARD_FEISHU_BIN || defaultBin, home),
     cookies: expandHome(env.WORKBOARD_FEISHU_COOKIES || path.join(base, 'cookies.json'), home),
     output: expandHome(env.WORKBOARD_FEISHU_OUTPUT_DIR || path.join(base, 'daily'), home),
@@ -524,8 +523,9 @@ async function main() {
   lines.push('', '## 下一步', '')
   lines.push('1. Agent 优先读取 `workflow/review-packet.json`，结合知识库做全量对账；不确定时按 source_id 展开原始证据')
   lines.push('2. 生成变更建议 `workflow/ops.json`（即使无变更也写完整 reconciliation + 空 ops）')
-  lines.push('3. 执行 `npm run dashboard:apply`（可先 `--dry-run`）')
-  lines.push('4. 执行 `npm run dashboard:verify` 校验', '')
+  lines.push('3. 执行 `npm run dashboard:apply -- --dry-run`，再运行 `npm run dashboard:publish -- preview` 并发给用户审核')
+  lines.push('4. 仅用户明确回复“确认推送”后，运行 publish confirm → dashboard:apply')
+  lines.push('5. 推送完成后执行 `npm run dashboard:verify` 校验', '')
   fs.writeFileSync(REPORT_FILE, lines.join('\n'))
 
   const failed = steps.filter((s) => !s.ok)

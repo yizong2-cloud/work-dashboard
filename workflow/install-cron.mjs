@@ -22,6 +22,11 @@ const LABEL = 'com.zongyi.workdashboard.prepare'
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LABEL}.plist`)
 const LOG_OUT = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.out.log')
 const LOG_ERR = path.join(HOME, 'Library', 'Logs', 'work-dashboard-prepare.err.log')
+const DEFAULT_FEISHU_ENV = (home = HOME) => ({
+  WORKBOARD_FEISHU_BIN: path.join(home, 'Workspace', 'feishu-export-public', 'bin', 'feishu-export'),
+  WORKBOARD_FEISHU_COOKIES: path.join(home, 'Workspace', 'feishu_export', 'cookies.json'),
+  WORKBOARD_FEISHU_OUTPUT_DIR: path.join(home, 'Workspace', 'feishu_export', 'daily'),
+})
 const PROPAGATED_ENV = [
   'WORKBOARD_FEISHU_BIN',
   'WORKBOARD_FEISHU_COOKIES',
@@ -69,10 +74,13 @@ function xmlEscape(value) {
     .replace(/'/g, '&apos;')
 }
 
-function propagatedEnvironmentXml(env = process.env) {
-  return PROPAGATED_ENV
-    .filter((key) => env[key])
-    .map((key) => `    <key>${key}</key><string>${xmlEscape(env[key])}</string>`)
+function propagatedEnvironmentXml(env = process.env, home = HOME) {
+  const values = { ...DEFAULT_FEISHU_ENV(home) }
+  for (const key of PROPAGATED_ENV) {
+    if (env[key]) values[key] = env[key]
+  }
+  return Object.entries(values)
+    .map(([key, value]) => `    <key>${key}</key><string>${xmlEscape(value)}</string>`)
     .join('\n')
 }
 
@@ -145,4 +153,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   else install()
 }
 
-export { plistXml, propagatedEnvironmentXml }
+export { DEFAULT_FEISHU_ENV, plistXml, propagatedEnvironmentXml }

@@ -8,13 +8,24 @@
 **个人工作进度看板**：向 Leader 透明展示个人任务/进度/排期/变化原因的轻量工具。
 - 数据：Supabase（`tasks` / `task_updates`，RLS 全开放，无登录）
 - 前端：React+Vite，GitHub Pages（`https://yizong2-cloud.github.io/work-dashboard/`）
-- 维护：**用户用自然语言说「开始更新」，Agent 自动更新**；本人不做手动网页维护
+- 维护：用户说「开始更新」后，Agent 自动采集、分析并生成更新预览；**只有用户明确回复「确认推送」后**才写入看板并触发飞书通知。
 
 ## 唯一入口
 
+日常更新只有 `dashboard:prepare → status → 对账 → dry-run → publish preview → 用户确认 → apply → verify` 这一条链路。不要直接运行飞书导出器代替 `dashboard:prepare`。
+
+| 目录 | 唯一职责 |
+| --- | --- |
+| `/Users/zongyi/Workspace/work-dashboard` | 看板编排与唯一更新流程 |
+| `/Users/zongyi/Workspace/feishu-export-public` | 可测试、可版本管理的飞书聊天采集核心 |
+| `/Users/zongyi/Workspace/feishu_export` | 本机 Cookies/导出数据 + 表格与专项导出脚本；为聊天核心提供私有运行数据 |
+
+`workflow/dashboard-update.skill.md` 是 Skill 唯一源文件；修改后运行 `npm run dashboard:skill:install` 同步到 Agent 发现目录，并用 `npm run dashboard:skill:check` 检查漂移。
+
 ```bash
 npm run dashboard:prepare   # 拉取四数据源（含本地 Downloads 白名单）+ 打包 update-context.json + 候选提示（可定时无人值守，无状态不推进游标）
-npm run dashboard:apply     # 校验并执行变更建议 ops.json（先 --dry-run）
+npm run dashboard:publish -- preview  # 冻结并输出待用户审核的更新/飞书通知预览
+npm run dashboard:apply     # 仅接受已获“确认推送”的当前预览（先 --dry-run）
 npm run dashboard:verify    # 校验数据不变量
 npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15:30/19:30 自动 prepare，--no-advance 只拉不推进游标）
 ```
@@ -47,7 +58,7 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 
 | 来源 | 命令 | 说明 |
 | --- | --- | --- |
-| 飞书 | `npm run update:export` | 沟通/排期/阻塞 |
+| 飞书 | `dashboard:prepare` 内部调用聊天核心 | 沟通/排期/阻塞；日常不得绕过编排层直接采集 |
 | Codex | `npm run update:codex` | 实际开发记录 |
 | DSH | `npm run update:dsh` | DSH 处理的问题（需本机 zstd） |
 

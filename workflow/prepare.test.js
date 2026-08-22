@@ -7,7 +7,7 @@ import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingH
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
-    { cwd: '/Users/zongyi/work-dashboard', lastTs: '2026-08-20T08:00:00Z' },
+    { cwd: '/Users/zongyi/Workspace/work-dashboard', lastTs: '2026-08-20T08:00:00Z' },
     { cwd: '/Users/zongyi/Workspace/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T09:00:00Z' },
   ], {
     ignored_cwd: [{ pattern: '/work-dashboard', hint: 'tooling' }],
@@ -66,9 +66,9 @@ test('Codex temporary sessions are excluded through source-map rules', () => {
 
 test('Feishu paths can be overridden without changing the default layout', () => {
   assert.deepEqual(resolveFeishuPaths('/tmp/workboard-home', {}), {
-    bin: '/tmp/workboard-home/feishu_export/bin/feishu-export',
-    cookies: '/tmp/workboard-home/feishu_export/cookies.json',
-    output: '/tmp/workboard-home/feishu_export/daily',
+    bin: '/tmp/workboard-home/Workspace/feishu-export-public/bin/feishu-export',
+    cookies: '/tmp/workboard-home/Workspace/feishu_export/cookies.json',
+    output: '/tmp/workboard-home/Workspace/feishu_export/daily',
   })
   assert.deepEqual(resolveFeishuPaths('/tmp/workboard-home', {
     WORKBOARD_FEISHU_BIN: '~/public/bin/feishu-export',
@@ -81,12 +81,12 @@ test('Feishu paths can be overridden without changing the default layout', () =>
   })
 })
 
-test('installed maintained exporter wins over the legacy copy', () => {
+test('canonical public exporter stays selected when only the legacy copy exists', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-feishu-'))
-  const maintainedBin = path.join(home, 'feishu-export-public', 'bin')
-  fs.mkdirSync(maintainedBin, { recursive: true })
-  fs.writeFileSync(path.join(maintainedBin, 'feishu-export'), '#!/bin/sh\n')
-  assert.equal(resolveFeishuPaths(home, {}).bin, path.join(home, 'feishu-export-public', 'bin', 'feishu-export'))
+  const legacyBin = path.join(home, 'Workspace', 'feishu_export', 'bin')
+  fs.mkdirSync(legacyBin, { recursive: true })
+  fs.writeFileSync(path.join(legacyBin, 'feishu-export'), '#!/bin/sh\n')
+  assert.equal(resolveFeishuPaths(home, {}).bin, path.join(home, 'Workspace', 'feishu-export-public', 'bin', 'feishu-export'))
   fs.rmSync(home, { recursive: true, force: true })
 })
 

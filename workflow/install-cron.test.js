@@ -4,9 +4,9 @@ import { plistXml, propagatedEnvironmentXml } from './install-cron.mjs'
 
 test('cron plist propagates non-secret Feishu collector settings', () => {
   const env = {
-    WORKBOARD_FEISHU_BIN: '~/feishu-export-public/bin/feishu-export',
-    WORKBOARD_FEISHU_COOKIES: '~/Library/Application Support/feishu-export/cookies.json',
-    WORKBOARD_FEISHU_OUTPUT_DIR: '~/feishu_export/daily',
+    WORKBOARD_FEISHU_BIN: '~/Workspace/feishu-export-public/bin/feishu-export',
+    WORKBOARD_FEISHU_COOKIES: '~/Workspace/feishu_export/cookies.json',
+    WORKBOARD_FEISHU_OUTPUT_DIR: '~/Workspace/feishu_export/daily',
     WORKBOARD_FEISHU_TIMEOUT_MS: '180000',
     FEISHU_BASE_URL: 'https://tenant.example.com?a=1&b=2',
     FEISHU_CHAT_TIMEOUT_MS: '45000',
@@ -17,4 +17,11 @@ test('cron plist propagates non-secret Feishu collector settings', () => {
   assert.match(entries, /https:\/\/tenant\.example\.com\?a=1&amp;b=2/)
   assert.doesNotMatch(entries, /SUPABASE_SERVICE_ROLE_KEY|WEBHOOK|SIGNING_SECRET/i)
   assert.match(plistXml(), /EnvironmentVariables/)
+})
+
+test('cron plist pins the migrated Workspace Feishu paths by default', () => {
+  const entries = propagatedEnvironmentXml({}, '/tmp/workboard-home')
+  assert.match(entries, /WORKBOARD_FEISHU_BIN.*\/tmp\/workboard-home\/Workspace\/feishu-export-public\/bin\/feishu-export/)
+  assert.match(entries, /WORKBOARD_FEISHU_COOKIES.*\/tmp\/workboard-home\/Workspace\/feishu_export\/cookies\.json/)
+  assert.match(entries, /WORKBOARD_FEISHU_OUTPUT_DIR.*\/tmp\/workboard-home\/Workspace\/feishu_export\/daily/)
 })
