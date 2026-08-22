@@ -11,7 +11,7 @@
     "agent": "node scripts/agent.js",
     "agent:list": "node scripts/agent.js list",
     "agent:seed": "node scripts/agent.js seed --file scripts/seed.json",
-    "update:export": "~/feishu_export/bin/feishu-export --incremental --markdown",
+    "update:export": "~/Workspace/plutodesk/tools/feishu_export/bin/feishu-export --incremental --markdown",
     "update:codex": "node scripts/codex-summary.js --days 3",
     "update:dsh": "node scripts/dsh-summary.js --days 3",
     "test": "node --experimental-strip-types --test scripts/agent.test.js scripts/feedback.test.js scripts/notify-cards.test.js scripts/plan.test.js scripts/plan-today.test.js scripts/schedule-view.test.js scripts/daily-report.test.js scripts/taskcolor.test.js scripts/decision.test.js scripts/format.test.js scripts/notification-sql.test.js scripts/notification-status.test.js scripts/notification-delivery.test.js scripts/release-status.test.js scripts/dsh-summary.test.js scripts/repo-doctor.test.js workflow/review-packet.test.js workflow/prepare.test.js workflow/pending.test.js workflow/apply-safety.test.js workflow/status.test.js workflow/install-cron.test.js",
