@@ -145,7 +145,7 @@ export function FeedbackPanel({
       <div className="comment-panel-head">
         <div>
           <span className="eyebrow">{agentMode ? 'Agent inbox' : 'Leader feedback'}</span>
-          <h2>{agentMode ? '给 Agent 的处理留言' : '反馈线程'}</h2>
+          <h2>{agentMode ? '给 Agent 的处理留言' : 'Leader 留言与反馈'}</h2>
         </div>
         <span className={`comment-count ${openCount > 0 ? 'comment-count-open' : ''}`}>
           {openCount > 0 ? `${openCount} ${pendingLabel}` : '全部已解决'}
