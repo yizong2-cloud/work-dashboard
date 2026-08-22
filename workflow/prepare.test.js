@@ -8,14 +8,14 @@ import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingH
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
     { cwd: '/Users/zongyi/work-dashboard', lastTs: '2026-08-20T08:00:00Z' },
-    { cwd: '/Users/zongyi/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T09:00:00Z' },
+    { cwd: '/Users/zongyi/Workspace/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T09:00:00Z' },
   ], {
     ignored_cwd: [{ pattern: '/work-dashboard', hint: 'tooling' }],
     codex_cwd: [],
   }, 'codex')
 
   assert.deepEqual(result.hits, [])
-  assert.deepEqual(result.unmapped, ['/Users/zongyi/Unified_API_Playground/packages/jigsawcard'])
+  assert.deepEqual(result.unmapped, ['/Users/zongyi/Workspace/Unified_API_Playground/packages/jigsawcard'])
   assert.equal(unmappedCwdRequired(result.unmapped), true)
 })
 
@@ -37,7 +37,7 @@ test('unmapped project directories always require explicit review', () => {
 
 test('confirmed JigsawCard reverse-engineering directory maps to the leaderboard research task', () => {
   const result = buildSessionCandidates([
-    { cwd: '/Users/zongyi/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T08:00:00Z' },
+    { cwd: '/Users/zongyi/Workspace/Unified_API_Playground/packages/jigsawcard', lastTs: '2026-08-20T08:00:00Z' },
   ], {
     ignored_cwd: [],
     codex_cwd: [{
