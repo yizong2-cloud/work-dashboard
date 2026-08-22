@@ -6,7 +6,8 @@
 
 ```text
 prepare → review-packet 全量对账 → evidence 按需展开
-        → ops（或空 ops 结案）→ apply --dry-run → apply → verify
+        → ops（或空 ops 结案）→ 待确认？保存 pending 并提问/停止
+        → 无待确认 → apply --dry-run → apply → verify
 ```
 
 1. `npm run dashboard:prepare` 采集四源，产出：
@@ -16,10 +17,14 @@ prepare → review-packet 全量对账 → evidence 按需展开
 2. Agent 阅读知识库与审查包，对每个 `source_id` 给出 `mapped` / `irrelevant` / `needs_confirmation`。
 3. 不确定时才运行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开一个来源项。只有排障时才可追加 `--last-healthy`，且不得据此生成当前快照的 ops。
 4. 输出 `ops.json` 必须带当前 `snapshot_id` 和全量 `reconciliation`。`ops: []` 合法，代表“已审查、无数据变更”。回复只引用 apply 生成的对账摘要，不重复逐条表格。
-5. `dashboard:apply` 先 dry-run 再执行；机器校验快照健康、source_id 覆盖/唯一性、任务引用及操作预条件。
-6. `dashboard:verify` 通过后才推进分析游标。
+5. 若 reconciliation 有 `needs_confirmation`，运行 `npm run dashboard:pending -- hold`。它会保存当前快照的 pending plan，并输出可直接发给用户的逐项确认单；此时 apply/verify 都会拒绝继续。
+6. 用户确认后，用 `npm run dashboard:pending -- resolve ...` 只更新对应 source_id 的结论；同一快照未过期时不得重新 prepare 或重做四源分析。全部解决后才继续 apply。
+7. `dashboard:apply` 先 dry-run 再执行；机器校验快照健康、source_id 覆盖/唯一性、未解决确认项、任务引用及操作预条件。
+8. `dashboard:verify` 通过后才推进分析游标。
 
 对账回复建议格式：`对账共 N 项：已映射 A、无关 B、待确认 C；本次补录 X 项`。逐项结论仍保存在 `ops.json`，并由 apply 闸门逐项校验。
+
+通知与进度是两个独立事实：`progress.to` 才是任务百分比；`note(type=progress)` 只记录阶段进展。apply 会输出“即时入队/静默/历史补记”意图统计；只有 `dashboard:notify-status` 健康时才能表述为投递已送达。
 
 ## 质量不变的原因
 

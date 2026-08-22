@@ -26,11 +26,15 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
    }
    ```
    `ops` 有变更时写操作；没有变更时保持空数组，仍表示本快照已完整审查。
-6. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
+6. **确认闸门**：若存在任一 `needs_confirmation`，先运行 `npm run dashboard:pending -- hold`，将该命令输出的每一道问题直接发给用户，然后停止。
+   - 不得只在汇报里写“待确认 N 项”；必须给出 `source_id`、短证据、候选任务和要用户决定的事项。
+   - 此时 `ops.json` 与 `pending-plan.json` 是冻结的可续办计划；用户回复后先运行 `npm run dashboard:pending -- show`，再对每项使用 `dashboard:pending resolve --source <id> --decision mapped|irrelevant --task <uuid> --reason "<用户确认>"`。**不得重新运行 prepare**，除非用户明确说“开始更新”或快照已过期/异常。
+   - 所有待确认项解决后，才继续 dry-run/apply/verify。
+7. `npm run dashboard:apply -- --dry-run` → `npm run dashboard:apply` → `npm run dashboard:verify`。
    - apply 会拒绝遗漏、重复、旧快照或未知 source_id 的对账；无变更会写审查结案，不改任务数据，verify 仍可安全推进游标。
    - `snapshot_health=degraded` 或 `coverage.complete=false` 时不要 apply，也不要用 `--force` 绕过；先修复采集或重新 prepare。
-7. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
-8. 汇报使用 `dashboard:apply` 输出的对账摘要（总数/已映射/无关/待确认）；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
+8. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
+9. 汇报使用 `dashboard:apply` 输出的对账摘要与通知意图；不要把 `ops.json` 的逐项 reconciliation 再复制到聊天上下文。逐项审计证据以 `ops.json` 与 changeset 为准。
 
 ## 红线
 
@@ -40,3 +44,4 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 - 不执行 `delete` 除非用户明确要求。
 - 自动化 `apply` 不接受 `delete`；即使需要删除，也必须由用户单独执行手动删除命令。
 - `snapshot_health=degraded` 时默认不 apply；不要用 `--force` 跳过全量对账。
+- 含“进度提升到 80%”这类百分比事实，必须使用 `progress { to, note }` 真正更新任务字段；`note(type=progress)` 只能记录阶段性事实，不能冒充百分比变更。即时通知表示“已进入投递队列”，不得在未检查 `dashboard:notify-status` 前表述为“已送达”。

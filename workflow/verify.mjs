@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DEFAULT_PENDING_FILE, loadPendingPlan, pendingForSnapshot } from './pending.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const AGENT = path.join(ROOT, 'scripts', 'agent.js')
@@ -43,6 +44,17 @@ async function supabaseRead(table, select, filter = '') {
 }
 
 function main() {
+  // A pending plan is an intentional stop state. Never advance the analysis
+  // cursor past a snapshot that still needs the user's mapping decision.
+  try {
+    const ctx = JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'))
+    const pending = loadPendingPlan(DEFAULT_PENDING_FILE)
+    if (pendingForSnapshot(pending, ctx.snapshot_id)) {
+      console.error(`⏸️ 当前快照仍有 ${pending.questions.length} 项待确认；先运行 dashboard:pending resolve 处理，禁止 verify 推进分析游标。`)
+      process.exit(1)
+    }
+  } catch { /* 后续现有检查会给出可操作错误 */ }
+
   let board
   try {
     const stdout = execFileSync('node', [AGENT, 'list', '--json'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })

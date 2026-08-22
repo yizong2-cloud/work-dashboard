@@ -27,6 +27,7 @@
         ▼
    Agent(LLM) 分析：结合 docs/KNOWLEDGE_BASE.md 识别/合并任务 → 产出变更建议
         │ 遵守「第四条铁律：全量对账」；逐项对账写入 ops.json，回复只报摘要
+        │ 遇 needs_confirmation → pending-plan.json 保存问题 → 用户确认后原快照续办（不重采集）
         ▼
    Agent CLI scripts/agent.js（唯一写入口，原子 RPC）
         ▼
@@ -49,6 +50,7 @@
 | DSH 摘要器 | `scripts/dsh-summary.js` | 读 `~/.dsh/sessions`（zstd 解压） |
 | 飞书导出 | 优先 `~/feishu-export-public/bin/feishu-export`，否则 `~/feishu_export/bin/feishu-export` | cookies + 无头 Chrome 拉聊天 |
 | prepare | `workflow/prepare.mjs` | 拉四类输入 + 打包 context + 报告 + 增量游标管理 |
+| 待确认计划 | `workflow/pending.mjs` | 保存逐项确认单；确认后原子修正单个 source_id，不重写整份 ops |
 | apply/verify | `workflow/apply.mjs` / `verify.mjs` | 执行 ops.json / 校验不变量 |
 | 定时任务 | `workflow/install-cron.mjs`（launchd） | 工作日 3 次自动 prepare（--no-advance） |
 | 数据库契约 | `supabase/schema.sql` | 建表 + RLS + 触发器 + 约束（幂等） |
@@ -82,7 +84,7 @@ npm run agent -- list|get <id>                      # 看任务/详情+时间线
 npm run agent -- create --title ".." [--priority] [--start][--end][--interrupt][--note]   # 原子创建+时间线
 npm run agent -- progress <id> --to 70 [--note] [--merge 批号]   # 进度（默认秒推；--merge 并入批聚合卡）
 npm run agent -- status <id> --to X [--note]        # 仅普通状态；blocked/completed 用专用命令
-npm run agent -- update <id> --title/desc/current_status/priority/start_date [--note][--notify]  # 非状态字段，默认静默
+npm run agent -- update <id> --title/desc/current_status/priority/start_date [--note][--notify]  # 标题/描述等普通字段静默；状态/优先级即时入队
 npm run agent -- schedule <id> --end YYYY-MM-DD [--note]   # 排期（old/new + 可带开始日期）
 npm run agent -- block <id> --reason / unblock      # 阻塞/解除
 npm run agent -- complete <id> [--note]              # 完成
@@ -101,10 +103,12 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ① dashboard:prepare   拉四类输入 → 原始快照 update-context.json + 紧凑 review-packet.json
 ② 读取 KNOWLEDGE_BASE + review-packet，对每个 source_id 全量对账；仅歧义项展开原始证据
 ③ 增量分析 + 产出变更建议 ops.json（含 snapshot_id、全量 reconciliation；先 --dry-run）
-④ dashboard:apply     执行；ops 为空时正式记录“无变更结案”
-⑤ dashboard:verify    校验不变量并推进本次已结案快照游标
-⑥ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
-⑦ 汇报（含机器校验后的对账计数）
+④ 有 needs_confirmation → dashboard:pending hold 输出逐项确认单并停止
+⑤ 用户确认 → dashboard:pending resolve 只修正对应 source_id（不重新 prepare）
+⑥ dashboard:apply     执行；ops 为空时正式记录“无变更结案”
+⑦ dashboard:verify    校验不变量并推进本次已结案快照游标
+⑧ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
+⑨ 汇报（含机器校验后的对账计数与通知意图）
 ```
 
 **定时任务**（launchd，工作日 11:00/15:30/19:30）：只执行 `prepare --no-advance`——**机械拉取打包，不推进任何增量游标、不分析**；分析写入始终等用户说「开始更新」由 Agent 做（半自动设计，避免 LLM 误判自动写库）。
@@ -119,6 +123,9 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ### 第四条铁律：每次「开始更新」必须全量对账（防漏）
 背景：曾因「增量数=0 就跳过」「文件名日期过滤漏续对话」「cron 推游标」「只审查前几条详情」反复漏工作。故规定：**分析完成前必须核对 review-packet 中每个 Codex/DSH/飞书/本地 source_id**，逐项结论写入 `ops.json`，回复只报机器生成摘要。摘要器按最后活动时间纳入跨窗口长会话，标准 JSON 已含审查文本，不再重复扫描 detail 副本。宁可多报"无关"，不可漏报"有工作"。
 
+### 待确认续办闸门（2026-08-22）
+`needs_confirmation` 不是普通汇总数字，而是当前更新的暂停态：`dashboard:pending hold` 将 source_id、短证据、候选任务和待决定事项冻结到 `pending-plan.json`，并要求 Agent 直接向用户逐项提问。`apply` 与 `verify` 会拒绝带未解决确认项的快照，防止一边有歧义一边写库或推进游标。用户回答后，`dashboard:pending resolve` 以原子方式只更新对应 reconciliation；同一健康快照内必须续办，不重新采集或重做全量分析。
+
 ## 6. 通知分层（2026-08-17 起，无时间窗口）
 
 | 投递模式 | 谁声明 | 行为 | 到达 |
@@ -132,6 +139,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 - **工作日日报卡**（cron 19:30 触发 `send_daily_report`）：已逾期/加急/阻塞/本周到期/未排期+原因/今日更新概览，逐条可点深链。
 - 卡片按钮智能跳转：逾期任务按钮「⚠️ 去更新进度」+ `?action=progress` 自动弹快速更新；反馈深链带 thread。
 - 历史补记(创建时点远早)不推送、拆分批不打扰：依赖 Agent 正确传 notify_mode。
+- `progress.to` 是唯一的任务百分比变更；带百分比的文字不能只写 `note(type=progress)`。apply 会记录通知**意图**（入队/静默/历史），送达状态须由 `dashboard:notify-status` 单独检查。
 
 ## 7. 任务知识库（KNOWLEDGE_BASE.md）
 
@@ -229,6 +237,6 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | `docs/SETUP.md` | 部署教程 |
 | `docs/PROJECT_PLAN.md` | 原始方案文档 |
 | `supabase/schema.sql` | 数据契约 |
-| `workflow/prepare.mjs` / `apply.mjs` / `verify.mjs` / `install-cron.mjs` | 流水线四件套 |
+| `workflow/prepare.mjs` / `pending.mjs` / `apply.mjs` / `verify.mjs` / `install-cron.mjs` | 流水线与可续办确认闸门 |
 | `scripts/agent.js` + `scripts/*.test.js` | CLI 与测试 |
 | `scripts/codex-summary.js` / `dsh-summary.js` | 摘要器 |

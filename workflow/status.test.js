@@ -114,3 +114,19 @@ test('status 对超过 24 小时的快照明确提示重新采集', () => {
   assert.match(status.next_action, /超过 24 小时/)
   assert.match(formatStatus(status), /已过期/)
 })
+
+test('status 将当前快照的待确认计划作为下一步，而非要求重新采集', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-pending', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 1 } }, counts: { total: 1, high_priority: 1 },
+    },
+    pendingPlan: {
+      state: 'awaiting_confirmation', snapshot_id: 'snap-pending', questions: [{ source_id: 'dsh:0' }],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.pending.active, true)
+  assert.match(status.next_action, /不要重新 prepare/)
+  assert.match(formatStatus(status), /待确认：⏸️ 1 项/)
+})

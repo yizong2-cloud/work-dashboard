@@ -33,7 +33,7 @@ npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15
 
 **每次「开始更新」分析完成前，必须对当前快照做全量核对并把逐项对账表写入 `workflow/ops.json`**：
 
-完整逐项结论由 `ops.json` 保存并由 `dashboard:apply` 机器校验；回复不要重复粘贴整张表，只需报告机器生成的对账摘要（总数、已映射、无关、待确认，以及少量待确认 source_id）。这样减少上下文，同时保留完整审计证据。
+完整逐项结论由 `ops.json` 保存并由 `dashboard:apply` 机器校验；无歧义时回复不要重复粘贴整张表，只需报告机器生成的对账摘要。**若有待确认项，必须运行 `dashboard:pending -- hold` 并直接向用户逐项提问；不得只报“待确认 N 项”，不得 apply/verify。** 用户回答后用 `dashboard:pending resolve` 在原快照续办，不重新采集四源。
 
 1. `review-packet.json` 中每个 `codex:*` source_id：逐条标注归属（→ 任务 X / 工具维护 / 无关），**不许只看增量数或跳过**——摘要器按最后活动时间纳入跨窗口长会话。
 2. 每个 `dsh:*` source_id：同上。标准 JSON 扫描已包含审查所需文本，不再重复生成 detail 副本。

@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -40,6 +40,7 @@ const OP_RULES = {
 const VALID_STATUS = ['planned', 'in_progress', 'blocked', 'paused', 'completed', 'cancelled']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const INTERRUPT_KEYWORDS = ['interrupt'] // future
+const PROGRESS_PERCENT_CLAIM = /(?:进度|完成度)\s*(?:(?:更新|提升|降低|升高)(?:至|到)?|降(?:至|到)|变为|为|到)?\s*[:：]?\s*(\d{1,3})\s*%/
 
 function parseArgs(argv) {
   const args = { file: path.join(ROOT, 'workflow', 'ops.json'), dryRun: false, force: false }
@@ -63,6 +64,23 @@ function loadTasks() {
 function fail(msg) {
   console.error(`❌ ${msg}`)
   process.exit(1)
+}
+
+// Keep notification semantics visible at the workflow seam. This is an intent
+// summary, not a claim that Feishu has already delivered the outbox event.
+export function notificationIntentFor(op) {
+  if (op.at) return 'historical'
+  if (op.op === 'note') return (op.type ?? 'progress') === 'note' && !op.notify ? 'silent' : 'immediate'
+  if (op.op === 'update') {
+    return op.notify || op.current_status !== undefined || op.priority !== undefined ? 'immediate' : 'silent'
+  }
+  return 'immediate'
+}
+
+export function summarizeNotificationIntents(ops) {
+  const summary = { immediate: 0, silent: 0, historical: 0 }
+  for (const op of ops || []) summary[notificationIntentFor(op)] += 1
+  return summary
 }
 
 function main() {
@@ -111,6 +129,18 @@ function main() {
       }
     }
     if (op.op === 'status' && op.to && !VALID_STATUS.includes(op.to)) errors.push(`第 ${i + 1} 条: 非法状态 "${op.to}"`)
+    if (op.op === 'progress') {
+      const progress = Number(op.to)
+      if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
+        errors.push(`第 ${i + 1} 条 progress: to 必须是 0-100 整数`)
+      }
+      if (!String(op.note ?? op.content ?? '').trim()) {
+        errors.push(`第 ${i + 1} 条 progress: 必须提供 note 或 content 说明进度依据`)
+      }
+    }
+    if (op.op === 'note' && (op.type ?? 'progress') === 'progress' && PROGRESS_PERCENT_CLAIM.test(String(op.content || ''))) {
+      errors.push(`第 ${i + 1} 条 note: 含任务百分比的进度声明必须改用 progress 操作，避免只写时间线却未更新 progress 字段`)
+    }
     for (const dk of ['start', 'end', 'start_date', 'expected_end']) {
       if (op[dk] && !DATE_RE.test(op[dk])) errors.push(`第 ${i + 1} 条: 非法日期 "${op[dk]}"（应 YYYY-MM-DD）`)
     }
@@ -119,6 +149,10 @@ function main() {
   // ---- 2) 对账要求：每一个快照证据都必须有且仅有一个结论 ----
   // 这是「全量对账」的机器闸门；不再只检查“写过一些对账项”。
   errors.push(...validateReviewSpec(snapshot.snapshot_id, reviewPacket, spec))
+  const pending = (reconciliation || []).filter((entry) => entry?.decision === 'needs_confirmation')
+  if (pending.length > 0) {
+    errors.push(`有 ${pending.length} 项待确认，必须先运行 npm run dashboard:pending -- hold 并向用户逐项确认；确认后用 dashboard:pending resolve 续办，不得 apply`)
+  }
   if (errors.length > 0) {
     console.error('❌ 校验失败:')
     for (const e of errors) console.error(`  - ${e}`)
@@ -154,12 +188,14 @@ function main() {
 
   const noChange = ops.length === 0
   const reconciliationSummary = summarizeReconciliation(reconciliation)
+  const notificationIntent = summarizeNotificationIntents(ops)
   console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
   if (reconciliationSummary.needs_confirmation_source_ids.length > 0) {
     const ids = reconciliationSummary.needs_confirmation_source_ids.slice(0, 8).join(', ')
     const suffix = reconciliationSummary.needs_confirmation_source_ids.length > 8 ? ' …' : ''
     console.log(`待确认 source_id（最多显示 8 项）：${ids}${suffix}`)
   }
+  console.log(`通知意图：即时入队 ${notificationIntent.immediate} · 静默 ${notificationIntent.silent} · 历史补记 ${notificationIntent.historical}`)
   console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
   for (const [i, op] of ops.entries()) {
     const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')
@@ -195,6 +231,7 @@ function main() {
     fs.writeFileSync(CHANGESET_FILE, JSON.stringify({
       changeset_id, snapshot_id: snapshot.snapshot_id || null, all_ok: true,
       applied_at: new Date().toISOString(), ops_count: ops.length, reviewed_no_change: noChange,
+      notification_intent: notificationIntent,
       ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null })),
       reconciliation: reconciliation || [],
     }, null, 2))
@@ -202,4 +239,6 @@ function main() {
   } catch { /* 记录失败不阻断 */ }
 }
 
-main()
+export { main }
+
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

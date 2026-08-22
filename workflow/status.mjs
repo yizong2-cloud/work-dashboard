@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { DEFAULT_PENDING_FILE, loadPendingPlan, pendingForSnapshot } from './pending.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
@@ -25,8 +26,9 @@ function ageHours(iso, now) {
   return Math.max(0, now.getTime() - timestamp) / 3_600_000
 }
 
-function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy }) {
+function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy, pending }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
+  if (pending?.active) return `当前快照有 ${pending.count} 项待确认；运行 npm run dashboard:pending -- show，向用户逐项确认后 resolve；不要重新 prepare`
   if (packet.coverage?.complete === false) return '审查索引不完整：先重新运行 npm run dashboard:prepare，禁止对账或写入'
   if (packet.snapshot_health === 'degraded') {
     const reference = lastHealthy?.available ? `；最近健康快照 ${lastHealthy.snapshot_id} 仅供诊断，不能替代当前快照 apply` : ''
@@ -40,7 +42,7 @@ function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy }) 
   return '当前快照已完成审查；等待下一次数据采集'
 }
 
-export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, analysisState, changeset, now = new Date() }) {
+export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, analysisState, changeset, pendingPlan = loadPendingPlan(DEFAULT_PENDING_FILE), now = new Date() }) {
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
   const ageHoursValue = ageHours(packet?.captured_at, now)
   const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
@@ -55,6 +57,11 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
     age_hours: lastHealthyValid ? ageHours(lastHealthyPacket.captured_at, now) : null,
     same_as_latest: lastHealthyValid && lastHealthyPacket.snapshot_id === packet?.snapshot_id,
     reference_only: lastHealthyValid && packet?.snapshot_health === 'degraded',
+  }
+  const pending = {
+    active: pendingForSnapshot(pendingPlan, packet?.snapshot_id),
+    count: pendingForSnapshot(pendingPlan, packet?.snapshot_id) ? pendingPlan.questions.length : 0,
+    snapshot_id: pendingPlan?.snapshot_id || null,
   }
   return {
     packet_available: Boolean(packet),
@@ -74,7 +81,8 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
       changeset_id: matched ? changeset.changeset_id || null : null,
       reviewed_no_change: matched ? changeset.reviewed_no_change === true : false,
     },
-    next_action: nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy }),
+    pending,
+    next_action: nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy, pending }),
   }
 }
 
@@ -113,6 +121,7 @@ export function formatStatus(status) {
     }
   }
   lines.push(`审查游标：${status.analysis_reviewed_at || '未推进'}`)
+  if (status.pending?.active) lines.push(`待确认：⏸️ ${status.pending.count} 项（当前快照，已保存可续办计划）`)
   lines.push(`apply：${status.apply.matched_snapshot ? '已匹配当前快照' : '尚未匹配当前快照'}`)
   lines.push(`下一步：${status.next_action}`)
   return lines.join('\n')
