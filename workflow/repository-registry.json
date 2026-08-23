@@ -11,6 +11,7 @@
     {"id": "jigsolitaire-api", "path": "~/Workspace/jigsolitaire-cms/jigsolitaire-api", "kind": "git", "products": ["jigslide", "xiaomi"], "agentsRequired": true},
     {"id": "jigsolitaire-ui", "path": "~/Workspace/jigsolitaire-cms/jigsolitaire-ui", "kind": "git", "products": ["jigslide", "xiaomi"], "agentsRequired": true},
     {"id": "work-dashboard", "path": "~/Workspace/work-dashboard", "kind": "git", "products": [], "agentsRequired": true},
+    {"id": "feishu-export-public", "path": "~/Workspace/feishu-export-public", "kind": "git", "products": [], "agentsRequired": true, "trackWorktree": true},
     {"id": "bi-cli", "path": "~/Workspace/bi-cli", "kind": "git", "products": ["fantasy", "legacy", "peace", "countryside"], "agentsRequired": true},
     {"id": "jigsaw-cms-workspace", "path": "~/Workspace/jigsaw-cms", "kind": "workspace", "products": ["fantasy", "legacy", "peace"], "agentsRequired": true},
     {"id": "classic-cms-workspace", "path": "~/Workspace/classic-cms", "kind": "workspace", "products": ["countryside"], "agentsRequired": false},
