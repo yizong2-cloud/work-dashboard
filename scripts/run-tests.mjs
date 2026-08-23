@@ -34,8 +34,10 @@ export const TEST_FILES = [
   'workflow/apply-safety.test.js',
   'workflow/status.test.js',
   'workflow/health.test.js',
+  'workflow/stewardship.test.js',
   'workflow/install-cron.test.js',
   'workflow/install-dashboard-skill.test.js',
+  'workflow/install-dashboard-steward-skill.test.js',
 ]
 
 export function buildTestArgs({ verbose = false } = {}) {

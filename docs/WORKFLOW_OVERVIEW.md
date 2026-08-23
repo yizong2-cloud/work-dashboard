@@ -12,6 +12,8 @@
 > 维护方式：本人说「开始更新」后，Agent 自动采集、分析并生成更新预览；**只有本人明确回复「确认推送」后**，才更新看板并触发飞书通知。
 > 核心难点：把散落在飞书/Codex/DSH/本地文件里的真实工作，**可靠、无遗漏**地提炼成看板上的任务进展。
 
+> **治理方式**：除“开始更新”外，Agent 还可运行只读 `dashboard:steward` 主动发现处理箱、过期现状、排期缺口与数据不一致。它只产生整理队列；任何事实改写仍必须有证据与用户确认，不能让 Agent 自行编造工作状态。
+
 ## 1. 系统架构
 
 ```text
@@ -55,6 +57,7 @@
 | 发布审批 | `workflow/publish.mjs` | 生成可读预览，绑定快照和 ops 指纹；只有用户明确确认才允许 apply |
 | apply/verify | `workflow/apply.mjs` / `verify.mjs` | 执行 ops.json / 校验不变量 |
 | 定时任务 | `workflow/install-cron.mjs`（launchd） | 工作日 3 次自动 prepare（--no-advance） |
+| Agent 治理体检 | `workflow/stewardship.mjs` | 只读发现处理箱、陈旧任务、排期缺口与数据完整性问题 |
 | 数据库契约 | `supabase/schema.sql` | 建表 + RLS + 触发器 + 约束（幂等） |
 | 通知 Edge Function | `supabase/functions/feishu-notify/` | 事件→飞书卡片（分级投递） |
 | 任务知识库 | `docs/KNOWLEDGE_BASE.md` | 别名映射/已确认事实/待确认区/目录映射 |
@@ -132,6 +135,15 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 
 ### 发布审批闸门（2026-08-23）
 “开始更新”只授权采集、分析和生成预览，不授权写库或飞书投递。`dashboard:publish preview` 把当前 `ops.json` 的每一项拟写入、飞书意图、快照 ID 与内容指纹冻结到本地审批记录；Agent 必须将完整预览发给用户并停止。仅当用户明确回复「确认推送」后，Agent 才能运行 confirm，再执行 apply。apply 会校验审批记录与当前快照、reconciliation、ops 的指纹完全一致，因此任何改动都会自动作废旧确认；`--force` 也不能绕过这条闸门。
+
+### Agent 托管与日常整理（2026-08-24）
+
+看板的日常维护者是 Agent，而不是人手表格维护者。为避免“主动维护”退化为擅自改写，职责分为两层：
+
+1. **治理层（随时可运行，只读）**：`npm run dashboard:steward -- --json` 产生统一待办：Agent 处理箱、逾期需核实、长期未更新、缺一句话现状、未排期、近期到期未拆日计划、完成不一致、精确重复候选与孤儿时间线。它不写库、不推送。
+2. **事实层（受控写入）**：Agent 先从用户指令或数据源证据确认事实，再使用结构化 CLI；涉及来源驱动的一批变更时，仍必须走 `dashboard-update` 的全量对账、预览和「确认推送」。标题/描述/现状的“润色”属于事实表达改写，必须先展示前后对比；合并或删除永远需要单独明确授权。
+
+`dashboard-steward` Skill 由 `workflow/dashboard-steward.skill.md` 为唯一契约，运行 `npm run dashboard:steward-skill:install` 安装到 `~/.agents/skills/dashboard-steward/`。它与 `dashboard-update` 并列：前者负责发现、整理、接手；后者负责采集与受控落库。
 
 ## 6. 通知分层（2026-08-17 起，无时间窗口）
 

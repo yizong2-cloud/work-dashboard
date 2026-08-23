@@ -133,6 +133,16 @@ npm run update:dsh     # 读 DSH 会话摘要（~/.dsh/sessions，DSH 处理的�
 - 用 `docs/KNOWLEDGE_BASE.md` 第六节「项目目录 ↔ 看板任务映射」把 cwd 对应到看板任务。
 - 完整流程见 `docs/UPDATE_WORKFLOW.md`。
 
+## 5.2 Agent 日常治理（不采集、不写入）
+
+当用户说“整理看板”“看看有哪些该处理”“去处理箱看留言”时，先运行：
+
+```bash
+npm run dashboard:steward -- --json
+```
+
+它是 Agent 的统一整理入口：报告处理箱、逾期、长期未更新、缺现状/排期、近期日计划缺口与数据完整性问题。**报告不是证据，也不会写库。** Agent 必须先读处理箱并回写接手状态；需要从飞书/Codex/DSH 核实的事实，转入 `dashboard-update` 的预览与确认流程。不得仅凭“现状为空”就编写现状、合并相似任务或删除记录。
+
 ## 6. 自然语言 → 命令 的翻译示例（照着做）
 
 | 用户说 | 你执行 |
