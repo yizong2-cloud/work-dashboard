@@ -24,9 +24,10 @@ import { CreateTaskModal } from '../components/CreateTaskModal'
 import { commentBody, isComment } from '../lib/comments'
 import { shortDate, shortDateTime, relativeDay, taskDataFreshness, todayISO, zhDate } from '../lib/format'
 import { plannedStartPresentation } from '../lib/dashboardPlanning'
+import { dashboardSignals, isDashboardActive, isTaskOverdue, matchesDashboardFilter, type DashboardWorkFilter } from '../lib/dashboardSignals'
 
 const PRIORITY_ORDER = { urgent: -1, high: 0, normal: 1, low: 2 } as const
-type WorkFilter = 'all' | 'risk' | 'blocked' | 'unscheduled'
+type WorkFilter = DashboardWorkFilter
 const mascotAsset = (name: string) => `${import.meta.env.BASE_URL}mascots/mascot-${name}.png`
 
 export function Dashboard() {
@@ -122,7 +123,7 @@ export function Dashboard() {
   const activeTasks = useMemo(
     () =>
       tasks
-        .filter(isActive)
+        .filter(isDashboardActive)
         .sort((a, b) => {
           if (riskRank(a) !== riskRank(b)) return riskRank(a) - riskRank(b)
           if (PRIORITY_ORDER[a.priority] !== PRIORITY_ORDER[b.priority]) {
@@ -148,31 +149,18 @@ export function Dashboard() {
     [tasks],
   )
 
-  const metrics = useMemo(() => {
-    const today = todayISO()
-    const weekStart = weekStartISO()
-    const weekEnd = addDaysISO(weekStart, 6)
-    const unfinished = tasks.filter((task) => task.status !== 'completed' && task.status !== 'cancelled')
-    const blocked = activeTasks.filter((task) => task.status === 'blocked')
-    const dueThisWeek = unfinished.filter((task) => task.expected_end_date && task.expected_end_date >= weekStart && task.expected_end_date <= weekEnd)
-    const overdue = unfinished.filter((task) => task.expected_end_date && task.expected_end_date < today)
-    const unscheduled = activeTasks.filter((task) => !task.expected_end_date)
-    return { blocked, dueThisWeek, overdue, unscheduled }
-  }, [tasks, activeTasks])
+  const metrics = useMemo(() => dashboardSignals(tasks, todayISO()), [tasks])
 
   const attentionTasks = useMemo(
-    () => activeTasks.filter((task) => task.status === 'blocked' || isOverdue(task) || !task.expected_end_date).slice(0, 5),
-    [activeTasks],
+    () => metrics.attention.slice(0, 5),
+    [metrics],
   )
 
   const visibleTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return activeTasks.filter((task) => {
       const matchesQuery = !normalizedQuery || `${task.title} ${task.current_status} ${task.description}`.toLowerCase().includes(normalizedQuery)
-      const matchesFilter = workFilter === 'all'
-        || (workFilter === 'risk' && (task.status === 'blocked' || isOverdue(task) || !task.expected_end_date))
-        || (workFilter === 'blocked' && task.status === 'blocked')
-        || (workFilter === 'unscheduled' && !task.expected_end_date)
+      const matchesFilter = matchesDashboardFilter(task, workFilter, todayISO())
       return matchesQuery && matchesFilter
     })
   }, [activeTasks, query, workFilter])
@@ -207,7 +195,7 @@ export function Dashboard() {
         <div>
           <span className="eyebrow">Delivery overview · {todayText()}</span>
           <h1>工作进度总览</h1>
-          <p>聚焦正在推进的事项、交付风险与需要决策的问题。</p>
+          <p>聚焦正在推进的事项、交付预警、待补排期与需要决策的问题。</p>
         </div>
         <div className="intro-actions">
           <div className={`sync-state sync-state-${dataFreshness.tone}`} title={dataFreshness.detail}>
@@ -223,8 +211,8 @@ export function Dashboard() {
       <section className="metric-grid" aria-label="工作状态概览">
         <MetricCard icon="pulse" tone="blue" value={activeTasks.length} label="活跃任务" hint={`${averageProgress}% 平均进度`} onClick={() => applyMetricFilter('all')} />
         <MetricCard icon="alert" tone="red" value={metrics.blocked.length} label="已阻塞" hint={metrics.blocked.length ? '需要协调处理' : '当前无阻塞'} onClick={() => applyMetricFilter('blocked')} />
-        <MetricCard icon="calendar" tone="violet" value={metrics.dueThisWeek.length} label="本周到期" hint="按预计完成日统计" onClick={() => applyMetricFilter('risk')} />
-        <MetricCard icon="radar" tone="amber" value={metrics.overdue.length + metrics.unscheduled.length} label="交付风险" hint={`${metrics.overdue.length} 逾期 · ${metrics.unscheduled.length} 未排期`} onClick={() => applyMetricFilter('risk')} />
+        <MetricCard icon="calendar" tone="violet" value={metrics.dueThisWeek.length} label="本周到期" hint="按预计完成日统计" onClick={() => applyMetricFilter('delivery_warning')} />
+        <MetricCard icon="radar" tone="amber" value={metrics.unscheduled.length} label="待补排期" hint={`${activeTasks.length} 个活跃任务中未设完成日`} onClick={() => applyMetricFilter('unscheduled')} />
         <MetricCard
           icon="message"
           tone="blue"
@@ -292,7 +280,7 @@ export function Dashboard() {
           <div className="panel-heading">
             <div><span className="eyebrow">Needs attention</span><h2>需要关注</h2></div>
             <div className="attention-heading-side">
-              <span className="section-caption">优先展示阻塞、逾期和未排期事项</span>
+              <span className="section-caption">优先展示阻塞与已逾期事项；待补排期单独查看</span>
               <span className="mini-mascot-frame" aria-hidden="true"><img src={mascotAsset('blocked')} alt="" loading="lazy" decoding="async" /></span>
             </div>
           </div>
@@ -317,7 +305,7 @@ export function Dashboard() {
         <div className="work-controls">
           <label className="search-box"><DashboardIcon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前进展" aria-label="搜索活跃任务" /></label>
           <div className="filter-chips" role="group" aria-label="任务筛选">
-            {([['all', '全部'], ['risk', '有风险'], ['blocked', '阻塞'], ['unscheduled', '未排期']] as const).map(([value, label]) => (
+            {([['all', '全部'], ['delivery_warning', '交付预警'], ['blocked', '阻塞'], ['unscheduled', '待补排期']] as const).map(([value, label]) => (
               <button key={value} className={`filter-chip ${workFilter === value ? 'filter-chip-active' : ''}`} onClick={() => setWorkFilter(value)}>{label}</button>
             ))}
           </div>
@@ -468,12 +456,8 @@ function DashboardIcon({ name }: { name: DashboardIconName }) {
   return <Icon className="dashboard-icon" strokeWidth={1.8} aria-hidden="true" />
 }
 
-function isActive(task: Task): boolean {
-  return task.status === 'in_progress' || task.status === 'blocked' || task.status === 'paused'
-}
-
 function isOverdue(task: Task): boolean {
-  return !!task.expected_end_date && isActive(task) && task.expected_end_date < todayISO()
+  return isTaskOverdue(task, todayISO())
 }
 
 function riskRank(task: Task): number {
@@ -513,23 +497,6 @@ function relativeActivity(iso: string): string {
   if (days <= 0) return '今天'
   if (days === 1) return '昨天'
   return `${days} 天前`
-}
-
-function weekStartISO(): string {
-  const date = new Date()
-  const day = date.getDay() || 7
-  date.setDate(date.getDate() - day + 1)
-  return localDateISO(date)
-}
-
-function addDaysISO(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00`)
-  date.setDate(date.getDate() + days)
-  return localDateISO(date)
-}
-
-function localDateISO(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function todayText(): string {
