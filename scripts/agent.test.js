@@ -92,6 +92,32 @@ test('inbox 默认只读未解决反馈，并输出任务定位与完整消息',
   assert.deepEqual(JSON.parse(empty.stdout), [])
 })
 
+test('inbox-reply 将 Agent 的处理结论回写到原处理箱线程，并拒绝越权回复 Leader 留言', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '处理箱回写测试任务')
+  const taskId = extractId(c.stdout)
+  const db = JSON.parse(fs.readFileSync(c.dbFile, 'utf8'))
+  const agentThreadId = '55555555-5555-4555-8555-555555555555'
+  const leaderThreadId = '66666666-6666-4666-8666-666666666666'
+  db.feedbackThreads = [
+    { id: agentThreadId, task_id: taskId, status: 'open', created_at: '2026-08-20T01:00:00.000Z', kind: 'agent_instruction', created_by: '本人', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:00:00.000Z' },
+    { id: leaderThreadId, task_id: taskId, status: 'open', created_at: '2026-08-20T01:00:00.000Z', kind: 'leader_feedback', created_by: 'Leader', resolved_at: null, resolved_by: '', updated_at: '2026-08-20T01:00:00.000Z' },
+  ]
+  db.feedbackMessages = [{ id: '77777777-7777-4777-8777-777777777777', thread_id: agentThreadId, body: '请核对排期。', author_name: '本人', author_role: 'owner', created_at: '2026-08-20T01:00:00.000Z' }]
+  fs.writeFileSync(c.dbFile, JSON.stringify(db, null, 2))
+
+  const reply = run('inbox-reply', agentThreadId, '--content', '已核对：等待依赖完成后再启动。', '--to', 'resolved')
+  assert.ok(reply.ok, reply.stderr)
+  const all = JSON.parse(run('inbox', '--all', '--json').stdout)
+  assert.equal(all[0].status, 'resolved')
+  assert.equal(all[0].messages.at(-1).body, '已核对：等待依赖完成后再启动。')
+  assert.equal(all[0].messages.at(-1).author_role, 'agent')
+
+  const forbidden = run('inbox-reply', leaderThreadId, '--content', '不应写入')
+  assert.ok(!forbidden.ok)
+  assert.match(forbidden.stderr, /不属于 Agent 处理箱/)
+})
+
 test('progress 原子更新：进度变更 + 时间线各一条', () => {
   const run = makeRunner()
   const c = run('create', '--title', '测试任务B')

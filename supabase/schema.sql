@@ -213,7 +213,7 @@ create table if not exists public.task_feedback_messages (
   thread_id   uuid not null references public.task_feedback_threads(id) on delete cascade,
   body        text not null,
   author_name text not null default '',
-  author_role text not null default 'leader' check (author_role in ('leader','owner')),
+  author_role text not null default 'leader' check (author_role in ('leader','owner','agent')),
   created_at  timestamptz not null default now()
 );
 
@@ -242,7 +242,7 @@ begin
   if p_body is null or btrim(p_body) = '' then
     raise exception '反馈内容不能为空';
   end if;
-  if p_author_role not in ('leader', 'owner') then
+  if p_author_role not in ('leader', 'owner', 'agent') then
     raise exception '非法反馈角色: %', p_author_role;
   end if;
   if p_kind not in ('leader_feedback', 'agent_instruction') then
@@ -272,6 +272,9 @@ declare v_thread public.task_feedback_threads;
 begin
   if p_body is null or btrim(p_body) = '' then
     raise exception '回复内容不能为空';
+  end if;
+  if p_author_role not in ('leader', 'owner', 'agent') then
+    raise exception '非法反馈角色: %', p_author_role;
   end if;
   select * into v_thread from public.task_feedback_threads where id = p_thread_id;
   if v_thread is null then

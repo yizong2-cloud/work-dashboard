@@ -112,7 +112,8 @@ export interface UpdateCreateInput {
 // 免登录：author_name/author_role 仅用于展示，不做身份校验
 // ============================================================
 
-export type FeedbackRole = 'leader' | 'owner'
+/** 留言主体：Agent 仅通过本地 Agent CLI 写入处理箱回复，网页端仍只提供 Leader/本人切换。 */
+export type FeedbackRole = 'leader' | 'owner' | 'agent'
 
 export type FeedbackStatus = 'open' | 'in_progress' | 'resolved'
 

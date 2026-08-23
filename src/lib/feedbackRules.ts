@@ -5,7 +5,7 @@
 
 import type { FeedbackKind, FeedbackRole, FeedbackStatus } from '../types'
 
-export const FEEDBACK_ROLES: FeedbackRole[] = ['leader', 'owner']
+export const FEEDBACK_ROLES: FeedbackRole[] = ['leader', 'owner', 'agent']
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ['open', 'in_progress', 'resolved']
 export const FEEDBACK_KINDS: FeedbackKind[] = ['leader_feedback', 'agent_instruction']
 export const FEEDBACK_BODY_MAX = 2000
@@ -36,5 +36,6 @@ export function isValidFeedbackKind(kind: string): kind is FeedbackKind {
 export function feedbackDisplayName(role: FeedbackRole, name: string): string {
   const n = (name ?? '').trim()
   if (n) return n
-  return role === 'leader' ? 'Leader' : '本人'
+  if (role === 'leader') return 'Leader'
+  return role === 'agent' ? 'Agent' : '本人'
 }

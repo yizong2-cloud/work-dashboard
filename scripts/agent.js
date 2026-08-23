@@ -200,6 +200,30 @@ async function opInboxStatus(op) {
   return thread
 }
 
+/**
+ * 回写 Agent 对一条处理留言的理解或处理结果。
+ *
+ * 处理箱不是“投递后消失”的便签：原留言者应能在同一条线程看到
+ * Agent 已接手、采取了什么动作，以及何时真正结案。这个命令只接受
+ * agent_instruction，不能借此误操作 Leader 协作反馈。
+ */
+async function opInboxReply(op) {
+  const id = requireOp(op, 'id', '处理留言 id')
+  const content = requireOp(op, 'content', '处理说明')
+  const to = String(op.to ?? 'in_progress')
+  if (!['open', 'in_progress', 'resolved'].includes(to)) {
+    fail(`非法处理箱状态: ${to}，可选: open / in_progress / resolved`)
+  }
+  if (dryRun) {
+    human(`[dry-run] 回复处理留言 ${id} 并标记为 ${to}`)
+    return null
+  }
+  const message = await store.addFeedbackMessage(id, content, 'Agent', 'agent', 'agent_instruction')
+  const thread = await store.setFeedbackStatus(id, to, who, 'agent_instruction')
+  human(`✅ 已回复处理留言 ${id}，并标记为 ${to}`)
+  return { message, thread }
+}
+
 async function opCreate(op) {
   const title = requireOp(op, 'title', '任务名称')
   const input = {
@@ -593,6 +617,8 @@ function opHelp() {
   get <任务id>                                 查看任务详情 + 时间线
   inbox [--all] [--status open|in_progress|resolved] 读取处理箱（默认仅未解决，支持 --json）
   inbox-status <留言id> --to in_progress|resolved|open  更新处理箱状态
+  inbox-reply <留言id> --content "处理说明" [--to in_progress|resolved|open]
+                                               回写 Agent 处理说明；默认标记处理中
   create --title "任务名" [--description] [--status] [--priority]
         [--progress 0-100] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
         [--interrupt] [--note "创建说明"]       新建任务（自动记录时间线）
@@ -630,6 +656,7 @@ const ops = {
   get: opGet,
   inbox: opInbox,
   'inbox-status': opInboxStatus,
+  'inbox-reply': opInboxReply,
   create: opCreate,
   progress: opProgress,
   status: opStatus,

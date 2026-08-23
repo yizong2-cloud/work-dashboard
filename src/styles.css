@@ -2181,6 +2181,7 @@ section {
 .thread-role-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
 .role-leader { background: #e8f1ff; color: #2563eb; }
 .role-owner { background: #e8f7ee; color: #1e8e4e; }
+.role-agent { background: #f1ebfa; color: #7256b7; }
 .thread-resolved-note { font-size: 0.78rem; margin: 6px 2px; }
 
 .thread-reply { margin-top: 10px; }

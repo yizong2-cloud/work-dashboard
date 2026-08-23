@@ -203,6 +203,32 @@ function createLocalStore() {
         .filter((message) => message.thread_id === threadId)
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
     },
+    async addFeedbackMessage(threadId, body, authorName = 'agent', authorRole = 'owner', kind) {
+      if (!body || !body.trim()) throw new Error('回复内容不能为空')
+      const db = loadLocal()
+      const thread = (db.feedbackThreads ?? []).find((item) => item.id === threadId)
+      if (!thread) throw new Error(`反馈线程不存在: ${threadId}`)
+      if (kind && (thread.kind ?? 'leader_feedback') !== kind) throw new Error('该反馈不属于 Agent 处理箱')
+      const message = {
+        id: crypto.randomUUID(),
+        thread_id: threadId,
+        body: body.trim(),
+        author_name: authorName,
+        author_role: authorRole,
+        created_at: now(),
+      }
+      db.feedbackMessages.push(message)
+      // 和网页端一致：新回复会重新打开一个已经解决的线程；后续 setStatus
+      // 再将它放入调用方明确选择的状态。
+      if (thread.status === 'resolved') {
+        thread.status = 'open'
+        thread.resolved_at = null
+        thread.resolved_by = ''
+      }
+      thread.updated_at = now()
+      saveLocal(db)
+      return message
+    },
     async setFeedbackStatus(threadId, status, byName = 'agent', kind) {
       if (!['open', 'in_progress', 'resolved'].includes(status)) throw new Error(`非法反馈状态: ${status}`)
       const db = loadLocal()
@@ -719,6 +745,25 @@ function createSupabaseStore(env) {
         .order('created_at', { ascending: true })
       if (error) throw new Error(error.message)
       return data ?? []
+    },
+    async addFeedbackMessage(threadId, body, authorName = 'agent', authorRole = 'owner', kind) {
+      if (kind) {
+        const { data: thread, error: readError } = await client
+          .from('task_feedback_threads')
+          .select('kind')
+          .eq('id', threadId)
+          .maybeSingle()
+        if (readError) throw new Error(readError.message)
+        if (!thread || thread.kind !== kind) throw new Error('该反馈不属于 Agent 处理箱')
+      }
+      const { data, error } = await client.rpc('add_feedback_reply', {
+        p_thread_id: threadId,
+        p_body: body.trim(),
+        p_author_name: authorName,
+        p_author_role: authorRole,
+      })
+      if (error) throw new Error(error.message)
+      return data
     },
     async setFeedbackStatus(threadId, status, byName = 'agent', kind) {
       if (kind) {

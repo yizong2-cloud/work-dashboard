@@ -244,8 +244,8 @@ export function FeedbackPanel({
                     <div key={m.id} className={`thread-msg msg-${m.author_role}`}>
                       <div className="comment-meta">
                         <strong>{feedbackDisplayName(m.author_role, m.author_name)}</strong>
-                        <span className={`thread-role-tag ${m.author_role === 'leader' ? 'role-leader' : 'role-owner'}`}>
-                          {m.author_role === 'leader' ? 'Leader' : '负责人'}
+                        <span className={`thread-role-tag ${m.author_role === 'leader' ? 'role-leader' : m.author_role === 'agent' ? 'role-agent' : 'role-owner'}`}>
+                          {m.author_role === 'leader' ? 'Leader' : m.author_role === 'agent' ? 'Agent' : '负责人'}
                         </span>
                         <time>{shortDateTime(m.created_at)}</time>
                       </div>

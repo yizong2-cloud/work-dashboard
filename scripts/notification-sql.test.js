@@ -7,6 +7,7 @@ const migration = fs.readFileSync(new URL('../supabase/migrations/0008_notificat
 const backoffMigration = fs.readFileSync(new URL('../supabase/migrations/0009_notification_retry_backoff.sql', import.meta.url), 'utf8')
 const decisionNotificationMigration = fs.readFileSync(new URL('../supabase/migrations/0010_decision_response_personal_notification.sql', import.meta.url), 'utf8')
 const dailyReportMigration = fs.readFileSync(new URL('../supabase/migrations/0012_daily_report_excludes_agent_instructions.sql', import.meta.url), 'utf8')
+const agentRoleMigration = fs.readFileSync(new URL('../supabase/migrations/0013_feedback_agent_role.sql', import.meta.url), 'utf8')
 
 test('通知 outbox 的总 schema 与增量迁移都声明自动维护调度', () => {
   for (const source of [schema, migration]) {
@@ -36,4 +37,11 @@ test('Leader 日报只统计 Leader 留言，不泄露 Agent 处理箱的待处�
   for (const source of [schema, dailyReportMigration]) {
     assert.match(source, /from public\.task_feedback_threads\s+where status <> 'resolved'\s+and kind = 'leader_feedback';/s)
   }
+})
+
+test('Agent 处理箱回复有独立身份，而不是伪装成负责人', () => {
+  for (const source of [schema, agentRoleMigration]) {
+    assert.match(source, /author_role in \('leader',\s*'owner',\s*'agent'\)/)
+  }
+  assert.match(agentRoleMigration, /非法反馈角色/)
 })

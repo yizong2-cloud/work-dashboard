@@ -32,9 +32,10 @@ test('validateFeedbackBody：空/空白/超长被拒，合法通过', () => {
   assert.equal(validateFeedbackBody('  正常反馈  '), null)
 })
 
-test('validateFeedbackRole：仅 leader/owner', () => {
+test('validateFeedbackRole：leader/负责人/Agent 均是明确展示身份', () => {
   assert.equal(validateFeedbackRole('leader'), 'leader')
   assert.equal(validateFeedbackRole('owner'), 'owner')
+  assert.equal(validateFeedbackRole('agent'), 'agent')
   assert.equal(validateFeedbackRole('admin'), null)
   assert.equal(validateFeedbackRole(''), null)
 })
@@ -56,6 +57,7 @@ test('isValidFeedbackKind：Leader 反馈与 Agent 指令是两种不同业务�
 test('feedbackDisplayName：无署名按角色给默认，有署名用署名', () => {
   assert.equal(feedbackDisplayName('leader', ''), 'Leader')
   assert.equal(feedbackDisplayName('owner', ''), '本人')
+  assert.equal(feedbackDisplayName('agent', ''), 'Agent')
   assert.equal(feedbackDisplayName('leader', ' 张三 '), '张三')
   assert.equal(feedbackDisplayName('owner', '宗意'), '宗意')
 })

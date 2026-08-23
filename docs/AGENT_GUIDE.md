@@ -72,6 +72,8 @@ npm run agent -- list --status in_progress      # 按状态过滤；--interrupt 
 npm run agent -- list                           # 全部任务（拿 id 用）
 npm run agent -- get <id>                       # 任务详情 + 时间线
 npm run agent -- inbox --json                   # 读取处理箱；默认仅返回 open/in_progress 留言
+npm run agent -- inbox-reply <id> --content "已核对，正在处理…"  # 留下接手说明，默认标记处理中
+npm run agent -- inbox-reply <id> --content "已完成：…" --to resolved # 留下处理结果并结案
 npm run agent -- inbox --all                    # 连已解决线程一起读取（只读）
 npm run agent -- inbox-status <留言id> --to resolved  # 处理完成后关闭线程（也可 open/in_progress）
 
@@ -190,6 +192,8 @@ npm run agent -- batch --file ops.json             # 再执行
 - 任务详情页会同时显示两块入口。Leader 反馈仍按原语义保留；「交给 Agent 处理」只聚焦 Agent 指令输入框。
 - Agent 指令不会触发 Leader 群反馈通知，避免把内部处理要求误发到协作群。
 - Agent 用 `npm run agent -- inbox --json` 读取处理箱（默认只返回未解决线程；`--all` 可包含已解决）。读取是只读聚合，**不会自动把自然语言解释成字段修改**。
+- Agent 开始处理一条留言时，应使用 `inbox-reply <id> --content "…"` 回写自己对问题的理解；默认会标记为 `in_progress`。真正完成且已经验证后，用 `--to resolved` 回写结果并结案。这样原留言者可在任务页直接看到处理轨迹，而不是只能猜测 Agent 是否读过。
+- `inbox-reply` 只允许回复 `agent_instruction`，不能替代或污染 `leader_feedback` 协作线程。
 - Agent 判断后仍须使用 `progress/update/schedule/block/complete` 等结构化命令落地，并用网页线程标记处理中/解决；这样保留原文、审计和人工复核。
 - 旧版本 `💬` 留言（task_updates 里）通过兼容读取继续展示为「历史留言」，数据不动。
 - 免登录：身份（Leader/本人）仅展示，不做身份校验。
