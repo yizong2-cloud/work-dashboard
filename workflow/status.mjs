@@ -60,6 +60,14 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
   const reconciliationComplete = hasCompleteReconciliation(packet, changeset, matched)
   const ageHoursValue = ageHours(packet?.captured_at, now)
   const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
+  // Early packets recorded the source result but omitted a count for Feishu.
+  // The review inventory already has the authoritative per-source count, so
+  // read-only status can backfill the display without rewriting history.
+  const reviewSourceKey = { feishu: 'feishu', codex: 'codex', dsh: 'dsh', local_files: 'local' }
+  const sourceHealth = Object.fromEntries(Object.entries(packet?.source_health || {}).map(([name, source]) => [name, {
+    ...source,
+    count: source?.count ?? (reviewSourceKey[name] ? packet?.counts?.by_source?.[reviewSourceKey[name]] ?? null : null),
+  }]))
   const lastHealthyValid = lastHealthyContext?.snapshot_health === 'ok'
     && lastHealthyPacket?.snapshot_health === 'ok'
     && Boolean(lastHealthyContext?.snapshot_id)
@@ -89,7 +97,7 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
     age_hours: ageHoursValue,
     snapshot_stale: ageHoursValue !== null && ageHoursValue >= STALE_AFTER_HOURS,
     snapshot_health: packet?.snapshot_health || 'missing',
-    source_health: packet?.source_health || null,
+    source_health: sourceHealth,
     source_health_recorded: sourceHealthRecorded,
     counts: packet?.counts || null,
     review_reasons: packet?.counts?.by_review_reason || null,

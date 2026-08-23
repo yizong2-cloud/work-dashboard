@@ -77,6 +77,19 @@ test('status separates recovered Feishu diagnostics from a healthy source result
   assert.match(text, /过程告警（已恢复）：胡贺伟/)
 })
 
+test('status read-only backfills an old source count from the review inventory', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-old-count', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: null, detail: '完成：2 个会话' } },
+      counts: { total: 2, high_priority: 0, by_source: { feishu: 2 } },
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.source_health.feishu.count, 2)
+  assert.match(formatStatus(status), /来源：✅ 飞书 · 2 条 · 完成：2 个会话/)
+})
+
 test('status 忽略不成对或损坏的健康副本', () => {
   const status = buildStatus({
     packet: { snapshot_id: 'snap-degraded', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'degraded' },
