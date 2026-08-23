@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -15,6 +15,8 @@ test('source-map can explicitly exclude the Workboard maintenance repository', (
   }, 'codex')
 
   assert.deepEqual(result.hits, [])
+  assert.equal(result.ignored.length, 1)
+  assert.equal(result.ignored[0].suggested_decision, 'irrelevant')
   assert.deepEqual(result.unmapped, ['/Users/zongyi/Workspace/Unified_API_Playground/packages/jigsawcard'])
   assert.equal(unmappedCwdRequired(result.unmapped), true)
 })
@@ -28,6 +30,7 @@ test('ignored cwd matching remains case-insensitive and substring based', () => 
   }, 'dsh')
 
   assert.deepEqual(result.unmapped, [])
+  assert.equal(result.ignored.length, 1)
 })
 
 test('unmapped project directories always require explicit review', () => {
@@ -61,6 +64,7 @@ test('Codex temporary sessions are excluded through source-map rules', () => {
   }, 'codex')
 
   assert.deepEqual(result.hits, [])
+  assert.equal(result.ignored.length, 1)
   assert.deepEqual(result.unmapped, [])
 })
 
@@ -141,7 +145,18 @@ test('migrated active project directories retain explicit candidate mappings or 
   ], sourceMap, 'codex')
   assert.deepEqual(result.unmapped, [])
   assert.equal(result.hits.length, 3)
+  assert.equal(result.ignored.length, 2)
   assert.deepEqual(result.hits[0].tasks, ['拼图矩阵 BI 数据问题修复与口径治理'])
+})
+
+test('source-map matches chat title whitespace and keeps explicit non-business chats auditable', () => {
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
+  assert.equal(normalizeMappingText('Fantasy　成就测试沟通群'), 'fantasy成就测试沟通群')
+  const result = buildFeishuCandidates('## Fantasy 成就测试沟通群（3 条）\n内容\n\n## 工作进度简报（1 条）\n回显', sourceMap)
+  assert.deepEqual(result.unmappedGroups, [])
+  assert.deepEqual(result.hits[0].tasks, ['Fantasy 成就系统收尾（接手杨柯迪）'])
+  assert.equal(result.hits[1].ignored, true)
+  assert.equal(result.hits[1].suggested_decision, 'irrelevant')
 })
 
 test('degraded prepare preserves the previous healthy snapshot while replacing latest', () => {

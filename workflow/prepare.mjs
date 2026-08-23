@@ -183,14 +183,24 @@ function loadSourceMap() {
   try {
     return JSON.parse(fs.readFileSync(path.join(ROOT, 'workflow', 'source-map.json'), 'utf8'))
   } catch {
-    return { ignored_cwd: [], codex_cwd: [], feishu_chat: [] }
+    return { ignored_cwd: [], codex_cwd: [], ignored_feishu_chat: [], feishu_chat: [] }
   }
 }
 
-function matchPattern(list, str) {
+// Chat titles are often formatted by the exporter as "Fantasy 成就…" while
+// the curated map uses "fantasy成就". Normalising only whitespace/full-width
+// variants preserves explicit substring semantics without broad fuzzy matching.
+export function normalizeMappingText(value) {
+  return String(value || '').normalize('NFKC').toLowerCase().replace(/\s+/g, '')
+}
+
+export function matchPattern(list, str) {
   const low = String(str || '').toLowerCase()
+  const normalized = normalizeMappingText(str)
   for (const rule of list) {
-    if (rule.pattern && low.includes(rule.pattern.toLowerCase())) return rule
+    if (!rule.pattern) continue
+    const pattern = String(rule.pattern)
+    if (low.includes(pattern.toLowerCase()) || normalized.includes(normalizeMappingText(pattern))) return rule
   }
   return null
 }
@@ -203,11 +213,28 @@ function todayStr() {
 // 从一次扫描得到的 Codex / DSH 会话（含 cwd）生成候选；unmapped 收集未映射目录提醒
 function buildSessionCandidates(sessions, map, key) {
   const hits = []
+  const ignored = []
   const unmapped = []
   for (const s of sessions) {
     const cwd = s.cwd || ''
     if (cwd === HOME || cwd === `${HOME}/`) continue // DSH 根目录会话（工具维护等）
-    if (matchPattern(map.ignored_cwd || [], cwd)) continue // source-map 明确标注的工具维护目录
+    const ignoredRule = matchPattern(map.ignored_cwd || [], cwd)
+    if (ignoredRule) {
+      // Review packets inventory every session. Preserve an explicit candidate
+      // so this known tooling/temporary source is auditable as irrelevant,
+      // rather than being reintroduced downstream as an unmapped risk.
+      ignored.push({
+        source: key,
+        cwd,
+        hint: ignoredRule.hint,
+        tasks: [],
+        ignored: true,
+        suggested_decision: 'irrelevant',
+        last: s.lastTs || s.lastTsMs || null,
+        start: s.start || null,
+      })
+      continue
+    }
     const rule = matchPattern(map.codex_cwd, cwd)
     if (rule) {
       hits.push({
@@ -223,7 +250,7 @@ function buildSessionCandidates(sessions, map, key) {
       unmapped.push(cwd)
     }
   }
-  return { hits, unmapped: [...new Set(unmapped)] }
+  return { hits, ignored, unmapped: [...new Set(unmapped)] }
 }
 
 // 从飞书 markdown 提取群名并映射
@@ -235,6 +262,14 @@ function buildFeishuCandidates(feishuText, map) {
   const hits = []
   const unmappedGroups = new Set()
   for (const t of titles) {
+    const ignored = matchPattern(map.ignored_feishu_chat || [], t)
+    if (ignored) {
+      // Keep the source row for full reconciliation/audit, but let the review
+      // layer explain that this is a known non-business feed rather than an
+      // apparent mapping failure.
+      hits.push({ group: t, hint: ignored.hint, tasks: [], ignored: true, suggested_decision: 'irrelevant' })
+      continue
+    }
     const rule = matchPattern(map.feishu_chat, t)
     if (rule) hits.push({
       group: t,
@@ -263,8 +298,8 @@ function buildCandidates({ codexSessions, dshSessions, feishuText, board }) {
     }
   }
   return {
-    codex: codexCand.hits,
-    dsh: dshCand.hits,
+    codex: [...codexCand.hits, ...codexCand.ignored],
+    dsh: [...dshCand.hits, ...dshCand.ignored],
     feishu: feishuCand.hits,
     unmapped_cwd: [...codexCand.unmapped, ...dshCand.unmapped].filter((v, i, a) => a.indexOf(v) === i),
     unmapped_feishu_groups: feishuCand.unmappedGroups,
@@ -527,9 +562,12 @@ async function main() {
     lines.push(`  - ${(s.start || '?').slice(0, 16).replace('T', ' ')} @ ${s.cwd} ${req ? `：${req}` : ''}`)
   }
   lines.push('', '## 候选提示（规则化线索，供分析优先参考）', '')
-  lines.push(`- Codex/DSH 会话映射命中: ${candidates.codex.length + candidates.dsh.length}`)
-  for (const x of [...candidates.codex, ...candidates.dsh].slice(0, 8)) {
-    lines.push(`  - ${x.cwd} → ${(x.tasks || ['(无候选)']).slice(0, 2).join(' / ') || '(按内容判断)'}`)
+  const sessionCandidateRows = [...candidates.codex, ...candidates.dsh]
+  const mappedSessionRows = sessionCandidateRows.filter((x) => !x.ignored)
+  const ignoredSessionRows = sessionCandidateRows.filter((x) => x.ignored)
+  lines.push(`- Codex/DSH 会话映射命中: ${mappedSessionRows.length}${ignoredSessionRows.length ? `；明确无关 ${ignoredSessionRows.length}` : ''}`)
+  for (const x of sessionCandidateRows.slice(0, 8)) {
+    lines.push(`  - ${x.cwd} → ${x.ignored ? '明确无关（保留审计）' : (x.tasks || ['(无候选)']).slice(0, 2).join(' / ') || '(按内容判断)'}`)
   }
   lines.push(`- 飞书群命中: ${candidates.feishu.length}`)
   for (const x of candidates.feishu.slice(0, 8)) {
@@ -565,7 +603,7 @@ async function main() {
   notify(notification.title, notification.body)
 }
 
-export { buildSessionCandidates, unmappedCwdRequired }
+export { buildFeishuCandidates, buildSessionCandidates, unmappedCwdRequired }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {

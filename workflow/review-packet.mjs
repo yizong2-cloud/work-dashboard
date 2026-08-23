@@ -87,14 +87,18 @@ function rankCandidateTasks(candidate, evidenceText) {
 function reviewMeta(candidate, fallbackReason = null, evidenceText = '') {
   const candidateCount = Array.isArray(candidate?.tasks) ? candidate.tasks.length : 0
   const reviewReason = fallbackReason
-    || (candidateCount === 0 ? 'no_candidate_mapping' : candidateCount > 1 ? 'multiple_candidate_tasks' : 'single_candidate')
+    || (candidate?.ignored ? 'intentionally_ignored' : candidateCount === 0 ? 'no_candidate_mapping' : candidateCount > 1 ? 'multiple_candidate_tasks' : 'single_candidate')
   const ranking = rankCandidateTasks(candidate, evidenceText)
   return {
     candidate_count: candidateCount,
     candidate_tasks: ranking.tasks,
     ...(ranking.applied ? { candidate_ranked_by: 'keyword_overlap' } : {}),
-    review_priority: reviewReason === 'single_candidate' ? 'normal' : 'high',
+    // An explicitly curated non-business source still appears in the packet
+    // and must receive a reconciliation result, but it is not an ambiguity
+    // demanding human triage.
+    review_priority: ['single_candidate', 'intentionally_ignored'].includes(reviewReason) ? 'normal' : 'high',
     review_reason: reviewReason,
+    ...(candidate?.suggested_decision ? { suggested_decision: candidate.suggested_decision } : {}),
   }
 }
 
@@ -267,7 +271,7 @@ export function buildReviewPacket(ctx) {
     review_contract: {
       required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
-      review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。candidate_tasks 仅在 source-map 为任务明确配置关键词且证据唯一命中时做稳定排序；仍须人工确认，不代表自动归属。',
+      review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。intentionally_ignored 是显式维护的非业务来源：仍须写 reconciliation，但可按 suggested_decision=irrelevant 快速结案。candidate_tasks 仅在 source-map 为任务明确配置关键词且证据唯一命中时做稳定排序；仍须人工确认，不代表自动归属。',
     },
     coverage: buildCoverage(ctx, items),
     counts: {

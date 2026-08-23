@@ -107,6 +107,7 @@ const REVIEW_REASON_LABEL = {
   multiple_candidate_tasks: '多候选',
   metadata_only: '仅元数据',
   single_candidate: '单候选',
+  intentionally_ignored: '明确无关',
 }
 
 function formatReviewReasons(reasons) {

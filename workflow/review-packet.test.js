@@ -71,6 +71,24 @@ test('review attention explains ambiguity instead of pretending task urgency', (
   )
 })
 
+test('explicitly ignored source remains auditable but is not treated as an ambiguity', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    candidates: {
+      ...context.candidates,
+      feishu: [
+        { group: '项目群（2 条）', tasks: ['task-b'], hint: 'B' },
+        { group: '闲聊（1 条）', tasks: [], ignored: true, suggested_decision: 'irrelevant', hint: '看板回显' },
+      ],
+    },
+  })
+  const item = packet.review_items.find((row) => row.source_id === 'feishu:1')
+  assert.equal(item.review_reason, 'intentionally_ignored')
+  assert.equal(item.review_priority, 'normal')
+  assert.equal(item.suggested_decision, 'irrelevant')
+  assert.match(packet.review_contract.review_priority_semantics, /suggested_decision=irrelevant/)
+})
+
 test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {
   const packet = buildReviewPacket({
     ...context,
