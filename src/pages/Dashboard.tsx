@@ -328,11 +328,11 @@ export function Dashboard() {
                   const t = unresolvedThreads.find((x) => x.task_id === task.id)
                   navigate(t ? `/task/${task.id}?thread=${t.id}` : `/task/${task.id}?comment=1`)
                 }}
-                title="未解决反馈或留言"
-                aria-label={`${task.title}的反馈与留言`}
+                title={(unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id) ?? 0) > 0 ? '查看未解决反馈或留言' : '添加 Leader 留言或反馈'}
+                aria-label={`${task.title}的${(unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id) ?? 0) > 0 ? '反馈与留言' : '添加 Leader 留言或反馈'}`}
               >
                 <DashboardIcon name="comment" />
-                <span>{unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id) ?? 0}</span>
+                {(unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id) ?? 0) > 0 && <span>{unresolvedByTask.get(task.id) ?? commentsByTask.get(task.id)}</span>}
               </button>
             </article>
           ))}
