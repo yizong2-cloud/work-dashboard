@@ -23,6 +23,14 @@ import {
 import { createStore } from './lib/store.js'
 
 const DECISION_CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'decision.js')
+const DECISION_CENTER_PAGE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'pages', 'DecisionCenter.tsx')
+
+test('决策中心首次同步不把未加载的反馈误显示为 0', () => {
+  const source = fs.readFileSync(DECISION_CENTER_PAGE, 'utf8')
+  assert.match(source, /const initialLoading = loading && forms\.length === 0 && lastRefreshedAt === null/)
+  assert.match(source, /initialLoading \? '正在同步反馈…'/)
+  assert.match(source, /正在读取已提交的反馈…/)
+})
 
 function makeDecisionRunner() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-decision-cli-'))

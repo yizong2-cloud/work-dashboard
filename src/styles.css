@@ -3781,6 +3781,20 @@ h3,
   margin-top: 12px !important;
 }
 
+.decision-inbox-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: 1px dashed #ded2c4;
+  border-radius: 10px;
+  background: #fffdf8;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
 .text-amber {
   color: #d97706;
 }

@@ -72,6 +72,9 @@ export function DecisionCenter() {
     return true
   })
   const formsWithResponses = forms.filter((f) => (f.response_count ?? 0) > 0)
+  // 首次请求还没返回时，空数组只是“未知”而不代表没有表单/反馈。
+  // 不显示 0，避免 Leader 在慢网络下误以为答卷没有保存。
+  const initialLoading = loading && forms.length === 0 && lastRefreshedAt === null
 
   const handleCopyLink = async (slug: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -141,15 +144,20 @@ export function DecisionCenter() {
         </div>
       </div>
 
-      <section className="decision-inbox" aria-labelledby="decision-inbox-title">
+      <section className="decision-inbox" aria-labelledby="decision-inbox-title" aria-busy={initialLoading}>
         <div className="decision-inbox-heading">
           <div>
             <h2 id="decision-inbox-title">决策收件箱</h2>
             <p>他人提交的反馈会自动保存在这里；打开后即可查看、复制或导出给 Agent。</p>
           </div>
-          <span className="tag tag-demo">{formsWithResponses.length} 个有反馈的表单</span>
+          <span className="tag tag-demo">{initialLoading ? '正在同步反馈…' : `${formsWithResponses.length} 个有反馈的表单`}</span>
         </div>
-        {formsWithResponses.length === 0 ? (
+        {initialLoading ? (
+          <div className="decision-inbox-loading" aria-live="polite">
+            <RefreshCw size={16} className="spin text-muted" />
+            <span>正在读取已提交的反馈…</span>
+          </div>
+        ) : formsWithResponses.length === 0 ? (
           <p className="decision-inbox-empty">暂未收到反馈。分享表单后，对方提交即可在此查看。</p>
         ) : (
           <div className="decision-inbox-list">
@@ -182,21 +190,21 @@ export function DecisionCenter() {
             className={`decision-tab ${filter === 'open' ? 'decision-tab-active' : ''}`}
             onClick={() => setFilter('open')}
           >
-            进行中 ({forms.filter((f) => f.status === 'open').length})
+            进行中 ({initialLoading ? '…' : forms.filter((f) => f.status === 'open').length})
           </button>
           <button
             type="button"
             className={`decision-tab ${filter === 'all' ? 'decision-tab-active' : ''}`}
             onClick={() => setFilter('all')}
           >
-            全部表单 ({forms.length})
+            全部表单 ({initialLoading ? '…' : forms.length})
           </button>
           <button
             type="button"
             className={`decision-tab ${filter === 'closed' ? 'decision-tab-active' : ''}`}
             onClick={() => setFilter('closed')}
           >
-            已关闭 ({forms.filter((f) => f.status === 'closed').length})
+            已关闭 ({initialLoading ? '…' : forms.filter((f) => f.status === 'closed').length})
           </button>
         </div>
       </div>
