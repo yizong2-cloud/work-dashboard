@@ -137,6 +137,22 @@ function formatReviewReasons(reasons) {
     .join(' · ')
 }
 
+function formatSourceDetail(source) {
+  const detailLines = String(source?.detail || '').split('|').map((line) => line.trim()).filter(Boolean)
+  const recoveredLines = String(source?.warning || '').split('|').map((line) => line.trim()).filter(Boolean)
+  // Compatibility for snapshots captured before `warning` became structured.
+  // A successful source with this exact exporter recovery line is complete;
+  // the completion text remains the health detail and the recovery becomes a
+  // secondary note instead of looking like a current failure.
+  const legacyRecovery = source?.ok
+    ? detailLines.filter((line) => /重新加载飞书 Messenger 后再试/.test(line))
+    : []
+  return {
+    detail: detailLines.filter((line) => !legacyRecovery.includes(line)).join(' | ') || null,
+    warning: [...recoveredLines, ...legacyRecovery].filter((line, index, all) => all.indexOf(line) === index).join(' | ') || null,
+  }
+}
+
 export function formatStatus(status) {
   const lines = ['Workboard 状态']
   if (!status.packet_available) {
@@ -173,7 +189,9 @@ export function formatStatus(status) {
     for (const [label, source] of Object.entries(status.source_health || {})) {
       const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件', board: '当前看板', knowledge_base: '知识库' }[label] || label
       const count = source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
-      lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${source.detail ? ` · ${source.detail}` : ''}`)
+      const rendered = formatSourceDetail(source)
+      lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${rendered.detail ? ` · ${rendered.detail}` : ''}`)
+      if (source.ok && rendered.warning) lines.push(`  过程告警（已恢复）：${rendered.warning}`)
     }
   }
   lines.push(`审查游标：${status.analysis_reviewed_at || '未推进'}`)

@@ -58,6 +58,25 @@ test('status 不重复展示与当前快照相同的健康副本', () => {
   assert.doesNotMatch(formatStatus(status), /最近健康快照/)
 })
 
+test('status separates recovered Feishu diagnostics from a healthy source result', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-recovered', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: {
+        feishu: {
+          ok: true, count: 2,
+          detail: '胡贺伟: 连续两次无法切换，重新加载飞书 Messenger 后再试 | 完成：2 个会话、3 条消息',
+        },
+      },
+      counts: { total: 2, high_priority: 0 },
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  const text = formatStatus(status)
+  assert.match(text, /来源：✅ 飞书 · 2 条 · 完成：2 个会话、3 条消息/)
+  assert.match(text, /过程告警（已恢复）：胡贺伟/)
+})
+
 test('status 忽略不成对或损坏的健康副本', () => {
   const status = buildStatus({
     packet: { snapshot_id: 'snap-degraded', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'degraded' },

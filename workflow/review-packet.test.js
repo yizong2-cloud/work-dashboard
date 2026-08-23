@@ -57,6 +57,20 @@ test('review packet exposes failed board and knowledge-base dependencies in sour
   assert.match(packet.source_health.knowledge_base.detail, /文件读取失败/)
 })
 
+test('review packet preserves recovered collector diagnostics separately from health detail', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    steps: [{
+      name: '飞书增量导出', ok: true,
+      detail: '完成：2 个会话、3 条消息 → /tmp/export.json',
+      warning: '项目群：重新加载飞书 Messenger 后再试',
+    }],
+  })
+  assert.equal(packet.source_health.feishu.ok, true)
+  assert.match(packet.source_health.feishu.detail, /完成：2 个会话/)
+  assert.match(packet.source_health.feishu.warning, /重新加载飞书 Messenger/)
+})
+
 test('review attention explains ambiguity instead of pretending task urgency', () => {
   const packet = buildReviewPacket({
     ...context,

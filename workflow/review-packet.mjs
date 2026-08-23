@@ -169,6 +169,7 @@ function sourceHealth(ctx) {
     count: fallback.count ?? null,
     file: fallback.file ?? null,
     detail: steps.get(name)?.detail ? redactSensitiveText(steps.get(name).detail).slice(0, 240) : null,
+    warning: steps.get(name)?.warning ? redactSensitiveText(steps.get(name).warning).slice(0, 240) : null,
   })
   const sourceWithCount = (name, fallback, count) => ({
     ...source(name, fallback),

@@ -389,6 +389,23 @@ function summarizeStep(line) {
   return keep.join(' | ').slice(0, 400)
 }
 
+// The exporter can recover a Messenger page mid-run and still finish every
+// selected chat. Keep that useful diagnostic, but do not merge it into the
+// success detail: downstream status views must distinguish “recovered” from
+// “partial export / source failure”.
+export function summarizeFeishuStep(output, fallback = '') {
+  const lines = String(output || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('>') && !line.startsWith('#') && !line.startsWith('[') && line.length < 200)
+  const warningLines = lines.filter((line) => /重新加载飞书 Messenger 后再试/.test(line))
+  const completionLines = lines.filter((line) => /^(完成：|Markdown 汇总)/.test(line))
+  return {
+    detail: (completionLines.length ? completionLines : lines.filter((line) => !warningLines.includes(line)).slice(-3)).join(' | ').slice(0, 400) || fallback,
+    warning: warningLines.join(' | ').slice(0, 400) || null,
+  }
+}
+
 async function main() {
   const steps = []
   // 说明：prepare 全程无状态重叠窗口（Codex/DSH 用 --since-time=分析游标、飞书用 --since=分析游标、
@@ -420,10 +437,12 @@ async function main() {
     }
   }
   ;({ file: feishuFile, content: feishuText } = feishuSnapshot({ ok: feishuOk, file: feishuFile, content: feishuText }))
+  const feishuSummary = feishuOk ? summarizeFeishuStep(feishuRes.stdout, `文件 ${feishuFile}`) : null
   steps.push({
     name: '飞书增量导出',
     ok: feishuOk,
-    detail: feishuOk ? summarizeStep(feishuRes.stdout) || `文件 ${feishuFile}` : feishuFailureDetail({ ...feishuRes, incomplete: feishuIncomplete }, FEISHU_COOKIES),
+    detail: feishuOk ? feishuSummary.detail : feishuFailureDetail({ ...feishuRes, incomplete: feishuIncomplete }, FEISHU_COOKIES),
+    ...(feishuSummary?.warning ? { warning: feishuSummary.warning } : {}),
     file: feishuFile,
   })
 

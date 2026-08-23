@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -99,6 +99,16 @@ test('prepare passes overridden Cookie and output paths to any exporter', () => 
     '--since', '2026-08-19T00:00', '--refresh-chats', '--markdown', '--no-update-state',
     '--cookies', '/tmp/private cookies.json', '--out', '/tmp/feishu out',
   ])
+})
+
+test('successful Feishu recovery is a warning, not a source failure detail', () => {
+  const summary = summarizeFeishuStep([
+    '胡贺伟: 连续两次无法切换，重新加载飞书 Messenger 后再试',
+    '完成：17 个会话、802 条消息 → /tmp/export.json',
+    'Markdown 汇总 → /tmp/export.md',
+  ].join('\n'))
+  assert.equal(summary.detail, '完成：17 个会话、802 条消息 → /tmp/export.json | Markdown 汇总 → /tmp/export.md')
+  assert.equal(summary.warning, '胡贺伟: 连续两次无法切换，重新加载飞书 Messenger 后再试')
 })
 
 test('Codex and DSH each use one full JSON scan bound to the analysis cursor', () => {
