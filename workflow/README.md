@@ -13,6 +13,7 @@
 | --- | --- |
 | `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。飞书 Cookies 缺失/失效会明确提示且不复用旧数据。**可无人值守** |
 | `npm run dashboard:status [-- --json]` | 只读查看最近快照、四个来源、审查游标和 apply 匹配状态；不展开原始快照、不写数据库。 |
+| `npm run dashboard:health [-- --json]` | 一次只读汇总采集/审查、发布、通知队列和受管工作区；不调用采集器、不写库、不发通知。 |
 | `npm run dashboard:notify-status [-- --json]` | 只读查看 Supabase 通知 outbox 的 pending/failed/重试摘要；仅使用本机 service role，不输出 payload。 |
 | `npm run dashboard:release-status [-- --json]` | 只读核对本地迁移与线上迁移、`feishu-notify` 版本；不执行部署。 |
 | `npm run dashboard:evidence -- --id <source_id>` | 仅在审查包不足以判断时，展开当前快照的一条原始会话/飞书群/本地文件元数据。 |

@@ -33,6 +33,7 @@ export const TEST_FILES = [
   'workflow/publish.test.js',
   'workflow/apply-safety.test.js',
   'workflow/status.test.js',
+  'workflow/health.test.js',
   'workflow/install-cron.test.js',
   'workflow/install-dashboard-skill.test.js',
 ]
