@@ -1,4 +1,4 @@
-import type { DecisionFormDetail } from '../types'
+import type { DecisionAnswer, DecisionFormDetail, DecisionQuestion, DecisionResponse } from '../types'
 
 /** 格式化为 Asia/Shanghai 时区的时间字符串 */
 export function formatShanghaiTime(isoString: string): string {
@@ -28,6 +28,69 @@ export interface DecisionExportOptions {
   responseId?: string
   /** 仅导出指定提交身份的反馈 */
   respondentName?: string
+}
+
+export interface DecisionConsensusItem {
+  question_id: string
+  question_code: string
+  question_title: string
+  /** unanimous = 全部答卷同一结论；partial = 已答部分一致；split = 存在不同结论。 */
+  status: 'unanimous' | 'partial' | 'split' | 'text' | 'unanswered'
+  answered_count: number
+  response_count: number
+  groups: Array<{ label: string; count: number }>
+}
+
+/**
+ * A deterministic orientation layer for Agents. It never declares a winner:
+ * it only surfaces agreement, disagreement and missing answers before the
+ * complete, traceable responses that remain below it.
+ */
+export function buildDecisionConsensus(
+  form: Pick<DecisionFormDetail, 'questions'>,
+  responses: DecisionResponse[],
+): DecisionConsensusItem[] {
+  const optionsById = optionLookup(form.questions || [])
+  return (form.questions || []).map((question) => {
+    const answers = responses
+      .map((response) => (response.answers || []).find((answer) => answer.question_id === question.id))
+      .filter((answer): answer is DecisionAnswer => Boolean(answer))
+
+    if (question.type === 'free_text') {
+      return {
+        question_id: question.id,
+        question_code: question.code,
+        question_title: question.title,
+        status: answers.length ? 'text' : 'unanswered',
+        answered_count: answers.length,
+        response_count: responses.length,
+        groups: [],
+      }
+    }
+
+    const grouped = new Map<string, number>()
+    for (const answer of answers) {
+      const label = decisionAnswerLabel(question, answer, optionsById)
+      grouped.set(label, (grouped.get(label) ?? 0) + 1)
+    }
+    const groups = [...grouped.entries()].map(([label, count]) => ({ label, count }))
+    const status = answers.length === 0
+      ? 'unanswered'
+      : groups.length > 1
+        ? 'split'
+        : answers.length === responses.length
+          ? 'unanimous'
+          : 'partial'
+    return {
+      question_id: question.id,
+      question_code: question.code,
+      question_title: question.title,
+      status,
+      answered_count: answers.length,
+      response_count: responses.length,
+      groups,
+    }
+  })
 }
 
 /**
@@ -75,10 +138,26 @@ export function formatDecisionMarkdown(
     return lines.join('\n')
   }
 
-  const optionsById = new Map<string, { code: string; label: string }>()
-  for (const q of form.questions || []) {
-    for (const opt of q.options || []) {
-      optionsById.set(opt.id, { code: opt.code, label: opt.label })
+  const optionsById = optionLookup(form.questions || [])
+
+  if (responses.length > 1) {
+    lines.push('\n## Agent 速览（非自动拍板）')
+    lines.push('> 此区只标出反馈的一致、分歧和缺答，不代替 PM / Leader 的最终拍板；完整原答卷见下方。')
+    for (const item of buildDecisionConsensus(form, responses)) {
+      const prefix = `- ${item.question_code}. ${item.question_title}`
+      if (item.status === 'text') {
+        lines.push(`${prefix}：收到 ${item.answered_count}/${item.response_count} 条文本结论，请阅读原答卷。`)
+      } else if (item.status === 'unanswered') {
+        lines.push(`${prefix}：本次导出尚无人作答。`)
+      } else {
+        const choices = item.groups.map((group) => `${group.label} ×${group.count}`).join('；')
+        const state = item.status === 'unanimous'
+          ? '反馈一致'
+          : item.status === 'partial'
+            ? '已答部分一致，仍有缺答'
+            : '存在分歧'
+        lines.push(`${prefix}：${state}（${item.answered_count}/${item.response_count} 份作答）— ${choices}`)
+      }
     }
   }
 
@@ -116,30 +195,10 @@ export function formatDecisionMarkdown(
       }
 
       if (q.type === 'single_choice' || q.type === 'multiple_choice') {
-        const selectedTexts: string[] = []
-        if (ans.selected_option_ids && ans.selected_option_ids.length > 0) {
-          for (const optId of ans.selected_option_ids) {
-            const opt = optionsById.get(optId)
-            if (opt) {
-              selectedTexts.push(`${opt.code}（${opt.label}）`)
-            } else {
-              selectedTexts.push(`未知选项(${optId})`)
-            }
-          }
-        }
-        if (ans.other_text?.trim()) {
-          selectedTexts.push(`其他（${ans.other_text.trim()}）`)
-        }
-
-        lines.push(
-          `- 选择：${selectedTexts.length > 0 ? selectedTexts.join('；') : '未选择'}`,
-        )
+        lines.push(`- 选择：${decisionAnswerLabel(q, ans, optionsById)}`)
         lines.push(`- 补充：${ans.text_answer?.trim() || '无'}`)
       } else if (q.type === 'confirmation') {
-        const isConfirmed = ans.text_answer === 'confirmed'
-        lines.push(
-          `- 选择：${isConfirmed ? '确认（同意并按方案执行）' : '不确认（有异议/需调整）'}`,
-        )
+        lines.push(`- 选择：${decisionAnswerLabel(q, ans, optionsById)}`)
         lines.push(`- 补充：${ans.other_text?.trim() || '无'}`)
       } else if (q.type === 'free_text') {
         lines.push(`- 结论：${ans.text_answer?.trim() || '无'}`)
@@ -172,12 +231,7 @@ export function formatDecisionJson(
     )
   }
 
-  const optionsById = new Map<string, { code: string; label: string; detail: string }>()
-  for (const q of form.questions || []) {
-    for (const opt of q.options || []) {
-      optionsById.set(opt.id, { code: opt.code, label: opt.label, detail: opt.detail })
-    }
-  }
+  const optionsById = optionLookup(form.questions || [])
 
   const structured = {
     form: {
@@ -245,6 +299,7 @@ export function formatDecisionJson(
         }),
       }
     }),
+    consensus: buildDecisionConsensus(form, responses),
     clarifications: (form.clarifications || []).map((entry) => ({
       question_id: entry.question_id,
       kind: entry.kind,
@@ -258,4 +313,31 @@ export function formatDecisionJson(
   }
 
   return JSON.stringify(structured, null, 2)
+}
+
+type OptionLookup = Map<string, { code: string; label: string; detail?: string }>
+
+function optionLookup(questions: DecisionQuestion[]): OptionLookup {
+  const optionsById: OptionLookup = new Map()
+  for (const question of questions) {
+    for (const option of question.options || []) {
+      optionsById.set(option.id, { code: option.code, label: option.label, detail: option.detail })
+    }
+  }
+  return optionsById
+}
+
+function decisionAnswerLabel(question: DecisionQuestion, answer: DecisionAnswer, optionsById: OptionLookup): string {
+  if (question.type === 'confirmation') {
+    return answer.text_answer === 'confirmed' ? '确认（同意并按方案执行）' : '不确认（有异议/需调整）'
+  }
+  if (question.type === 'free_text') return answer.text_answer?.trim() || '无'
+  const selectedTexts = (answer.selected_option_ids || [])
+    .map((optionId) => {
+      const option = optionsById.get(optionId)
+      return option ? `${option.code}（${option.label}）` : `未知选项(${optionId})`
+    })
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  if (answer.other_text?.trim()) selectedTexts.push(`其他（${answer.other_text.trim()}）`)
+  return selectedTexts.length ? selectedTexts.join('；') : '未选择'
 }

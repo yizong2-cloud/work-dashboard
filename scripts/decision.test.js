@@ -16,6 +16,7 @@ import {
   validateDecisionSubmission,
 } from '../src/lib/decisionRules.ts'
 import {
+  buildDecisionConsensus,
   formatDecisionMarkdown,
   formatDecisionJson,
   formatShanghaiTime,
@@ -402,6 +403,25 @@ test('formatDecisionMarkdown：0 份反馈时输出清晰空提示，不虚构�
   assert.match(md, /尚未收到任何决策反馈/)
 })
 
+test('buildDecisionConsensus：只汇总一致/分歧/缺答，不擅自生成最终结论', () => {
+  const form = {
+    questions: [
+      { id: 'single', code: 'D1', title: '单选', type: 'single_choice', options: [{ id: 'a', code: 'A', label: '方案 A' }, { id: 'b', code: 'B', label: '方案 B' }] },
+      { id: 'text', code: 'D2', title: '文本', type: 'free_text', options: [] },
+      { id: 'missing', code: 'D3', title: '缺答', type: 'confirmation', options: [] },
+    ],
+  }
+  const responses = [
+    { id: 'r1', answers: [{ id: 'a1', question_id: 'single', selected_option_ids: ['a'], text_answer: '', other_text: '' }, { id: 'a2', question_id: 'text', selected_option_ids: [], text_answer: '保持简洁', other_text: '' }] },
+    { id: 'r2', answers: [{ id: 'a3', question_id: 'single', selected_option_ids: ['b'], text_answer: '', other_text: '' }] },
+  ]
+  const summary = buildDecisionConsensus(form, responses)
+  assert.deepEqual(summary.map((item) => item.status), ['split', 'text', 'unanswered'])
+  assert.deepEqual(summary[0].groups, [{ label: 'A（方案 A）', count: 1 }, { label: 'B（方案 B）', count: 1 }])
+  assert.equal(summary[1].answered_count, 1)
+  assert.equal(summary[2].answered_count, 0)
+})
+
 test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷人筛选一致', () => {
   const formDetail = {
     id: 'f-1',
@@ -480,6 +500,8 @@ test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷�
   assert.match(mdAll, /## D1\. 连击如何累计和中断/)
   assert.match(mdAll, /A（按竞品 5.0.21 源码口径）/)
   assert.match(mdAll, /其他（自定义方案）/)
+  assert.match(mdAll, /## Agent 速览（非自动拍板）/)
+  assert.match(mdAll, /D1\. 连击如何累计和中断：存在分歧/)
 
   // 指定答卷人导出
   const mdFilter = formatDecisionMarkdown(formDetail, { respondentName: '商雯祺' })
@@ -495,6 +517,7 @@ test('formatDecisionMarkdown 与 formatDecisionJson：多答卷结构与答卷�
   assert.equal(parsed.responses[0].respondent_note, '与竞品一致')
   assert.equal(parsed.responses[0].answers[0].question_code, 'D1')
   assert.equal(parsed.responses[0].answers[0].selected_options[0].code, 'A')
+  assert.equal(parsed.consensus[0].status, 'unanimous')
 })
 
 test('decision:publish：一步保留原文并幂等返回同一分享链接', () => {
