@@ -25,6 +25,7 @@
     { "pattern": "工作进度简报", "hint": "看板自动回显群；不是新的业务证据，保留审计行后按无关结案" }
   ],
   "feishu_chat": [
+    { "pattern": "Jigslide", "hint": "Jigslide（宁静华容道）客户端/CMS/API 联调群；已确认该群的加载、动效、接口与上线问题归入联调支持", "tasks": ["Jigslide（宁静华容道）CMS 与 API 联调支持"] },
     { "pattern": "Jigsaw反馈优化", "hint": "fantasy 的需求（习惯管 fantasy 叫 Jigsaw），当前验证阶段 = H5 demo", "tasks": ["Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
     { "pattern": "fantasy成就", "hint": "Fantasy 成就系统", "tasks": ["Fantasy 成就系统收尾（接手杨柯迪）"] },
     { "pattern": "成就徽章ai", "hint": "成就徽章素材 AI 生成", "tasks": ["成就徽章 AI 批量生成"] },

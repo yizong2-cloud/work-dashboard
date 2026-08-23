@@ -152,11 +152,12 @@ test('migrated active project directories retain explicit candidate mappings or 
 test('source-map matches chat title whitespace and keeps explicit non-business chats auditable', () => {
   const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
   assert.equal(normalizeMappingText('Fantasy　成就测试沟通群'), 'fantasy成就测试沟通群')
-  const result = buildFeishuCandidates('## Fantasy 成就测试沟通群（3 条）\n内容\n\n## 工作进度简报（1 条）\n回显', sourceMap)
+  const result = buildFeishuCandidates('## Fantasy 成就测试沟通群（3 条）\n内容\n\n## Jigslide（2 条）\n联调\n\n## 工作进度简报（1 条）\n回显', sourceMap)
   assert.deepEqual(result.unmappedGroups, [])
   assert.deepEqual(result.hits[0].tasks, ['Fantasy 成就系统收尾（接手杨柯迪）'])
-  assert.equal(result.hits[1].ignored, true)
-  assert.equal(result.hits[1].suggested_decision, 'irrelevant')
+  assert.deepEqual(result.hits[1].tasks, ['Jigslide（宁静华容道）CMS 与 API 联调支持'])
+  assert.equal(result.hits[2].ignored, true)
+  assert.equal(result.hits[2].suggested_decision, 'irrelevant')
 })
 
 test('degraded prepare preserves the previous healthy snapshot while replacing latest', () => {
