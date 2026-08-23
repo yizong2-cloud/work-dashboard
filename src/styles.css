@@ -3952,6 +3952,33 @@ h3,
   overflow: hidden;
 }
 
+.decision-card-next-action {
+  margin: -3px 0 0;
+  padding: 8px 10px;
+  border: 1px dashed rgba(120, 99, 189, 0.24);
+  border-radius: 9px 11px 8px 10px;
+  background: rgba(120, 99, 189, 0.055);
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.decision-action-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: #6d5a93;
+  background: rgba(120, 99, 189, 0.11);
+}
+
+.decision-action-awaiting_response { color: #8b6a32; background: rgba(212, 163, 77, 0.13); }
+.decision-action-needs_agent_review { color: #6850aa; background: rgba(120, 99, 189, 0.14); }
+.decision-action-closed { color: #55765f; background: rgba(89, 143, 132, 0.13); }
+
 .decision-card-meta {
   display: flex;
   align-items: center;
@@ -5217,4 +5244,15 @@ h3,
 @keyframes blocked-ink-alert {
   0%, 100% { box-shadow: var(--shadow); }
   50% { box-shadow: 0 0 0 4px rgba(200, 93, 108, 0.09), var(--shadow); }
+}
+
+/* Small screens keep the primary navigation as one readable row. The desktop
+   hierarchy is untouched; this is only a narrow-screen overflow fallback. */
+@media (max-width: 520px) {
+  .header-inner { flex-wrap: nowrap; gap: 7px; overflow: hidden; }
+  .brand { flex: 0 0 auto; }
+  .brand-copy small, .nav-sync { display: none; }
+  .nav { min-width: 0; flex: 1; gap: 3px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link { flex: 0 0 auto; padding-inline: 8px; white-space: nowrap; }
 }

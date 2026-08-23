@@ -37,7 +37,17 @@ export function buildWeekScheduleSignals(tasks: Task[], weekStart: string, weekE
 }
 
 function schedulingPriority(task: Task): number {
+  if (task.status === 'blocked') return -1
   return ({ urgent: 0, high: 1, normal: 2, low: 3 } as const)[task.priority] ?? 2
+}
+
+/** A transparent explanation for the small weekly recommendation queue. */
+export function schedulingRecommendation(task: Task): string {
+  if (task.status === 'blocked') return '阻塞任务尚未定期，先明确协调后的完成预期'
+  if (task.priority === 'urgent') return '加急任务，建议优先明确本周完成预期'
+  if (task.priority === 'high') return '高优先级任务，建议先落下预计完成日'
+  if (task.progress >= 80) return '已接近交付，补日期能更早暴露风险'
+  return '活跃任务尚未排期，建议明确完成预期'
 }
 
 function dateParts(iso: string) {

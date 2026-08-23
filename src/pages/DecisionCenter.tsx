@@ -4,6 +4,7 @@ import { getDB } from '../lib/dbFactory'
 import { createDecisionService } from '../lib/decisionService'
 import type { DecisionForm, DecisionFormDetail } from '../types'
 import { DecisionExportModal } from '../components/DecisionExportModal'
+import { decisionActionState, type DecisionActionState } from '../lib/decisionAction'
 import {
   FileQuestion,
   Share2,
@@ -19,7 +20,7 @@ import {
 export function DecisionCenter() {
   const navigate = useNavigate()
   const [forms, setForms] = useState<DecisionForm[]>([])
-  const [filter, setFilter] = useState<'open' | 'all' | 'closed'>('open')
+  const [filter, setFilter] = useState<'open' | 'all' | 'closed' | 'awaiting_response' | 'needs_agent_review'>('open')
   const [loading, setLoading] = useState(true)
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [exportModalForm, setExportModalForm] = useState<DecisionFormDetail | null>(null)
@@ -69,9 +70,14 @@ export function DecisionCenter() {
   const filteredForms = forms.filter((f) => {
     if (filter === 'open') return f.status === 'open'
     if (filter === 'closed') return f.status === 'closed'
+    if (filter === 'awaiting_response' || filter === 'needs_agent_review') return decisionActionState(f).state === filter
     return true
   })
   const formsWithResponses = forms.filter((f) => (f.response_count ?? 0) > 0)
+  const actionCounts = forms.reduce<Record<DecisionActionState, number>>((counts, form) => {
+    counts[decisionActionState(form).state]++
+    return counts
+  }, { awaiting_response: 0, needs_agent_review: 0, closed: 0 })
   // 首次请求还没返回时，空数组只是“未知”而不代表没有表单/反馈。
   // 不显示 0，避免 Leader 在慢网络下误以为答卷没有保存。
   const initialLoading = loading && forms.length === 0 && lastRefreshedAt === null
@@ -194,6 +200,20 @@ export function DecisionCenter() {
           </button>
           <button
             type="button"
+            className={`decision-tab ${filter === 'awaiting_response' ? 'decision-tab-active' : ''}`}
+            onClick={() => setFilter('awaiting_response')}
+          >
+            待回复 ({initialLoading ? '…' : actionCounts.awaiting_response})
+          </button>
+          <button
+            type="button"
+            className={`decision-tab ${filter === 'needs_agent_review' ? 'decision-tab-active' : ''}`}
+            onClick={() => setFilter('needs_agent_review')}
+          >
+            待整理 ({initialLoading ? '…' : actionCounts.needs_agent_review})
+          </button>
+          <button
+            type="button"
             className={`decision-tab ${filter === 'all' ? 'decision-tab-active' : ''}`}
             onClick={() => setFilter('all')}
           >
@@ -229,6 +249,7 @@ export function DecisionCenter() {
             const isOpen = form.status === 'open'
             const isClosed = form.status === 'closed'
             const isCopied = copiedSlug === form.slug
+            const action = decisionActionState(form)
 
             return (
               <div
@@ -251,6 +272,7 @@ export function DecisionCenter() {
                     <span className="tag tag-demo">
                       {form.response_count ?? 0} 份反馈
                     </span>
+                    <span className={`decision-action-tag decision-action-${action.state}`}>{action.label}</span>
                   </div>
                   <button
                     type="button"
@@ -266,6 +288,7 @@ export function DecisionCenter() {
                 {form.summary && (
                   <p className="decision-card-summary">{form.summary}</p>
                 )}
+                <p className="decision-card-next-action">{action.detail}</p>
 
                 <div className="decision-card-meta">
                   <span className="decision-meta-item">

@@ -47,6 +47,7 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 8. 只有用户在当前对话明确回复 **「确认推送」**，才依序运行：`npm run dashboard:publish -- confirm --phrase "确认推送"` → `npm run dashboard:apply` → `npm run dashboard:verify`。
    - “可以”“继续”“看起来没问题”等泛泛回复不构成确认；用户要求修改、补充或重新分析时，修改 `ops.json` 后必须重新 dry-run 和 preview。预览、快照、ops 或 reconciliation 任一变化都会使旧确认自动失效。
    - apply 会拒绝遗漏、重复、旧快照、未知 source_id、未解决待确认项或没有当前预览确认的写入；无变更也需要确认后才记录审查结案。`--force` 不能绕过来源健康或人工确认闸门。
+   - `dashboard:verify` 只有退出码 `0` 且输出 `status=closed` 才表示本轮真正结案；`verified_not_closed` / 退出码 `2` 说明数据不变量虽通过，但匹配快照尚未成功 apply，必须回到确认与 apply 闸门，不能汇报“已更新”。
 9. 仅有新别名/新确认事实时回写 `docs/KNOWLEDGE_BASE.md`，再只提交本次相关文件。
 10. 推送后汇报 apply 对账摘要、通知意图和 `dashboard:notify-status` 的实际队列状态；不要把“进入投递队列”表述成“已送达”。逐项审计证据以 `ops.json` 与 changeset 为准。
 

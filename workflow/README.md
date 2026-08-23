@@ -20,7 +20,7 @@
 | `npm run dashboard:publish -- preview` | 冻结并输出拟写入内容及飞书通知意图；不写库、不推送，供用户审核。 |
 | `npm run dashboard:publish -- confirm --phrase "确认推送"` | 记录用户对当前预览的明确确认；快照或 ops 变化会使确认失效。 |
 | `npm run dashboard:apply -- --file ops.json` | 仅在当前预览已获确认时执行；`-- --dry-run` 可随时预演，不写入。 |
-| `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告 |
+| `npm run dashboard:verify` | 校验数据不变量 + 输出健康报告；仅在匹配快照已 apply 且游标推进时以 `0` 成功结束，未闭环返回 `2` 并输出 `verified_not_closed`。 |
 | `npm run dashboard:cron:install` | 安装定时任务（macOS launchd，工作日 11:00/15:30/19:30 自动 `prepare` + 通知，无状态不推进游标） |
 | `npm run dashboard:cron:uninstall` | 卸载定时任务 |
 
@@ -54,6 +54,8 @@ npm run dashboard:apply                          # ④ 写入，并由 outbox �
 npm run dashboard:verify                         # ⑤ 校验
 # 新别名/事实回写 KNOWLEDGE_BASE 并 git commit
 ```
+
+`verify` 的“数据健康”与“本轮已结案”是两个不同结果。若输出 `verified_not_closed` / 退出码 `2`，说明没有匹配的成功 apply，不能把本轮表述为已更新或已推送；先回到当前快照的确认与 apply 闸门。
 
 ## 定时任务（工作日每天 3 次自动准备）
 

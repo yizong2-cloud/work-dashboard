@@ -22,6 +22,7 @@ import {
   formatShanghaiTime,
 } from '../src/lib/decisionFormat.ts'
 import { createStore } from './lib/store.js'
+import { decisionActionState } from '../src/lib/decisionAction.ts'
 
 const DECISION_CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'decision.js')
 const DECISION_CENTER_PAGE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'pages', 'DecisionCenter.tsx')
@@ -31,6 +32,13 @@ test('决策中心首次同步不把未加载的反馈误显示为 0', () => {
   assert.match(source, /const initialLoading = loading && forms\.length === 0 && lastRefreshedAt === null/)
   assert.match(source, /initialLoading \? '正在同步反馈…'/)
   assert.match(source, /正在读取已提交的反馈…/)
+})
+
+test('决策中心仅依据可见事实给出下一步，不把已导出误判成已消费', () => {
+  const base = { id: 'f1', slug: 'f1', title: '测试', summary: '', source_document: null, created_by: 'agent', created_at: '', closed_at: null, updated_at: '' }
+  assert.equal(decisionActionState({ ...base, status: 'open', response_count: 0 }).state, 'awaiting_response')
+  assert.equal(decisionActionState({ ...base, status: 'open', response_count: 2 }).state, 'needs_agent_review')
+  assert.equal(decisionActionState({ ...base, status: 'closed', response_count: 2 }).state, 'closed')
 })
 
 function makeDecisionRunner() {

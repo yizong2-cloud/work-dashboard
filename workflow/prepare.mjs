@@ -153,26 +153,37 @@ const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
 const LOCAL_DIRS = [path.join(HOME, 'Downloads'), path.join(HOME, 'Desktop'), path.join(HOME, 'Documents')]
 const LOCAL_EXT = /\.(apk|pdf|md|docx?|xlsx?|pptx?|zip|html?|png|jpe?g|webp|gif|mp4|txt|jsx?|tsx?|json|svg)$/i
 
-// 扫描白名单目录里「自分析游标以来」修改过的文件，输出候选清单（path/mtime/size/ext）。
-// 只收集元数据，不把文件内容直接送入模型，避免无关/隐私文件泄漏。
-function scanLocalFiles(sinceMs) {
+const LOCAL_SCAN_MAX_DEPTH = 2
+const LOCAL_BASELINE_WINDOW_MS = 30 * 24 * 3600 * 1000
+const LOCAL_SCAN_IGNORED_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', 'dist', 'build', 'coverage', '.cache', '.Trash'])
+
+// 扫描受控白名单目录里「自分析游标以来」修改过的文件，输出候选清单（path/mtime/size/ext）。
+// 只收集元数据，不把文件内容直接送入模型，避免无关/隐私文件泄漏。首次没有游标时
+// 做最近 30 天的显式基线，而不是静默把本地来源报成空；递归深度也被限制，避免扫入项目依赖或系统缓存。
+export function scanLocalFiles(sinceMs, directories = LOCAL_DIRS, nowMs = Date.now()) {
   const out = []
-  if (!sinceMs) return out
-  const minMtime = sinceMs - 6 * 3600 * 1000 // 缓冲 6h，防止跨午夜/边界漏
-  for (const dir of LOCAL_DIRS) {
-    if (!fs.existsSync(dir)) continue
+  const minMtime = sinceMs ? sinceMs - 6 * 3600 * 1000 : nowMs - LOCAL_BASELINE_WINDOW_MS // 缓冲 6h，防止跨午夜/边界漏
+  const visit = (dir, depth) => {
+    if (!fs.existsSync(dir)) return
     let entries
-    try { entries = fs.readdirSync(dir) } catch { continue }
-    for (const fn of entries) {
-      if (fn.startsWith('.')) continue
-      if (!LOCAL_EXT.test(fn)) continue
-      const fp = path.join(dir, fn)
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const fp = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (depth < LOCAL_SCAN_MAX_DEPTH && !LOCAL_SCAN_IGNORED_DIRS.has(entry.name)) visit(fp, depth + 1)
+        continue
+      }
+      if (!entry.isFile() || !LOCAL_EXT.test(entry.name)) continue
       let st
       try { st = fs.statSync(fp) } catch { continue }
       if (st.isFile() && st.mtimeMs >= minMtime) {
-        out.push({ path: fp, name: fn, mtime: new Date(st.mtimeMs).toISOString(), size: st.size, ext: fn.split('.').pop().toLowerCase() })
+        out.push({ path: fp, name: entry.name, mtime: new Date(st.mtimeMs).toISOString(), size: st.size, ext: entry.name.split('.').pop().toLowerCase() })
       }
     }
+  }
+  for (const dir of directories) {
+    visit(dir, 0)
   }
   return out.sort((a, b) => b.mtime.localeCompare(a.mtime))
 }

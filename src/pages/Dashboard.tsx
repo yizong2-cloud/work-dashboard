@@ -24,7 +24,7 @@ import { CreateTaskModal } from '../components/CreateTaskModal'
 import { commentBody, isComment } from '../lib/comments'
 import { shortDate, shortDateTime, relativeDay, taskDataFreshness, todayISO, zhDate } from '../lib/format'
 import { plannedStartPresentation } from '../lib/dashboardPlanning'
-import { dashboardSignals, isDashboardActive, isTaskOverdue, matchesDashboardFilter, type DashboardWorkFilter } from '../lib/dashboardSignals'
+import { dashboardSignals, isDashboardActive, isTaskOverdue, matchesDashboardFilter, nextDashboardAction, type DashboardWorkFilter } from '../lib/dashboardSignals'
 
 const PRIORITY_ORDER = { urgent: -1, high: 0, normal: 1, low: 2 } as const
 type WorkFilter = DashboardWorkFilter
@@ -134,10 +134,16 @@ export function Dashboard() {
     [tasks, latestByTask],
   )
 
-  const focusTask = useMemo(
-    () => activeTasks.find((task) => task.status === 'in_progress' && (task.priority === 'urgent' || task.priority === 'high')) ?? activeTasks[0] ?? null,
-    [activeTasks],
-  )
+  const focus = useMemo(() => {
+    const candidates = activeTasks
+      .map((task) => ({
+        task,
+        action: nextDashboardAction(task, todayISO(), unresolvedByTask.has(task.id)),
+      }))
+      .sort((a, b) => a.action.rank - b.action.rank || PRIORITY_ORDER[a.task.priority] - PRIORITY_ORDER[b.task.priority] || latestActivity(b.task, latestByTask).localeCompare(latestActivity(a.task, latestByTask)))
+    return candidates[0] ?? null
+  }, [activeTasks, latestByTask, unresolvedByTask])
+  const focusTask = focus?.task ?? null
 
   const plannedTasks = useMemo(
     () => tasks.filter((task) => task.status === 'planned').sort((a, b) => (a.start_date ?? '9999').localeCompare(b.start_date ?? '9999')),
@@ -231,11 +237,11 @@ export function Dashboard() {
           {focusTask ? (
             <>
               <div className="panel-heading">
-                <div><span className="eyebrow">Highest priority</span><h2>当前最高优先级</h2></div>
+                <div><span className="eyebrow">Next action</span><h2>{focus?.action.label || '下一步行动'}</h2></div>
                 <StatusBadge status={focusTask.status} />
               </div>
               <button className="focus-title" onClick={() => navigate(`/task/${focusTask.id}`)}>{focusTask.title}</button>
-              <p className="focus-status">{focusTask.current_status || '尚未填写当前情况'}</p>
+              <p className="focus-status">{focus?.action.detail || focusTask.current_status || '尚未填写当前情况'}</p>
               <TaskProgress progress={focusTask.progress} overdue={isOverdue(focusTask)} />
               <div className="focus-meta-grid">
                 <div><span>开始日期</span><strong>{zhDate(focusTask.start_date)}</strong></div>

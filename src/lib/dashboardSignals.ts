@@ -10,6 +10,13 @@ import type { Task } from '../types'
  */
 export type DashboardWorkFilter = 'all' | 'delivery_warning' | 'blocked' | 'unscheduled'
 
+export type DashboardNextAction = {
+  /** Lower ranks are shown first. This is an action order, not a task priority. */
+  rank: number
+  label: string
+  detail: string
+}
+
 export function isDashboardActive(task: Task): boolean {
   return task.status === 'in_progress' || task.status === 'blocked' || task.status === 'paused'
 }
@@ -46,6 +53,34 @@ export function dashboardSignals(tasks: Task[], today: string) {
   return { blocked, dueThisWeek, overdue, unscheduled, deliveryWarning, attention, week }
 }
 
+/**
+ * Pick the one task that deserves the largest visual treatment on the overview.
+ * This intentionally differs from the task-list sort: a high-priority task is
+ * not automatically the next thing the owner should do if an older delivery,
+ * blocker, or Leader message needs attention first.
+ */
+export function nextDashboardAction(task: Task, today: string, hasUnresolvedFeedback = false): DashboardNextAction {
+  if (task.status === 'blocked') {
+    return { rank: 0, label: '先处理阻塞', detail: task.block_reason?.trim() || '需要协调后才能继续推进' }
+  }
+  if (isTaskOverdue(task, today)) {
+    return { rank: 1, label: '先处理逾期', detail: `原计划 ${task.expected_end_date} 完成` }
+  }
+  if (isDueWithinDays(task, today, 2)) {
+    return { rank: 2, label: '临近交付', detail: `预计 ${task.expected_end_date} 完成` }
+  }
+  if (hasUnresolvedFeedback) {
+    return { rank: 3, label: '回应 Leader 留言', detail: '有未解决反馈等待跟进' }
+  }
+  if (task.priority === 'urgent' || task.priority === 'high') {
+    return { rank: 4, label: '推进高优先级', detail: '当前优先级较高，适合作为下一步推进' }
+  }
+  if (!task.expected_end_date) {
+    return { rank: 5, label: '补齐排期', detail: '尚未设置预计完成日期' }
+  }
+  return { rank: 6, label: '持续推进', detail: task.current_status || '保持当前节奏推进' }
+}
+
 export function matchesDashboardFilter(task: Task, filter: DashboardWorkFilter, today: string): boolean {
   if (filter === 'all') return true
   if (filter === 'blocked') return task.status === 'blocked'
@@ -56,6 +91,13 @@ export function matchesDashboardFilter(task: Task, filter: DashboardWorkFilter, 
 
 function isActiveStatus(status: Task['status']): boolean {
   return status === 'in_progress' || status === 'blocked' || status === 'paused'
+}
+
+function isDueWithinDays(task: Pick<Task, 'expected_end_date'>, today: string, days: number): boolean {
+  if (!task.expected_end_date || task.expected_end_date < today) return false
+  const deadline = new Date(`${today}T00:00:00`)
+  deadline.setDate(deadline.getDate() + days)
+  return task.expected_end_date <= localDateISO(deadline)
 }
 
 function localDateISO(date: Date): string {

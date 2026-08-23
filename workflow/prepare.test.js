@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, scanLocalFiles, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -99,6 +99,25 @@ test('prepare passes overridden Cookie and output paths to any exporter', () => 
     '--since', '2026-08-19T00:00', '--refresh-chats', '--markdown', '--no-update-state',
     '--cookies', '/tmp/private cookies.json', '--out', '/tmp/feishu out',
   ])
+})
+
+test('本地来源递归扫描受控目录，首次运行也会做有限窗口基线且跳过依赖目录', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-local-files-'))
+  try {
+    fs.mkdirSync(path.join(dir, 'deliverables', 'nested'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
+    const nested = path.join(dir, 'deliverables', 'nested', 'handoff.pdf')
+    const ignored = path.join(dir, 'node_modules', 'ignored.pdf')
+    fs.writeFileSync(nested, 'handoff')
+    fs.writeFileSync(ignored, 'ignored')
+    const now = Date.UTC(2026, 7, 23)
+    fs.utimesSync(nested, now / 1000, now / 1000)
+    fs.utimesSync(ignored, now / 1000, now / 1000)
+    const found = scanLocalFiles(0, [dir], now)
+    assert.deepEqual(found.map((file) => file.name), ['handoff.pdf'])
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('successful Feishu recovery is a warning, not a source failure detail', () => {

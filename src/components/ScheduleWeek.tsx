@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PlanBlock, Task } from '../types'
-import { buildScheduleEntries, buildWeekScheduleSignals } from '../lib/scheduleView'
+import { buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation } from '../lib/scheduleView'
 import { taskColorClass } from '../lib/taskColor'
 import { TaskQuickCard } from './TaskQuickCard'
 import { shortDate, todayISO } from '../lib/format'
@@ -101,24 +101,24 @@ export function ScheduleWeek({
           )}
           <section className="week-gap-section" aria-label="待补排期任务">
             <div className="week-gap-heading">
-              <div><span className="eyebrow">Scheduling gap</span><h3>待补排期</h3></div>
+              <div><span className="eyebrow">Suggested first</span><h3>本周建议先排</h3></div>
               <strong>{unscheduled.length}</strong>
             </div>
-            <p>尚未设置预计完成日期，不等同于逾期。</p>
+            <p>按阻塞 / 优先级 / 当前进度排序；仅给建议，不会自动改日期。</p>
             {unscheduled.length === 0 ? <p className="muted">所有活跃任务均已设置预计完成日。</p> : (
               <ul className="week-promise-list week-gap-list">
                 {unscheduled.slice(0, 3).map((t) => (
                   <li key={t.id}>
                     <button className={`task-chip task-color-bar-${taskColorClass(t.id)}`} onClick={() => setActiveTask(t)}>
                       <span className="task-chip-title">{t.title}</span>
-                      <span className="task-chip-meta">{t.progress}% · 待设置预计完成日</span>
+                      <span className="task-chip-meta">{schedulingRecommendation(t)}</span>
                     </button>
                     <button className="task-chip-quick" onClick={() => onQuickSchedule(t.id)} title="直接打开预计完成日期表单">补日期</button>
                   </li>
                 ))}
               </ul>
             )}
-            {unscheduled.length > 3 && <p className="week-gap-more">另有 {unscheduled.length - 3} 项待补，进入任务详情可继续处理。</p>}
+            {unscheduled.length > 3 && <p className="week-gap-more">另有 {unscheduled.length - 3} 项待补；完整清单仍可逐项进入详情处理。</p>}
           </section>
         </aside>
 

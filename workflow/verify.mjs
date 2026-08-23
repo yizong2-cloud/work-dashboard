@@ -144,7 +144,14 @@ function main() {
     } catch (e) {
       console.error(`⚠️ 分析游标检查失败: ${e.message}`)
     }
-    if (!cursorPushed) process.exit(0) // 校验通过但未推游标也正常返回，但不假装"已审查"
+    if (!cursorPushed) {
+      // A healthy board is not the same thing as a completed update cycle. A
+      // distinct non-zero code prevents scripts/Agents from treating verify as
+      // a publish confirmation when the matching snapshot was never applied.
+      console.log(JSON.stringify({ status: 'verified_not_closed', cursor_pushed: false, next: 'apply_matching_snapshot_then_verify' }))
+      process.exit(2)
+    }
+    console.log(JSON.stringify({ status: 'closed', cursor_pushed: true }))
   })()
 }
 

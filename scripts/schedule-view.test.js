@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMonthCalendar, buildScheduleEntries, buildWeekScheduleSignals } from '../src/lib/scheduleView.ts'
+import { buildMonthCalendar, buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation } from '../src/lib/scheduleView.ts'
 import { plannedStartPresentation } from '../src/lib/dashboardPlanning.ts'
 
 const task = (id, title, startDate = null, endDate = null, status = 'in_progress') => ({
@@ -100,4 +100,13 @@ test('本周承诺只保留今天之后的到期项，已过日期单列为逾�
   assert.deepEqual(signals.weekPromises.map((item) => item.id), ['today'])
   assert.deepEqual(signals.overdue.map((item) => item.id), ['past'])
   assert.deepEqual(signals.unscheduled.map((item) => item.id), ['urgent-gap', 'low-gap'])
+})
+
+test('本周建议先排优先给阻塞与高风险任务，并能解释推荐依据', () => {
+  const blockedGap = { ...task('blocked-gap', '阻塞但未排期'), status: 'blocked', priority: 'low', progress: 45 }
+  const urgentGap = { ...task('urgent-gap', '加急待排期'), priority: 'urgent', progress: 20 }
+  const signals = buildWeekScheduleSignals([urgentGap, blockedGap], '2026-08-17', '2026-08-23', '2026-08-23')
+  assert.deepEqual(signals.unscheduled.map((item) => item.id), ['blocked-gap', 'urgent-gap'])
+  assert.match(schedulingRecommendation(blockedGap), /阻塞/)
+  assert.match(schedulingRecommendation(urgentGap), /加急/)
 })
