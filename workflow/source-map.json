@@ -3,6 +3,8 @@
   "ignored_cwd": [
     { "pattern": "/work-dashboard", "hint": "Workboard 自身仓库（工具维护/系统迭代），不作为业务任务候选" },
     { "pattern": "feishu_export", "hint": "飞书导出运行目录（采集工具维护/导出物），不作为业务任务候选" },
+    { "pattern": "feishu-export-public", "hint": "公开飞书聊天采集器（工具维护），不作为业务任务候选" },
+    { "pattern": "player_app", "hint": "私人项目，已确认不上工作看板" },
     { "pattern": "Documents/Codex", "hint": "Codex 临时/测试会话，不作为业务任务候选" }
   ],
   "codex_cwd": [

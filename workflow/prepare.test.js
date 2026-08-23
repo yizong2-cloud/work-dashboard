@@ -152,11 +152,13 @@ test('migrated active project directories retain explicit candidate mappings or 
     { cwd: '/Users/zongyi/Workspace/classic-jigsaw-android' },
     { cwd: '/Users/zongyi/Workspace/classic-cms' },
     { cwd: '/Users/zongyi/Workspace/feishu_export' },
+    { cwd: '/Users/zongyi/Workspace/feishu-export-public' },
+    { cwd: '/Users/zongyi/Workspace/player_app' },
     { cwd: '/Users/zongyi/Documents/Codex/2026-08-22/temporary-thread' },
   ], sourceMap, 'codex')
   assert.deepEqual(result.unmapped, [])
   assert.equal(result.hits.length, 4)
-  assert.equal(result.ignored.length, 2)
+  assert.equal(result.ignored.length, 4)
   assert.deepEqual(result.hits[0].tasks, [
     'Fantasy 成就系统收尾（接手杨柯迪）',
     'Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配',
