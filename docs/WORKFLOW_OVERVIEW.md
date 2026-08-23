@@ -119,7 +119,8 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ### 增量游标的三层机制（const=弱点集中地，审查重点）
 | 层 | 位置 | 语义 |
 | --- | --- | --- |
-| update-context.generated_at | workflow/update-context.json | Codex/DSH 增量窗口起点（=上次「分析完成」时间，仅手动 prepare 推进；cron 用 --no-advance 不推进） |
+| `.analysis-state.reviewed_at` | `workflow/.analysis-state.json` | Codex/DSH/本地文件的分析增量窗口起点；仅在同一健康快照已成功 apply 且 verify 通过后推进 |
+| `update-context.generated_at` / `captured_at` | `workflow/update-context.json` | 本次采集快照生成时间和快照 ID；记录事实，不是任何增量游标 |
 | 飞书 .state.lastSync | ~/Workspace/feishu_export/daily/.state.json | 飞书增量起点（cron 不推进） |
 | 会话文件 mtime | ~/.codex/sessions | 摘要器收集用 mtime 过滤（续旧对话也能读到） |
 
@@ -199,9 +200,9 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
    - 用户职责边界：华容道项目里负责**后端+CMS**、不负责客户端（Jigslide 按钮动效需求不该记给他）
    → 缓解：KNOWLEDGE_BASE 持续纠正 + 待确认区 + 「有疑问拍板」。但**本质不可消除**，审查者请评估是否可引入半自动校验。
 2. **数据源覆盖仍有边界**：飞书 Cookies 会过期；Codex/DSH 仅覆盖本机可见会话；本地文件目前只扫描 Downloads/Desktop/Documents 的一级白名单目录并只采元数据，嵌套目录、外部盘和文件正文仍需按需展开。
-3. **prepare 与分析脱节**：cron 只拉不分析；「开始更新」是否可靠完全取决于 Agent 是否严格执行对账铁律（软约束）。
+3. **采集与语义判断有意分层**：cron 只拉不分析，不能替代用户发起的「开始更新」。任务归属、进度与排期仍需 Agent 进行语义判断；但这已不是单纯软约束：健康快照、每个 source_id 的完整 reconciliation、待确认暂停态、冻结预览 + 用户「确认推送」、apply 前置条件及 verify 共同拦截写库、投递和游标推进。剩余风险是“结构合法但语义错误”的映射，应通过候选线索、知识库纠正和用户确认降低，不能假装已被机械校验消除。
 4. **通知依赖写时正确声明 notify_mode**：Agent 漏/错传可能刷屏或该推不推。
-5. **测试覆盖仍不均衡**：已有 CLI、工作流、纯函数与关键页面契约测试；但 DB 触发器、真实通知投递和 React 交互仍缺浏览器级自动化回归，继续以最小线上冒烟验收兜底。
+5. **测试覆盖仍不均衡**：已有 CLI、工作流、纯函数与关键页面契约测试，默认测试输出已压缩以降低日常上下文成本（完整明细可用 `npm run test:verbose` 查看）；但 DB 触发器、真实通知投递和 React 交互仍缺浏览器级自动化回归，继续以最小线上冒烟验收兜底。
 6. **schema 部署仍需显式执行**：增量迁移已纳入 `supabase/migrations/` 并由 `dashboard:release-status` 对账，但 GitHub Pages 部署不会自动执行 `supabase db push`；涉及数据契约的发布必须单独验证远端迁移状态。
 7. **并发写入无锁**（个人使用影响小）。
 8. **无 Realtime**：Leader 手动刷新（有意为之）。
