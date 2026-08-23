@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { validateReconciliation } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const DEFAULT_REVIEW_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
@@ -39,13 +40,8 @@ function itemLines(item, tasks) {
 function completeReconciliation(packet, changeset) {
   if (!packet?.snapshot_id || changeset?.snapshot_id !== packet.snapshot_id || changeset?.all_ok !== true) return null
   if (!Array.isArray(packet.review_items) || !Array.isArray(changeset.reconciliation)) return null
-  const itemIds = packet.review_items.map((item) => item?.source_id).filter(Boolean)
-  const reconciledIds = changeset.reconciliation.map((item) => item?.source_id).filter(Boolean)
-  const validDecision = changeset.reconciliation.every((item) => ['mapped', 'irrelevant', 'needs_confirmation'].includes(item?.decision))
-  if (!validDecision || itemIds.length !== reconciledIds.length) return null
-  if (new Set(itemIds).size !== itemIds.length || new Set(reconciledIds).size !== reconciledIds.length) return null
-  if (!itemIds.every((id) => reconciledIds.includes(id))) return null
-  return { count: itemIds.length, changesetId: changeset.changeset_id || null }
+  if (validateReconciliation(packet.review_items, changeset.reconciliation).length > 0) return null
+  return { count: packet.review_items.length, changesetId: changeset.changeset_id || null }
 }
 
 export function formatReviewBrief(packet, { changeset = null, forceFull = false } = {}) {

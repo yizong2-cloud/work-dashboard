@@ -143,6 +143,21 @@ test('已完整对账的当前快照默认给出紧凑结案信息，但可显�
   assert.match(full, /已审查证据/)
 })
 
+test('审查简报不把缺 task_id 的 mapped 记录视作已经结案', () => {
+  const packet = {
+    snapshot_id: 'snapshot-bad-mapped', board: [],
+    review_items: [{ source_id: 'codex:0', review_priority: 'high', label: '会话', excerpt: '待审查证据' }],
+  }
+  const brief = formatReviewBrief(packet, {
+    changeset: {
+      snapshot_id: 'snapshot-bad-mapped', all_ok: true,
+      reconciliation: [{ source_id: 'codex:0', decision: 'mapped' }],
+    },
+  })
+  assert.match(brief, /尚未写入看板或发送飞书/)
+  assert.match(brief, /codex:0/)
+})
+
 test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {
   const packet = buildReviewPacket({
     ...context,

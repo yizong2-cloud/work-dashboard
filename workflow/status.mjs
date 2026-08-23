@@ -7,6 +7,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DEFAULT_PENDING_FILE, loadPendingPlan, pendingForSnapshot } from './pending.mjs'
 import { DEFAULT_PREVIEW_FILE } from './publish.mjs'
+import { validateReconciliation } from './review-packet.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
@@ -25,6 +26,11 @@ function ageHours(iso, now) {
   const timestamp = new Date(iso).getTime()
   if (Number.isNaN(timestamp)) return null
   return Math.max(0, now.getTime() - timestamp) / 3_600_000
+}
+
+function hasCompleteReconciliation(packet, changeset, matched) {
+  if (!matched || !Array.isArray(packet?.review_items) || !Array.isArray(changeset?.reconciliation)) return false
+  return validateReconciliation(packet.review_items, changeset.reconciliation).length === 0
 }
 
 function nextAction({ packet, changeset, matched, reconciliationComplete, ageHoursValue, lastHealthy, pending, publish }) {
@@ -49,14 +55,9 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
   const reviewItemCount = Array.isArray(packet?.review_items) ? packet.review_items.length : null
   const reconciliation = matched && Array.isArray(changeset?.reconciliation) ? changeset.reconciliation : []
-  // apply 的闸门已校验每个 source_id 恰好一条 reconciliation；这里仍按数量再做
-  // 一次只读校验，避免旧版/手工 changeset 被状态页误显示成「已完成全量对账」。
-  const reconciliationComplete = Boolean(
-    matched
-    && reviewItemCount !== null
-    && reconciliation.length === reviewItemCount
-    && reconciliation.every((entry) => entry?.source_id && ['mapped', 'irrelevant', 'needs_confirmation'].includes(entry.decision)),
-  )
+  // 与 apply 共用逐 source_id 的完整性规则，避免旧版/手工 changeset 被状态页
+  // 仅凭「条数相等」误显示成已完成全量对账。
+  const reconciliationComplete = hasCompleteReconciliation(packet, changeset, matched)
   const ageHoursValue = ageHours(packet?.captured_at, now)
   const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
   const lastHealthyValid = lastHealthyContext?.snapshot_health === 'ok'

@@ -176,7 +176,7 @@ test('status 区分采集时的归属线索与已完成的全量对账', () => {
     changeset: {
       snapshot_id: 'snap-settled', all_ok: true, changeset_id: 'chg-settled',
       reconciliation: [
-        { source_id: 'feishu:0', decision: 'mapped' },
+        { source_id: 'feishu:0', decision: 'mapped', task_id: 'task-a' },
         { source_id: 'feishu:1', decision: 'irrelevant' },
       ],
     },
@@ -208,4 +208,25 @@ test('status 不将缺少逐项对账的旧 changeset 误报为结案', () => {
   assert.equal(status.review.fully_reconciled, false)
   assert.match(formatStatus(status), /对账记录：⚠️ 1\/2/)
   assert.match(status.next_action, /缺少可核验的全量对账记录/)
+})
+
+test('status 不会被条数相等但 source_id 重复的伪对账欺骗', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-duplicate', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 2 } }, coverage: { complete: true, gaps: [] },
+      counts: { total: 2, review_attention: 2 },
+      review_items: [{ source_id: 'feishu:0' }, { source_id: 'feishu:1' }],
+    },
+    changeset: {
+      snapshot_id: 'snap-duplicate', all_ok: true,
+      reconciliation: [
+        { source_id: 'feishu:0', decision: 'mapped', task_id: 'task-a' },
+        { source_id: 'feishu:0', decision: 'irrelevant' },
+      ],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.review.fully_reconciled, false)
+  assert.match(formatStatus(status), /不能确认已完整结案/)
 })
