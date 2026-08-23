@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMonthCalendar, buildScheduleEntries } from '../src/lib/scheduleView.ts'
+import { buildMonthCalendar, buildScheduleEntries, buildWeekScheduleSignals } from '../src/lib/scheduleView.ts'
 import { plannedStartPresentation } from '../src/lib/dashboardPlanning.ts'
 
 const task = (id, title, startDate = null, endDate = null, status = 'in_progress') => ({
@@ -85,4 +85,16 @@ test('待启动任务不会把已过去的启动日误标为未来日程', () =>
   assert.deepEqual(plannedStartPresentation({ start_date: '2026-08-26' }, '2026-08-23'), {
     state: 'upcoming', label: '8/26 启动', needsAttention: false,
   })
+})
+
+test('本周承诺只保留今天之后的到期项，已过日期单列为逾期，未排期单列为待补', () => {
+  const signals = buildWeekScheduleSignals([
+    task('past', '已过期任务', null, '2026-08-19'),
+    task('today', '今日承诺', null, '2026-08-23'),
+    task('no-date', '待补排期'),
+  ], '2026-08-17', '2026-08-23', '2026-08-23')
+
+  assert.deepEqual(signals.weekPromises.map((item) => item.id), ['today'])
+  assert.deepEqual(signals.overdue.map((item) => item.id), ['past'])
+  assert.deepEqual(signals.unscheduled.map((item) => item.id), ['no-date'])
 })

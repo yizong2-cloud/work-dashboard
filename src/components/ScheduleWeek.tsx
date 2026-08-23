@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PlanBlock, Task } from '../types'
-import { buildScheduleEntries } from '../lib/scheduleView'
+import { buildScheduleEntries, buildWeekScheduleSignals } from '../lib/scheduleView'
 import { taskColorClass } from '../lib/taskColor'
 import { TaskQuickCard } from './TaskQuickCard'
 import { shortDate, todayISO } from '../lib/format'
@@ -47,25 +47,13 @@ export function ScheduleWeek({
   const week = useMemo(() => weekOf(today), [today])
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
-  const active = useMemo(
-    () => tasks.filter((t) => ['in_progress', 'planned', 'blocked', 'paused'].includes(t.status)),
-    [tasks],
-  )
+  const signals = useMemo(() => buildWeekScheduleSignals(tasks, week[0], week[6], today), [tasks, week, today])
+  const { weekPromises, overdue, unscheduled, risks } = signals
   const entries = useMemo(
     () => buildScheduleEntries(tasks, blocks, week[0], week[6]),
     [tasks, blocks, week],
   )
 
-  // 本周承诺：预计完成在本周 且 未完成
-  const weekPromises = useMemo(
-    () => active
-      .filter((t) => t.expected_end_date && t.expected_end_date >= week[0] && t.expected_end_date <= week[6])
-      .sort((a, b) => (a.expected_end_date || '').localeCompare(b.expected_end_date || '')),
-    [active, week],
-  )
-  const overdue = active.filter((t) => t.expected_end_date && t.expected_end_date < today)
-  const unscheduled = active.filter((t) => !t.expected_end_date)
-  const risks = active.filter((t) => t.status === 'blocked' || t.priority === 'urgent')
   const plannedToday = useMemo(
     () => new Set(blocks.filter((b) => b.start_date <= today && b.end_date >= today && b.status !== 'done').map((b) => b.task_id)),
     [blocks, today],
@@ -81,7 +69,7 @@ export function ScheduleWeek({
       <section className="card week-summary" aria-label="本周行动摘要">
         <div className="week-summary-item"><span>本周承诺</span><strong>{weekPromises.length}</strong></div>
         <div className="week-summary-item is-risk"><span>逾期</span><strong>{overdue.length}</strong></div>
-        <div className="week-summary-item is-warn"><span>未排期</span><strong>{unscheduled.length}</strong></div>
+        <div className="week-summary-item is-warn"><span>待补排期</span><strong>{unscheduled.length}</strong></div>
         <div className="week-summary-item is-risk"><span>需处理（阻塞/加急）</span><strong>{risks.length}</strong></div>
       </section>
 
@@ -109,6 +97,27 @@ export function ScheduleWeek({
               ))}
             </ul>
           )}
+          <section className="week-gap-section" aria-label="待补排期任务">
+            <div className="week-gap-heading">
+              <div><span className="eyebrow">Scheduling gap</span><h3>待补排期</h3></div>
+              <strong>{unscheduled.length}</strong>
+            </div>
+            <p>尚未设置预计完成日期，不等同于逾期。</p>
+            {unscheduled.length === 0 ? <p className="muted">所有活跃任务均已设置预计完成日。</p> : (
+              <ul className="week-promise-list week-gap-list">
+                {unscheduled.slice(0, 3).map((t) => (
+                  <li key={t.id}>
+                    <button className={`task-chip task-color-bar-${taskColorClass(t.id)}`} onClick={() => setActiveTask(t)}>
+                      <span className="task-chip-title">{t.title}</span>
+                      <span className="task-chip-meta">{t.progress}% · 待设置预计完成日</span>
+                    </button>
+                    <button className="task-chip-quick" onClick={() => onOpenTask(t.id)} title="前往任务详情补充预计完成日期">补日期</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {unscheduled.length > 3 && <p className="week-gap-more">另有 {unscheduled.length - 3} 项待补，进入任务详情可继续处理。</p>}
+          </section>
         </aside>
 
         {/* 中间：本周时间轴 */}
@@ -126,7 +135,7 @@ export function ScheduleWeek({
             {week.map((day) => {
               const plans = dayPlans(day)
               const overload = plans.length >= MAX_PLANS_PER_DAY
-              const overdueTasksOnDay = weekPromises.filter((t) => t.expected_end_date === day && t.expected_end_date < today)
+              const overdueTasksOnDay = overdue.filter((t) => t.expected_end_date === day)
               return (
                 <div key={day} className={`week-day${day === today ? ' is-today' : ''}`}>
                   {plans.length === 0 && overdueTasksOnDay.length === 0 ? <span className="week-day-empty" /> :

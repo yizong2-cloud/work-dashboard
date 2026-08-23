@@ -16,6 +16,24 @@ export interface MonthCalendar {
   weeks: string[][]
 }
 
+/**
+ * Signals for the weekly planning view.
+ *
+ * A commitment due earlier than today is an overdue item, not a remaining
+ * commitment for this week. Keeping the two lists separate prevents a missed
+ * date from being presented as if it were still an upcoming plan.
+ */
+export function buildWeekScheduleSignals(tasks: Task[], weekStart: string, weekEnd: string, today: string) {
+  const active = tasks.filter((task) => ['in_progress', 'planned', 'blocked', 'paused'].includes(task.status))
+  const weekPromises = active
+    .filter((task) => task.expected_end_date && task.expected_end_date >= today && task.expected_end_date <= weekEnd)
+    .sort((a, b) => (a.expected_end_date || '').localeCompare(b.expected_end_date || ''))
+  const overdue = active.filter((task) => task.expected_end_date && task.expected_end_date < today)
+  const unscheduled = active.filter((task) => !task.expected_end_date)
+  const risks = active.filter((task) => task.status === 'blocked' || task.priority === 'urgent')
+  return { active, weekPromises, overdue, unscheduled, risks, weekStart, weekEnd }
+}
+
 function dateParts(iso: string) {
   const [year, month, day] = iso.split('-').map(Number)
   return { year, month, day }
