@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildMonthCalendar, buildScheduleEntries } from '../src/lib/scheduleView.ts'
+import { plannedStartPresentation } from '../src/lib/dashboardPlanning.ts'
 
 const task = (id, title, startDate = null, endDate = null, status = 'in_progress') => ({
   id,
@@ -72,4 +73,16 @@ test('自然月按实际日历生成 5 行或 6 行，而不是固定五周', ()
   assert.equal(august.rangeEnd, '2026-09-06')
   assert.equal(september.weeks.length, 5)
   assert.equal(september.weeks.flat().length, 35)
+})
+
+test('待启动任务不会把已过去的启动日误标为未来日程', () => {
+  assert.deepEqual(plannedStartPresentation({ start_date: '2026-08-05' }, '2026-08-23'), {
+    state: 'awaiting_start', label: '待启动 · 原定 8/5', needsAttention: true,
+  })
+  assert.deepEqual(plannedStartPresentation({ start_date: '2026-08-23' }, '2026-08-23'), {
+    state: 'today', label: '今日启动', needsAttention: false,
+  })
+  assert.deepEqual(plannedStartPresentation({ start_date: '2026-08-26' }, '2026-08-23'), {
+    state: 'upcoming', label: '8/26 启动', needsAttention: false,
+  })
 })

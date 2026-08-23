@@ -23,6 +23,7 @@ import { QuickUpdateModal } from '../components/QuickUpdateModal'
 import { CreateTaskModal } from '../components/CreateTaskModal'
 import { commentBody, isComment } from '../lib/comments'
 import { shortDate, shortDateTime, relativeDay, taskDataFreshness, todayISO, zhDate } from '../lib/format'
+import { plannedStartPresentation } from '../lib/dashboardPlanning'
 
 const PRIORITY_ORDER = { urgent: -1, high: 0, normal: 1, low: 2 } as const
 type WorkFilter = 'all' | 'risk' | 'blocked' | 'unscheduled'
@@ -397,11 +398,17 @@ export function Dashboard() {
             </div>
           </article>
           <article className="side-card card">
-            <div className="panel-heading compact-heading"><div><span className="eyebrow">Coming next</span><h2>接下来</h2></div><span className="count-pill">{plannedTasks.length}</span></div>
-            <div className="compact-list">
-              {plannedTasks.length === 0 ? <p className="empty-copy">暂无待开始任务</p> : plannedTasks.slice(0, 4).map((task) => (
-                <button key={task.id} onClick={() => navigate(`/task/${task.id}`)}><span className="compact-date">{shortDate(task.start_date)}</span><span>{task.title}</span><DashboardIcon name="chevron" /></button>
-              ))}
+            <div className="panel-heading compact-heading"><div><span className="eyebrow">Awaiting start</span><h2>待启动</h2></div><span className="count-pill">{plannedTasks.length}</span></div>
+            <div className="compact-list compact-list-planned">
+              {plannedTasks.length === 0 ? <p className="empty-copy">暂无待启动任务</p> : plannedTasks.slice(0, 4).map((task) => {
+                const start = plannedStartPresentation(task)
+                return (
+                  <button key={task.id} onClick={() => navigate(`/task/${task.id}`)} title={task.current_status || start.label}>
+                    <span className={`compact-date ${start.needsAttention ? 'compact-date-warning' : ''}`}>{start.label}</span>
+                    <span>{task.title}</span><DashboardIcon name="chevron" />
+                  </button>
+                )
+              })}
             </div>
           </article>
 

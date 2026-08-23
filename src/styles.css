@@ -1587,6 +1587,7 @@ section {
 .compact-list .dashboard-icon { width: 13px; color: #a2aec0; }
 .compact-date { color: var(--primary); background: var(--primary-weak); border-radius: 7px; padding: 3px 5px; font-size: 0.67rem; font-weight: 800; text-align: center; }
 .compact-list-success button { grid-template-columns: 23px minmax(0, 1fr) auto; }
+.compact-list-planned button { grid-template-columns: minmax(92px, auto) minmax(0, 1fr) 15px; }
 .success-check { width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-weak); color: var(--ok); font-size: 0.7rem; font-weight: 900; }
 .compact-list time { color: var(--muted); font-size: 0.67rem; }
 .empty-copy { color: var(--muted); font-size: 0.8rem; }
@@ -2568,6 +2569,11 @@ h3,
   border: 1px dashed currentColor;
   border-radius: 6px 8px 5px 7px;
   background: #f1ebfa;
+}
+
+.compact-date.compact-date-warning {
+  color: #a75b30;
+  background: #fff3e4;
 }
 
 .detail-hero {
