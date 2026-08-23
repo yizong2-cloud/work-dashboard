@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PlanBlock, Task } from '../types'
-import { buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation } from '../lib/scheduleView'
+import { buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation, selectTodayFocus } from '../lib/scheduleView'
 import { taskColorClass } from '../lib/taskColor'
 import { TaskQuickCard } from './TaskQuickCard'
 import { shortDate, todayISO } from '../lib/format'
@@ -60,6 +60,17 @@ export function ScheduleWeek({
     () => new Set(blocks.filter((b) => b.start_date <= today && b.end_date >= today && b.status !== 'done').map((b) => b.task_id)),
     [blocks, today],
   )
+  const todayPlanTasks = useMemo(() => {
+    const taskById = new Map<string, Task>()
+    entries
+      .filter((entry) => entry.source === 'plan_block' && entry.startDate <= today && entry.endDate >= today && entry.block?.status !== 'done')
+      .forEach((entry) => taskById.set(entry.task.id, entry.task))
+    return [...taskById.values()]
+  }, [entries, today])
+  const todayFocus = useMemo(
+    () => selectTodayFocus(weekPromises, unscheduled, plannedToday),
+    [weekPromises, unscheduled, plannedToday],
+  )
 
   function dayPlans(day: string) {
     return entries.filter((e) => e.source === 'plan_block' && e.startDate <= day && e.endDate >= day)
@@ -73,6 +84,38 @@ export function ScheduleWeek({
         <div className="week-summary-item is-risk"><span>逾期</span><strong>{overdue.length}</strong></div>
         <div className="week-summary-item is-warn"><span>待补排期</span><strong>{unscheduled.length}</strong></div>
         <div className="week-summary-item is-risk"><span>需处理（阻塞/加急）</span><strong>{risks.length}</strong></div>
+      </section>
+
+      <section className="card week-today-focus" aria-label="今日安排建议">
+        <div className="week-today-focus-heading">
+          <span className="eyebrow">Today</span>
+          <h2>{todayPlanTasks.length > 0 ? `今天已安排 ${todayPlanTasks.length} 项` : '今天先做什么'}</h2>
+        </div>
+        {todayPlanTasks.length > 0 ? (
+          <div className="week-today-focus-content">
+            <p>这些任务已有具体日计划；点击可查看或调整。</p>
+            <div className="week-today-task-list">
+              {todayPlanTasks.map((task) => (
+                <button key={task.id} className={`week-today-task task-color-bar-${taskColorClass(task.id)}`} onClick={() => setActiveTask(task)}>
+                  {task.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : todayFocus ? (
+          <div className="week-today-focus-content is-suggested">
+            <div>
+              <strong>{todayFocus.task.title}</strong>
+              <p>{todayFocus.reason}</p>
+            </div>
+            <div className="week-today-actions">
+              <button className="primary-btn compact" onClick={() => onPlanToday(todayFocus.task.id)}>＋安排到今天</button>
+              <button className="secondary-btn compact" onClick={() => setActiveTask(todayFocus.task)}>查看任务</button>
+            </div>
+          </div>
+        ) : (
+          <p className="week-today-empty">今天暂无需要补充的日计划。</p>
+        )}
       </section>
 
       <div className="week-layout">
@@ -127,12 +170,16 @@ export function ScheduleWeek({
           <div className="panel-heading"><div><span className="eyebrow">Plan</span><h2>本周安排</h2></div></div>
           <div className="week-grid">
             <div className="week-head empty-weekhead" />
-            {week.map((day) => (
-              <div key={day} className={`week-head${day === today ? ' is-today' : ''}`}>
-                <strong>{WEEKDAYS[week.indexOf(day)]}</strong>
-                <span>{Number(day.slice(8))}</span>
-              </div>
-            ))}
+            {week.map((day) => {
+              const planCount = dayPlans(day).length
+              return (
+                <div key={day} className={`week-head${day === today ? ' is-today' : ''}`}>
+                  <strong>{WEEKDAYS[week.indexOf(day)]}</strong>
+                  <span>{Number(day.slice(8))}</span>
+                  <small className={planCount > 0 ? 'has-plans' : ''}>{planCount > 0 ? `${planCount} 项计划` : '未安排'}</small>
+                </div>
+              )
+            })}
             <div className="week-body-title">计划</div>
             {week.map((day) => {
               const plans = dayPlans(day)

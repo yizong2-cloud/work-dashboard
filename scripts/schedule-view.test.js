@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildMonthCalendar, buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation } from '../src/lib/scheduleView.ts'
+import { buildMonthCalendar, buildScheduleEntries, buildWeekScheduleSignals, schedulingRecommendation, selectTodayFocus } from '../src/lib/scheduleView.ts'
 import { plannedStartPresentation } from '../src/lib/dashboardPlanning.ts'
 
 const task = (id, title, startDate = null, endDate = null, status = 'in_progress') => ({
@@ -109,4 +109,25 @@ test('本周建议先排优先给阻塞与高风险任务，并能解释推荐�
   assert.deepEqual(signals.unscheduled.map((item) => item.id), ['blocked-gap', 'urgent-gap'])
   assert.match(schedulingRecommendation(blockedGap), /阻塞/)
   assert.match(schedulingRecommendation(urgentGap), /加急/)
+})
+
+test('今日建议优先未安排的本周承诺，且不会把阻塞任务伪装成今天可执行项', () => {
+  const blocked = { ...task('blocked', '等待外部确认', null, '2026-08-25', 'blocked'), priority: 'urgent' }
+  const commitment = { ...task('promise', '准备交付', null, '2026-08-26'), priority: 'normal' }
+  const unscheduled = { ...task('gap', '补充排期'), priority: 'urgent' }
+
+  const focus = selectTodayFocus([blocked, commitment], [unscheduled], new Set())
+  assert.equal(focus?.task.id, 'promise')
+  assert.equal(focus?.source, 'week_promise')
+  assert.match(focus?.reason || '', /本周承诺/)
+})
+
+test('今日建议会跳过已安排或阻塞任务，必要时回退到未排期任务', () => {
+  const plannedCommitment = { ...task('planned', '今天已有计划', null, '2026-08-25'), priority: 'high' }
+  const blockedGap = { ...task('blocked-gap', '等待协调', null, null, 'blocked'), priority: 'urgent' }
+  const readyGap = { ...task('ready-gap', '需要今天推进'), priority: 'high' }
+
+  const focus = selectTodayFocus([plannedCommitment], [blockedGap, readyGap], new Set(['planned']))
+  assert.equal(focus?.task.id, 'ready-gap')
+  assert.equal(focus?.source, 'unscheduled')
 })

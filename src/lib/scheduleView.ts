@@ -17,6 +17,17 @@ export interface MonthCalendar {
 }
 
 /**
+ * A single, safe suggestion for turning the week view into an executable
+ * day plan. Blocked work deliberately never becomes a "plan it today"
+ * recommendation: it first needs coordination, not a calendar block.
+ */
+export interface TodayFocus {
+  task: Task
+  source: 'week_promise' | 'unscheduled'
+  reason: string
+}
+
+/**
  * Signals for the weekly planning view.
  *
  * A commitment due earlier than today is an overdue item, not a remaining
@@ -48,6 +59,38 @@ export function schedulingRecommendation(task: Task): string {
   if (task.priority === 'high') return '高优先级任务，建议先落下预计完成日'
   if (task.progress >= 80) return '已接近交付，补日期能更早暴露风险'
   return '活跃任务尚未排期，建议明确完成预期'
+}
+
+/**
+ * Select an actionable task for today without changing any task data.
+ * Prefer a dated commitment in the current week; only then surface an
+ * unscheduled task. Callers decide whether the user wants to add a plan.
+ */
+export function selectTodayFocus(
+  weekPromises: Task[],
+  unscheduled: Task[],
+  plannedToday: Set<string>,
+): TodayFocus | null {
+  const isActionable = (task: Task) => task.status !== 'blocked' && !plannedToday.has(task.id)
+  const commitment = weekPromises
+    .filter(isActionable)
+    .sort((a, b) => (a.expected_end_date || '').localeCompare(b.expected_end_date || '') || schedulingPriority(a) - schedulingPriority(b))[0]
+
+  if (commitment) {
+    return {
+      task: commitment,
+      source: 'week_promise',
+      reason: `本周承诺，预计 ${commitment.expected_end_date!.slice(5).replace('-', '/')} 完成`,
+    }
+  }
+
+  const gap = unscheduled.filter(isActionable)[0]
+  if (!gap) return null
+  return {
+    task: gap,
+    source: 'unscheduled',
+    reason: schedulingRecommendation(gap),
+  }
 }
 
 function dateParts(iso: string) {
