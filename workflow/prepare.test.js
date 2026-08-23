@@ -147,6 +147,7 @@ test('source-map task keywords only reference declared candidate tasks', () => {
 test('migrated active project directories retain explicit candidate mappings or ignore rules', () => {
   const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
   const result = buildSessionCandidates([
+    { cwd: '/Users/zongyi/Workspace/jigsaw-android' },
     { cwd: '/Users/zongyi/Workspace/bi-cli' },
     { cwd: '/Users/zongyi/Workspace/classic-jigsaw-android' },
     { cwd: '/Users/zongyi/Workspace/classic-cms' },
@@ -154,9 +155,15 @@ test('migrated active project directories retain explicit candidate mappings or 
     { cwd: '/Users/zongyi/Documents/Codex/2026-08-22/temporary-thread' },
   ], sourceMap, 'codex')
   assert.deepEqual(result.unmapped, [])
-  assert.equal(result.hits.length, 3)
+  assert.equal(result.hits.length, 4)
   assert.equal(result.ignored.length, 2)
-  assert.deepEqual(result.hits[0].tasks, ['拼图矩阵 BI 数据问题修复与口径治理'])
+  assert.deepEqual(result.hits[0].tasks, [
+    'Fantasy 成就系统收尾（接手杨柯迪）',
+    'Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配',
+    'Jigsaw H5 Demo（拼接反馈动效多方案验证）',
+    'Fantasy 积分制与完成页激励文案开发',
+  ])
+  assert.deepEqual(result.hits[1].tasks, ['拼图矩阵 BI 数据问题修复与口径治理'])
 })
 
 test('source-map matches chat title whitespace and keeps explicit non-business chats auditable', () => {

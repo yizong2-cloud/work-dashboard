@@ -94,16 +94,16 @@
 
 | 项目目录（Codex cwd） | 对应看板任务 |
 | --- | --- |
-| `~/jigsolitaire-cms`、`~/jigsaw-cms` | Jigslide（宁静华容道）CMS 与 API 联调支持、华容道正式服图库填充 |
-| `~/StudioProjects/jigsaw-android` | Jigsaw Puzzle 客户端（试玩广告、平板/折叠屏适配、BI 埋点） |
+| `~/Workspace/jigsolitaire-cms`、`~/Workspace/jigsaw-cms` | Jigslide（宁静华容道）CMS 与 API 联调支持、华容道正式服图库填充 |
+| `~/Workspace/jigsaw-android` | Fantasy Jigsaw 客户端（成就、试玩、H5 Demo、积分制等；具体以会话内容区分） |
 | `~/Downloads/FunColor-Applovin试玩替换` | Jigsaw 试玩广告（AppLovin 渠道适配） |
 | `~/Downloads/Fantasy Jigsaw-适配moloco试玩` | Jigsaw 试玩广告（Moloco 渠道适配） |
 | `~/Downloads/试完广告修改需求` | Jigsaw 试玩广告（竞改迭代） |
-| `~/jigsaw-h5-ad`、`~/jigsaw-card-solitaire*` | Jigsaw 广告/试玩相关（映射待进一步确认） |
-| `~/StudioProjects/classic-jigsaw-android` | 经典拼图客户端（映射待确认） |
+| `~/Workspace/jigsaw-h5-ad`、`~/Workspace/jigsaw-card-solitaire*` | Jigsaw 广告/试玩相关（映射待进一步确认） |
+| `~/Workspace/classic-jigsaw-android`、`~/Workspace/classic-cms` | Classic/Countryside 客户端与 CMS（动图、小米测试、配置问题优先归 Countryside 动图任务；具体以会话内容区分） |
 | `~/Documents/Codex/*`（随机目录名） | 多为 Codex 测试/临时会话，非工作任务，忽略 |
 
-> 规则：新目录出现时，若无法确定对应任务，在分析结果中标注「待确认」并问用户。
+> 旧 `~/StudioProjects/...` 与根目录 cwd 仅可能出现在迁移前的历史会话；当前项目以 `~/Workspace/...` 为准。新目录出现时，若无法确定对应任务，在分析结果中标注「待确认」并问用户。
 
 ## 七、待确认区（新事实先放这里，用户确认后移入「已确认事实」）
 
