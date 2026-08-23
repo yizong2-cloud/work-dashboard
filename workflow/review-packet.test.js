@@ -117,6 +117,32 @@ test('审查简报拒绝缺失或损坏的审查包', () => {
   assert.match(formatReviewBrief({ review_items: null }), /找不到有效 review-packet/)
 })
 
+test('已完整对账的当前快照默认给出紧凑结案信息，但可显式展开审计摘录', () => {
+  const packet = {
+    snapshot_id: 'snapshot-settled',
+    board: [],
+    review_items: [
+      { source_id: 'codex:0', review_priority: 'high', review_reason: 'no_candidate_mapping', label: '会话', excerpt: '已审查证据' },
+      { source_id: 'feishu:0', review_priority: 'normal', review_reason: 'single_candidate', label: '群聊', excerpt: '已审查聊天' },
+    ],
+  }
+  const changeset = {
+    snapshot_id: 'snapshot-settled', all_ok: true, changeset_id: 'chg-settled',
+    reconciliation: [
+      { source_id: 'codex:0', decision: 'irrelevant' },
+      { source_id: 'feishu:0', decision: 'mapped', task_id: 'task-a' },
+    ],
+  }
+  const compact = formatReviewBrief(packet, { changeset })
+  assert.match(compact, /当前快照已结案/)
+  assert.match(compact, /已完成全量对账 2\/2/)
+  assert.doesNotMatch(compact, /已审查证据/)
+  const full = formatReviewBrief(packet, { changeset, forceFull: true })
+  assert.match(full, /审查简报（只读审计；本快照已结案，不得重新写入或推送）/)
+  assert.match(full, /codex:0/)
+  assert.match(full, /已审查证据/)
+})
+
 test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {
   const packet = buildReviewPacket({
     ...context,

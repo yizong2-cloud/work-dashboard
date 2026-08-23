@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const DEFAULT_REVIEW_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
+export const DEFAULT_CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
 const EXCERPT_LIMIT = 220
 
 function taskIndex(board) {
@@ -35,17 +36,42 @@ function itemLines(item, tasks) {
   return lines
 }
 
-export function formatReviewBrief(packet) {
+function completeReconciliation(packet, changeset) {
+  if (!packet?.snapshot_id || changeset?.snapshot_id !== packet.snapshot_id || changeset?.all_ok !== true) return null
+  if (!Array.isArray(packet.review_items) || !Array.isArray(changeset.reconciliation)) return null
+  const itemIds = packet.review_items.map((item) => item?.source_id).filter(Boolean)
+  const reconciledIds = changeset.reconciliation.map((item) => item?.source_id).filter(Boolean)
+  const validDecision = changeset.reconciliation.every((item) => ['mapped', 'irrelevant', 'needs_confirmation'].includes(item?.decision))
+  if (!validDecision || itemIds.length !== reconciledIds.length) return null
+  if (new Set(itemIds).size !== itemIds.length || new Set(reconciledIds).size !== reconciledIds.length) return null
+  if (!itemIds.every((id) => reconciledIds.includes(id))) return null
+  return { count: itemIds.length, changesetId: changeset.changeset_id || null }
+}
+
+export function formatReviewBrief(packet, { changeset = null, forceFull = false } = {}) {
   if (!packet || !Array.isArray(packet.review_items)) return '❌ 找不到有效 review-packet.json；请先运行 npm run dashboard:prepare。'
   const tasks = taskIndex(packet.board)
   const items = packet.review_items
   const high = items.filter((item) => item.review_priority === 'high')
+  const settled = completeReconciliation(packet, changeset)
+  if (settled && !forceFull) {
+    return [
+      '✅ 审查简报：当前快照已结案（只读）',
+      `快照：${packet.snapshot_id} · 已完成全量对账 ${settled.count}/${settled.count}${settled.changesetId ? ` · changeset ${settled.changesetId}` : ''}`,
+      high.length ? `采集时有 ${high.length} 条需要人工归属，结论已写入 changeset；无需重新生成 ops.json 或推送。` : '采集线索均已结案；无需重新生成 ops.json 或推送。',
+      '下一步：等待下一次 npm run dashboard:prepare。若只为审计本批原始摘录，运行 npm run dashboard:review-brief -- --full。',
+    ].join('\n')
+  }
   const suggestedIrrelevant = items.filter((item) => item.suggested_decision === 'irrelevant')
   const low = items.filter((item) => item.review_priority !== 'high' && item.suggested_decision !== 'irrelevant')
   const lines = [
-    '🧭 审查简报（只读；尚未写入看板或发送飞书）',
+    settled
+      ? '🧭 审查简报（只读审计；本快照已结案，不得重新写入或推送）'
+      : '🧭 审查简报（只读；尚未写入看板或发送飞书）',
     `快照：${packet.snapshot_id || '未知'} · 证据 ${items.length} 条 · 需判断 ${high.length} 条`,
-    '使用此简报时，仍必须在 ops.json 为每一个 source_id 写唯一 reconciliation；不清楚的单项才用 dashboard:evidence 展开。',
+    settled
+      ? '这是历史审计展开。以 changeset 中已有结论为准；不得重新生成 ops.json、apply 或推送。'
+      : '使用此简报时，仍必须在 ops.json 为每一个 source_id 写唯一 reconciliation；不清楚的单项才用 dashboard:evidence 展开。',
   ]
   if (suggestedIrrelevant.length) {
     lines.push('', `## 明确无关（${suggestedIrrelevant.length} 条，保留审计后可按建议快速结案）`)
@@ -63,17 +89,22 @@ export function formatReviewBrief(packet) {
 }
 
 function parseArgs(argv) {
-  const args = { file: DEFAULT_REVIEW_FILE }
+  const args = { file: DEFAULT_REVIEW_FILE, changeset: DEFAULT_CHANGESET_FILE, forceFull: false }
   for (let index = 0; index < argv.length; index++) {
     if (argv[index] === '--file') args.file = argv[++index]
+    if (argv[index] === '--changeset') args.changeset = argv[++index]
+    if (argv[index] === '--full') args.forceFull = true
   }
   return args
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const { file } = parseArgs(argv)
+  const { file, changeset: changesetFile, forceFull } = parseArgs(argv)
   try {
-    console.log(formatReviewBrief(JSON.parse(fs.readFileSync(file, 'utf8'))))
+    const changeset = (() => {
+      try { return JSON.parse(fs.readFileSync(changesetFile, 'utf8')) } catch { return null }
+    })()
+    console.log(formatReviewBrief(JSON.parse(fs.readFileSync(file, 'utf8')), { changeset, forceFull }))
   } catch {
     console.error('❌ 找不到有效 review-packet.json；请先运行 npm run dashboard:prepare。')
     process.exitCode = 1
