@@ -958,10 +958,11 @@ begin
     from public.tasks
    where status = 'in_progress' and expected_end_date is null;
 
-  -- 待回应反馈
+  -- 待回应的 Leader 反馈；给 Agent 的处理指令不属于 Leader 协作，不能进入群日报计数。
   select count(*) into v_feedback
     from public.task_feedback_threads
-   where status <> 'resolved';
+   where status <> 'resolved'
+     and kind = 'leader_feedback';
 
   -- 今日更新 / 活跃任务 / 待开始
   select count(*) into v_updates from public.task_updates
