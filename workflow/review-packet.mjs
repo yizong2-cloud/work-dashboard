@@ -166,10 +166,16 @@ function sourceHealth(ctx) {
     file: fallback.file ?? null,
     detail: steps.get(name)?.detail ? redactSensitiveText(steps.get(name).detail).slice(0, 240) : null,
   })
+  const sourceWithCount = (name, fallback, count) => ({
+    ...source(name, fallback),
+    count: fallback?.count ?? count ?? null,
+  })
   return {
-    feishu: source('飞书增量导出', ctx.sources?.feishu),
-    codex: source('Codex 摘要', ctx.sources?.codex),
-    dsh: source('DSH 摘要', ctx.sources?.dsh),
+    // 飞书导出器的 source 元数据不一定返回 count；以当前快照中实际可审查群数补齐，
+    // 避免状态页把健康来源误显示成“条数未知”。
+    feishu: sourceWithCount('飞书增量导出', ctx.sources?.feishu, splitFeishuGroups(ctx.feishu?.content).length),
+    codex: sourceWithCount('Codex 摘要', ctx.sources?.codex, mergeSessionRows(ctx.codex, ctx.codex_detail).length),
+    dsh: sourceWithCount('DSH 摘要', ctx.sources?.dsh, mergeSessionRows(ctx.dsh, ctx.dsh_detail).length),
     local_files: {
       ok: true,
       count: Array.isArray(ctx.sources?.local_files) ? ctx.sources.local_files.length : 0,
