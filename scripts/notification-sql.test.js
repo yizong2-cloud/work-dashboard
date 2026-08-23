@@ -8,6 +8,7 @@ const backoffMigration = fs.readFileSync(new URL('../supabase/migrations/0009_no
 const decisionNotificationMigration = fs.readFileSync(new URL('../supabase/migrations/0010_decision_response_personal_notification.sql', import.meta.url), 'utf8')
 const dailyReportMigration = fs.readFileSync(new URL('../supabase/migrations/0012_daily_report_excludes_agent_instructions.sql', import.meta.url), 'utf8')
 const agentRoleMigration = fs.readFileSync(new URL('../supabase/migrations/0013_feedback_agent_role.sql', import.meta.url), 'utf8')
+const agentInboxAtomicReplyMigration = fs.readFileSync(new URL('../supabase/migrations/0014_agent_inbox_atomic_reply.sql', import.meta.url), 'utf8')
 
 test('通知 outbox 的总 schema 与增量迁移都声明自动维护调度', () => {
   for (const source of [schema, migration]) {
@@ -44,4 +45,12 @@ test('Agent 处理箱回复有独立身份，而不是伪装成负责人', () =>
     assert.match(source, /author_role in \('leader',\s*'owner',\s*'agent'\)/)
   }
   assert.match(agentRoleMigration, /非法反馈角色/)
+})
+
+test('Agent 处理箱回写将消息和状态放在同一个 RPC 中', () => {
+  for (const source of [schema, agentInboxAtomicReplyMigration]) {
+    assert.match(source, /reply_agent_instruction/)
+    assert.match(source, /kind <> 'agent_instruction'/)
+    assert.match(source, /insert into public\.task_feedback_messages[\s\S]*?update public\.task_feedback_threads/s)
+  }
 })

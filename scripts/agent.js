@@ -218,8 +218,7 @@ async function opInboxReply(op) {
     human(`[dry-run] 回复处理留言 ${id} 并标记为 ${to}`)
     return null
   }
-  const message = await store.addFeedbackMessage(id, content, 'Agent', 'agent', 'agent_instruction')
-  const thread = await store.setFeedbackStatus(id, to, who, 'agent_instruction')
+  const { message, thread } = await store.replyAgentInstruction(id, content, to, 'Agent')
   human(`✅ 已回复处理留言 ${id}，并标记为 ${to}`)
   return { message, thread }
 }
