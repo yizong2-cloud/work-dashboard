@@ -29,9 +29,15 @@ export function buildWeekScheduleSignals(tasks: Task[], weekStart: string, weekE
     .filter((task) => task.expected_end_date && task.expected_end_date >= today && task.expected_end_date <= weekEnd)
     .sort((a, b) => (a.expected_end_date || '').localeCompare(b.expected_end_date || ''))
   const overdue = active.filter((task) => task.expected_end_date && task.expected_end_date < today)
-  const unscheduled = active.filter((task) => !task.expected_end_date)
+  const unscheduled = active
+    .filter((task) => !task.expected_end_date)
+    .sort((a, b) => schedulingPriority(a) - schedulingPriority(b) || b.progress - a.progress || a.title.localeCompare(b.title, 'zh-CN'))
   const risks = active.filter((task) => task.status === 'blocked' || task.priority === 'urgent')
   return { active, weekPromises, overdue, unscheduled, risks, weekStart, weekEnd }
+}
+
+function schedulingPriority(task: Task): number {
+  return ({ urgent: 0, high: 1, normal: 2, low: 3 } as const)[task.priority] ?? 2
 }
 
 function dateParts(iso: string) {
