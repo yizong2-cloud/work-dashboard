@@ -121,7 +121,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 | --- | --- | --- |
 | `.analysis-state.reviewed_at` | `workflow/.analysis-state.json` | Codex/DSH/本地文件的分析增量窗口起点；仅在同一健康快照已成功 apply 且 verify 通过后推进 |
 | `update-context.generated_at` / `captured_at` | `workflow/update-context.json` | 本次采集快照生成时间和快照 ID；记录事实，不是任何增量游标 |
-| 飞书 .state.lastSync | ~/Workspace/feishu_export/daily/.state.json | 飞书增量起点（cron 不推进） |
+| 飞书 `.state.lastSync` | `~/Workspace/feishu_export/daily/.state.json` | 独立运行飞书 CLI 时的本地缓存游标；Workboard 一律传 `--no-update-state`，不把它作为更新流程游标 |
 | 会话文件 mtime | ~/.codex/sessions | 摘要器收集用 mtime 过滤（续旧对话也能读到） |
 
 ### 第四条铁律：每次「开始更新」必须全量对账（防漏）
