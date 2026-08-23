@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import type { Task, TaskStatus, UpdateType } from '../types'
 import type { TaskService } from '../lib/taskService'
 
-type Mode = 'note' | 'progress' | 'schedule' | 'block' | 'complete' | 'status'
+export type QuickUpdateMode = 'note' | 'progress' | 'schedule' | 'block' | 'complete' | 'status'
 
 interface QuickUpdateModalProps {
   task: Task
   service: TaskService
   onClose: () => void
   onDone: (message: string) => void
+  /** Used by an intentional deep link such as “补日期”; defaults to progress note. */
+  initialMode?: QuickUpdateMode
 }
 
-export function QuickUpdateModal({ task, service, onClose, onDone }: QuickUpdateModalProps) {
-  const [mode, setMode] = useState<Mode>('note')
+export function QuickUpdateModal({ task, service, onClose, onDone, initialMode = 'note' }: QuickUpdateModalProps) {
+  const [mode, setMode] = useState<QuickUpdateMode>(initialMode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -82,7 +84,7 @@ export function QuickUpdateModal({ task, service, onClose, onDone }: QuickUpdate
   }
 
   const blocked = task.status === 'blocked'
-  const modes: { key: Mode; label: string }[] = [
+  const modes: { key: QuickUpdateMode; label: string }[] = [
     { key: 'note', label: '添加进展' },
     { key: 'progress', label: '修改进度' },
     { key: 'schedule', label: '调整排期' },

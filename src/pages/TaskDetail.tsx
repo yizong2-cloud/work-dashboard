@@ -9,7 +9,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { TaskProgress } from '../components/TaskProgress'
 import { TaskTimeline } from '../components/TaskTimeline'
-import { QuickUpdateModal } from '../components/QuickUpdateModal'
+import { QuickUpdateModal, type QuickUpdateMode } from '../components/QuickUpdateModal'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { LeaderActions } from '../components/LeaderActions'
 import { isComment } from '../lib/comments'
@@ -30,6 +30,7 @@ export function TaskDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [quick, setQuick] = useState(false)
+  const [quickMode, setQuickMode] = useState<QuickUpdateMode | undefined>()
   const [toast, setToast] = useState('')
 
   const focusThreadId = searchParams.get('thread')
@@ -65,12 +66,20 @@ export function TaskDetail() {
     void refresh()
   }, [refresh])
 
-  // 飞书卡片智能跳转（档位 A）：?action=progress → 自动打开快速更新弹窗
-  const autoProgress = searchParams.get('action') === 'progress'
+  // 深链接可直接打开对应的轻量编辑表单；提交仍由用户显式触发。
+  const requestedAction = searchParams.get('action')
+  const autoQuickMode: QuickUpdateMode | null = requestedAction === 'progress'
+    ? 'progress'
+    : requestedAction === 'schedule'
+      ? 'schedule'
+      : null
   useEffect(() => {
-    if (autoProgress) setQuick(true)
+    if (autoQuickMode) {
+      setQuickMode(autoQuickMode)
+      setQuick(true)
+    }
     // 仅挂载时触发一次（用户每次从卡片进入都会重新挂载，行为符合预期）
-  }, [autoProgress])
+  }, [autoQuickMode])
 
   const timelineUpdates = useMemo(() => updates.filter((update) => !isComment(update)), [updates])
 
@@ -140,7 +149,7 @@ export function TaskDetail() {
           </div>
           <div className="detail-actions">
             <button className="btn btn-ghost btn-sm" onClick={focusAgentInbox}>交给 Agent 处理</button>
-            <button className="btn btn-primary btn-sm" onClick={() => setQuick(true)}>快速更新</button>
+            <button className="btn btn-primary btn-sm" onClick={() => { setQuickMode(undefined); setQuick(true) }}>快速更新</button>
           </div>
         </div>
         <h1>{task.title}</h1>
@@ -211,7 +220,7 @@ export function TaskDetail() {
         </aside>
       </div>
 
-      {quick && <QuickUpdateModal task={task} service={service} onClose={() => setQuick(false)} onDone={notify} />}
+      {quick && <QuickUpdateModal task={task} service={service} initialMode={quickMode} onClose={() => { setQuick(false); setQuickMode(undefined) }} onDone={notify} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   )

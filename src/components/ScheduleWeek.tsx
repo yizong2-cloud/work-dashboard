@@ -35,12 +35,14 @@ export function ScheduleWeek({
   blocks,
   onPlanToday,
   onQuickProgress,
+  onQuickSchedule,
   onOpenTask,
 }: {
   tasks: Task[]
   blocks: PlanBlock[]
   onPlanToday: (taskId: string) => void
   onQuickProgress: (taskId: string) => void
+  onQuickSchedule: (taskId: string) => void
   onOpenTask: (taskId: string) => void
 }) {
   const today = todayISO()
@@ -111,7 +113,7 @@ export function ScheduleWeek({
                       <span className="task-chip-title">{t.title}</span>
                       <span className="task-chip-meta">{t.progress}% · 待设置预计完成日</span>
                     </button>
-                    <button className="task-chip-quick" onClick={() => onOpenTask(t.id)} title="前往任务详情补充预计完成日期">补日期</button>
+                    <button className="task-chip-quick" onClick={() => onQuickSchedule(t.id)} title="直接打开预计完成日期表单">补日期</button>
                   </li>
                 ))}
               </ul>

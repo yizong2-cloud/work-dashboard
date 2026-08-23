@@ -308,6 +308,7 @@ export function Schedule() {
           blocks={blocks}
           onPlanToday={(taskId) => void handlePlanToday(taskId)}
           onQuickProgress={(taskId) => navigate(`/task/${taskId}?action=progress`)}
+          onQuickSchedule={(taskId) => navigate(`/task/${taskId}?action=schedule`)}
           onOpenTask={(taskId) => navigate(`/task/${taskId}`)}
         />
       ) : viewMode === 'calendar' ? (
