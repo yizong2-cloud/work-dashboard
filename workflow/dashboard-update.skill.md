@@ -22,10 +22,11 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
    - 若隔离成功但完整采集继续随机换不同会话 `openfail`，将其视为批量切换缺陷：在 `/Users/zongyi/Workspace/feishu-export-public` 复现、修复并补回归测试，再重新运行 `dashboard:prepare`；不要把某个联系人误报为“会话损坏”，也不要只汇报失败后结束任务。
    - 只有登录态/Cookies 失效、飞书外部状态持续不可用，或完成一次有回归测试的代码修复后完整采集仍失败，才报告 JSON 中的 `next_action` 并停止。排障期间始终保留安全闸门，不得使用部分导出或旧健康快照 apply。
    - 状态中若出现 `last_healthy`，它只是采集故障的诊断参照；不得读取它来生成 ops，也不得用它替代当前快照 apply。
-3. 仅在预检通过后读取 `docs/KNOWLEDGE_BASE.md` 与 `workflow/review-packet.json`。
-   - 审查包包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，及候选任务和短摘录。
+3. 仅在预检通过后读取 `docs/KNOWLEDGE_BASE.md`，再运行 `npm run dashboard:review-brief`。
+   - 审查简报包含当前快照的**每一条** Codex / DSH 会话、飞书群、本地文件，按明确无关、低歧义和需判断分组，并带候选任务 ID；它是审查入口，不会弱化全量对账。
+   - `workflow/review-packet.json` 仍是机器校验的完整契约；仅在简报字段不足、需要检查包元信息时读取它。
    - 不得直接读取或打印整个 `update-context.json`、完整飞书导出、会话列表或工具源码。
-   - 某项含义不清才执行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开该证据。
+   - 某项含义不清才执行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开该证据。`suggested_decision=irrelevant` 仅适用于 source-map 显式维护的非业务来源，仍须在 reconciliation 写出该结论。
 4. 对审查包中每个 `source_id` 给出唯一结论：`mapped`（需 `task_id`）、`irrelevant` 或 `needs_confirmation`。命中别名映射则更新既有任务，不新建；新事实先写知识库待确认区。
 5. 写 `workflow/ops.json`：
    ```json

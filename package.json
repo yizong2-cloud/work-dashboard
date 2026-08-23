@@ -26,6 +26,7 @@
     "decision:enrich": "node --experimental-strip-types scripts/decision.js enrich",
     "dashboard:prepare": "node workflow/prepare.mjs",
     "dashboard:status": "node workflow/status.mjs",
+    "dashboard:review-brief": "node workflow/review-brief.mjs",
     "dashboard:notify-status": "node workflow/notification-status.mjs",
     "dashboard:release-status": "node workflow/release-status.mjs",
     "dashboard:evidence": "node workflow/evidence.mjs",

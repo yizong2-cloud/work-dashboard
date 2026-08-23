@@ -50,7 +50,7 @@
 | Codex 摘要器 | `scripts/codex-summary.js` | 读 `~/.codex/sessions` 提炼会话（**按 mtime 过滤**） |
 | DSH 摘要器 | `scripts/dsh-summary.js` | 读 `~/.dsh/sessions`（zstd 解压） |
 | 飞书聊天导出 | `~/Workspace/feishu-export-public/bin/feishu-export` | 公开仓库提供聊天核心；`~/Workspace/feishu_export/cookies.json` 提供本机认证，结果写回本地目录 |
-| prepare | `workflow/prepare.mjs` | 拉四类输入 + 打包 context + 报告 + 增量游标管理 |
+| prepare / 审查简报 | `workflow/prepare.mjs` / `workflow/review-brief.mjs` | 拉四类输入 + 打包 context；按明确无关/低歧义/需判断生成紧凑全量审查入口 |
 | 待确认计划 | `workflow/pending.mjs` | 保存逐项确认单；确认后原子修正单个 source_id，不重写整份 ops |
 | 发布审批 | `workflow/publish.mjs` | 生成可读预览，绑定快照和 ops 指纹；只有用户明确确认才允许 apply |
 | apply/verify | `workflow/apply.mjs` / `verify.mjs` | 执行 ops.json / 校验不变量 |
@@ -103,7 +103,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 
 ```
 ① dashboard:prepare   拉四类输入 → 原始快照 update-context.json + 紧凑 review-packet.json
-② 读取 KNOWLEDGE_BASE + review-packet，对每个 source_id 全量对账；仅歧义项展开原始证据
+② 读取 KNOWLEDGE_BASE + dashboard:review-brief，对每个 source_id 全量对账；仅歧义项展开原始证据
 ③ 增量分析 + 产出变更建议 ops.json（含 snapshot_id、全量 reconciliation；先 --dry-run）
 ④ 有 needs_confirmation → dashboard:pending hold 输出逐项确认单并停止
 ⑤ 用户确认 → dashboard:pending resolve 只修正对应 source_id（不重新 prepare）

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildCoverage, buildReviewPacket, compactExcerpt, getEvidence, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { formatReviewBrief } from './review-brief.mjs'
 import { redactSensitiveText } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
@@ -87,6 +88,33 @@ test('explicitly ignored source remains auditable but is not treated as an ambig
   assert.equal(item.review_priority, 'normal')
   assert.equal(item.suggested_decision, 'irrelevant')
   assert.match(packet.review_contract.review_priority_semantics, /suggested_decision=irrelevant/)
+})
+
+test('审查简报保留每个 source_id，并按可快速结案、低歧义和真歧义分组', () => {
+  const brief = formatReviewBrief({
+    snapshot_id: 'snapshot-brief',
+    board: [
+      { id: 'task-a-id', title: '任务 A' },
+      { id: 'task-b-id', title: '任务 B' },
+    ],
+    review_items: [
+      { source_id: 'codex:0', label: '工具维护', review_reason: 'intentionally_ignored', review_priority: 'normal', suggested_decision: 'irrelevant', excerpt: '这是看板维护会话' },
+      { source_id: 'feishu:1', label: '成就群', review_reason: 'single_candidate', review_priority: 'normal', candidate_tasks: ['任务 A'], excerpt: '请确认领奖逻辑' },
+      { source_id: 'codex:2', label: '客户端', review_reason: 'multiple_candidate_tasks', review_priority: 'high', candidate_tasks: ['任务 A', '任务 B'], excerpt: '需要判断究竟在修哪个功能' },
+    ],
+  })
+  assert.match(brief, /证据 3 条 · 需判断 1 条/)
+  assert.match(brief, /明确无关（1 条/)
+  assert.match(brief, /低歧义线索（1 条/)
+  assert.match(brief, /需要判断（1 条/)
+  for (const sourceId of ['codex:0', 'feishu:1', 'codex:2']) assert.ok(brief.includes(sourceId))
+  assert.match(brief, /任务 A（task-a-id）/)
+  assert.match(brief, /建议结论：irrelevant（显式规则，不是自动写入）/)
+})
+
+test('审查简报拒绝缺失或损坏的审查包', () => {
+  assert.match(formatReviewBrief(null), /找不到有效 review-packet/)
+  assert.match(formatReviewBrief({ review_items: null }), /找不到有效 review-packet/)
 })
 
 test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {
