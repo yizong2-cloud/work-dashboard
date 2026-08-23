@@ -44,6 +44,10 @@ test('review attention explains ambiguity instead of pretending task urgency', (
   assert.equal(item.review_priority, 'high')
   assert.equal(item.review_reason, 'no_candidate_mapping')
   assert.equal(packet.counts.review_attention, packet.counts.high_priority)
+  assert.equal(
+    packet.counts.by_review_reason.no_candidate_mapping,
+    packet.review_items.filter((row) => row.review_reason === 'no_candidate_mapping').length,
+  )
 })
 
 test('multi-task candidates are keyword-ranked without lowering the ambiguity gate', () => {

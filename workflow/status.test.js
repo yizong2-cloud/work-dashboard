@@ -146,3 +146,19 @@ test('status 将当前快照的推送预览作为下一步，等待用户确认'
   assert.match(status.next_action, /确认推送/)
   assert.match(formatStatus(status), /待推送审核：⏸️ 1 项/)
 })
+
+test('status 将需人工判断拆成可行动的审查原因', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-reasons', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 1 } },
+      counts: {
+        total: 6,
+        review_attention: 5,
+        by_review_reason: { no_candidate_mapping: 3, multiple_candidate_tasks: 1, metadata_only: 1, single_candidate: 1 },
+      },
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.match(formatStatus(status), /审查线索：未映射 3 · 多候选 1 · 仅元数据 1 · 单候选 1/)
+})

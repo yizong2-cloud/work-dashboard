@@ -80,6 +80,7 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
     source_health: packet?.source_health || null,
     source_health_recorded: sourceHealthRecorded,
     counts: packet?.counts || null,
+    review_reasons: packet?.counts?.by_review_reason || null,
     coverage: packet?.coverage || null,
     last_healthy: lastHealthy,
     analysis_reviewed_at: analysisState?.reviewed_at || null,
@@ -101,6 +102,22 @@ function ageText(hours) {
   return `${Math.floor(hours / 24)} 天前`
 }
 
+const REVIEW_REASON_LABEL = {
+  no_candidate_mapping: '未映射',
+  multiple_candidate_tasks: '多候选',
+  metadata_only: '仅元数据',
+  single_candidate: '单候选',
+}
+
+function formatReviewReasons(reasons) {
+  if (!reasons || typeof reasons !== 'object') return null
+  const entries = Object.entries(reasons).filter(([, count]) => Number(count) > 0)
+  if (entries.length === 0) return null
+  return entries
+    .map(([reason, count]) => `${REVIEW_REASON_LABEL[reason] || reason} ${count}`)
+    .join(' · ')
+}
+
 export function formatStatus(status) {
   const lines = ['Workboard 状态']
   if (!status.packet_available) {
@@ -115,6 +132,8 @@ export function formatStatus(status) {
   if (status.counts) {
     const attention = status.counts.review_attention ?? status.counts.high_priority ?? 0
     lines.push(`证据：${status.counts.total} 条（需人工判断 ${attention} 条）`)
+    const reasons = formatReviewReasons(status.review_reasons)
+    if (reasons) lines.push(`审查线索：${reasons}`)
   }
   if (status.coverage) {
     lines.push(`对账覆盖：${status.coverage.complete ? '✅ 完整' : `⚠️ 缺口：${status.coverage.gaps.join('、')}`}`)

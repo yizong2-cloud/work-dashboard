@@ -268,6 +268,14 @@ export function buildReviewPacket(ctx) {
     counts: {
       total: items.length,
       by_source: bySource,
+      // Human attention is intentionally kept strict, but its cause needs to
+      // stay visible. A missing directory mapping, a genuine multi-task
+      // choice, and a local-file metadata check are different follow-up work.
+      by_review_reason: Object.fromEntries(
+        [...new Set(items.map((item) => item.review_reason))]
+          .sort()
+          .map((reason) => [reason, items.filter((item) => item.review_reason === reason).length]),
+      ),
       // Keep high_priority for older consumers; new consumers should use the
       // explicit name so task urgency and review effort cannot be conflated.
       high_priority: items.filter((item) => item.review_priority === 'high').length,
