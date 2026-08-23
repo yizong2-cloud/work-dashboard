@@ -2636,7 +2636,7 @@ h3,
 .schedule-intro {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px auto;
+  grid-template-columns: minmax(0, 1fr) 128px auto;
   align-items: end;
 }
 
@@ -2646,8 +2646,8 @@ h3,
 
 .schedule-mascot-frame {
   position: relative;
-  width: 112px;
-  height: 102px;
+  width: 128px;
+  height: 132px;
   overflow: hidden;
   pointer-events: none;
 }
@@ -2666,8 +2666,10 @@ h3,
   z-index: 1;
   width: 176px;
   max-width: none;
-  left: -31px;
-  top: -23px;
+  left: -24px;
+  /* Keep the hair and desk inside the frame; only the lower legs remain
+     intentionally outside this small schedule-header illustration. */
+  top: 0;
 }
 
 .plan-today-card {
@@ -2892,19 +2894,20 @@ h3,
 
 @media (max-width: 1100px) {
   .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .schedule-intro { grid-template-columns: minmax(0, 1fr) 96px; }
+  .schedule-intro { grid-template-columns: minmax(0, 1fr) 118px; }
   .schedule-intro .intro-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
-  .schedule-mascot-frame { width: 96px; }
+  .schedule-mascot-frame { width: 118px; height: 120px; }
+  .schedule-mascot-frame img { width: 160px; left: -21px; top: 0; }
 }
 
 @media (max-width: 720px) {
   .dashboard-intro > div:first-child::after { width: 96px; }
   .schedule-page { padding: 22px 13px 46px; gap: 20px; }
   .schedule-intro { display: flex; }
-  .schedule-mascot-frame { position: absolute; top: 7px; right: 5px; width: 82px; height: 76px; }
-  .schedule-mascot-frame img { width: 136px; left: -27px; top: -18px; }
-  .schedule-mascot-frame::before { inset: 12px 4px 0; }
-  .schedule-intro > div:first-child { padding-right: 72px; }
+  .schedule-mascot-frame { position: absolute; top: 5px; right: 3px; width: 96px; height: 102px; }
+  .schedule-mascot-frame img { width: 132px; left: -18px; top: 0; }
+  .schedule-mascot-frame::before { inset: 13px 4px 0; }
+  .schedule-intro > div:first-child { padding-right: 92px; }
   .schedule-intro .intro-actions { padding-right: 0; }
   .plan-board-title { align-items: flex-start; flex-direction: column; gap: 1px; }
   .plan-head { top: 54px; }
