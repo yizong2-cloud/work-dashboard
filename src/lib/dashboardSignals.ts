@@ -18,8 +18,10 @@ export function isTaskOverdue(task: Pick<Task, 'expected_end_date' | 'status'>, 
   return isActiveStatus(task.status) && !!task.expected_end_date && task.expected_end_date < today
 }
 
-export function isDueThisWeek(task: Pick<Task, 'expected_end_date'>, weekStart: string, weekEnd: string): boolean {
-  return !!task.expected_end_date && task.expected_end_date >= weekStart && task.expected_end_date <= weekEnd
+export function isDueThisWeek(task: Pick<Task, 'expected_end_date'>, today: string, weekStart: string, weekEnd: string): boolean {
+  // "本周到期" is an upcoming commitment. A date earlier than today is
+  // already represented by "逾期" and must not be counted in both cards.
+  return !!task.expected_end_date && task.expected_end_date >= today && task.expected_end_date >= weekStart && task.expected_end_date <= weekEnd
 }
 
 export function dashboardWeekRange(today: string): { start: string; end: string } {
@@ -36,10 +38,10 @@ export function dashboardSignals(tasks: Task[], today: string) {
   const active = tasks.filter(isDashboardActive)
   const week = dashboardWeekRange(today)
   const blocked = active.filter((task) => task.status === 'blocked')
-  const dueThisWeek = active.filter((task) => isDueThisWeek(task, week.start, week.end))
+  const dueThisWeek = active.filter((task) => isDueThisWeek(task, today, week.start, week.end))
   const overdue = active.filter((task) => isTaskOverdue(task, today))
   const unscheduled = active.filter((task) => !task.expected_end_date)
-  const deliveryWarning = active.filter((task) => isTaskOverdue(task, today) || isDueThisWeek(task, week.start, week.end))
+  const deliveryWarning = active.filter((task) => isTaskOverdue(task, today) || isDueThisWeek(task, today, week.start, week.end))
   const attention = active.filter((task) => task.status === 'blocked' || isTaskOverdue(task, today))
   return { blocked, dueThisWeek, overdue, unscheduled, deliveryWarning, attention, week }
 }
@@ -49,7 +51,7 @@ export function matchesDashboardFilter(task: Task, filter: DashboardWorkFilter, 
   if (filter === 'blocked') return task.status === 'blocked'
   if (filter === 'unscheduled') return !task.expected_end_date
   const week = dashboardWeekRange(today)
-  return isTaskOverdue(task, today) || isDueThisWeek(task, week.start, week.end)
+  return isTaskOverdue(task, today) || isDueThisWeek(task, today, week.start, week.end)
 }
 
 function isActiveStatus(status: Task['status']): boolean {

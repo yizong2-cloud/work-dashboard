@@ -18,6 +18,7 @@ test('看板把真实交付预警和待补排期分开，避免把缺日期误�
   const signals = dashboardSignals([blockedWithoutDate, overdue, dueSunday, unscheduled, nextWeek], '2026-08-23')
 
   assert.deepEqual(signals.deliveryWarning.map((item) => item.id), ['overdue', 'due-this-week'])
+  assert.deepEqual(signals.dueThisWeek.map((item) => item.id), ['due-this-week'])
   assert.deepEqual(signals.unscheduled.map((item) => item.id), ['blocked-no-date', 'unscheduled'])
   assert.deepEqual(signals.attention.map((item) => item.id), ['blocked-no-date', 'overdue'])
   assert.equal(matchesDashboardFilter(unscheduled, 'delivery_warning', '2026-08-23'), false)
