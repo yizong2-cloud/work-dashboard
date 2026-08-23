@@ -28,7 +28,9 @@ function makeRunner() {
   }
   function run(...args) {
     try {
-      const stdout = execFileSync('node', [AGENT, ...args], { env, encoding: 'utf8' })
+      // 负向用例会刻意触发 CLI 的错误；捕获后由断言检查，不把预期
+      // stderr 混进整套 npm test 日志，避免自动化审查误判为真实失败。
+      const stdout = execFileSync('node', [AGENT, ...args], { env, encoding: 'utf8', stdio: 'pipe' })
       return { ok: true, stdout, dbFile }
     } catch (e) {
       return {

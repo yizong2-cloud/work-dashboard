@@ -48,7 +48,9 @@ function makeDecisionRunner() {
     dbFile,
     run(...args) {
       try {
-        return { ok: true, stdout: execFileSync('node', ['--experimental-strip-types', DECISION_CLI, ...args], { env, encoding: 'utf8' }) }
+        // 质量提示与幂等冲突是若干负向用例的预期输出；保留在返回值供
+        // 断言使用，而不是污染整套 npm test 的成功日志。
+        return { ok: true, stdout: execFileSync('node', ['--experimental-strip-types', DECISION_CLI, ...args], { env, encoding: 'utf8', stdio: 'pipe' }) }
       } catch (error) {
         return { ok: false, stdout: String(error.stdout || ''), stderr: String(error.stderr || error.message || '') }
       }
