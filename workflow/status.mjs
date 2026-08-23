@@ -27,7 +27,7 @@ function ageHours(iso, now) {
   return Math.max(0, now.getTime() - timestamp) / 3_600_000
 }
 
-function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy, pending, publish }) {
+function nextAction({ packet, changeset, matched, reconciliationComplete, ageHoursValue, lastHealthy, pending, publish }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
   if (pending?.active) return `当前快照有 ${pending.count} 项待确认；运行 npm run dashboard:pending -- show，向用户逐项确认后 resolve；不要重新 prepare`
   if (publish?.awaiting_confirmation) return '当前快照已有更新预览；把 dashboard:publish -- show 的完整内容发给用户，等待其明确回复“确认推送”'
@@ -41,11 +41,22 @@ function nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy, pe
     return '来源健康未记录（旧版快照）；先运行 npm run dashboard:prepare 获取带来源状态的新快照'
   }
   if (!matched) return '当前快照尚未完成 apply + verify；先按更新流程审查并校验'
+  if (!reconciliationComplete) return '当前快照虽有 changeset，但缺少可核验的全量对账记录；不要把采集线索当作已结案，先重新采集并按完整流程审查'
   return '当前快照已完成审查；等待下一次数据采集'
 }
 
 export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, analysisState, changeset, pendingPlan = loadPendingPlan(DEFAULT_PENDING_FILE), publishPreview = readJson(DEFAULT_PREVIEW_FILE), now = new Date() }) {
   const matched = Boolean(packet?.snapshot_id && changeset?.snapshot_id === packet.snapshot_id && changeset.all_ok === true)
+  const reviewItemCount = Array.isArray(packet?.review_items) ? packet.review_items.length : null
+  const reconciliation = matched && Array.isArray(changeset?.reconciliation) ? changeset.reconciliation : []
+  // apply 的闸门已校验每个 source_id 恰好一条 reconciliation；这里仍按数量再做
+  // 一次只读校验，避免旧版/手工 changeset 被状态页误显示成「已完成全量对账」。
+  const reconciliationComplete = Boolean(
+    matched
+    && reviewItemCount !== null
+    && reconciliation.length === reviewItemCount
+    && reconciliation.every((entry) => entry?.source_id && ['mapped', 'irrelevant', 'needs_confirmation'].includes(entry.decision)),
+  )
   const ageHoursValue = ageHours(packet?.captured_at, now)
   const sourceHealthRecorded = Boolean(packet?.source_health && typeof packet.source_health === 'object' && Object.keys(packet.source_health).length > 0)
   const lastHealthyValid = lastHealthyContext?.snapshot_health === 'ok'
@@ -81,6 +92,12 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
     source_health_recorded: sourceHealthRecorded,
     counts: packet?.counts || null,
     review_reasons: packet?.counts?.by_review_reason || null,
+    review: {
+      raw_attention: packet?.counts?.review_attention ?? packet?.counts?.high_priority ?? 0,
+      expected_count: reviewItemCount,
+      reconciled_count: reconciliation.length,
+      fully_reconciled: reconciliationComplete,
+    },
     coverage: packet?.coverage || null,
     last_healthy: lastHealthy,
     analysis_reviewed_at: analysisState?.reviewed_at || null,
@@ -91,7 +108,7 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
     },
     pending,
     publish,
-    next_action: nextAction({ packet, changeset, matched, ageHoursValue, lastHealthy, pending, publish }),
+    next_action: nextAction({ packet, changeset, matched, reconciliationComplete, ageHoursValue, lastHealthy, pending, publish }),
   }
 }
 
@@ -131,8 +148,18 @@ export function formatStatus(status) {
   }
   lines.push(`新鲜度：${status.snapshot_stale ? '已过期（超过 24 小时）' : '正常'}`)
   if (status.counts) {
-    const attention = status.counts.review_attention ?? status.counts.high_priority ?? 0
-    lines.push(`证据：${status.counts.total} 条（需人工判断 ${attention} 条）`)
+    const attention = status.review?.raw_attention ?? status.counts.review_attention ?? status.counts.high_priority ?? 0
+    const expected = status.review?.expected_count
+    const reconciled = status.review?.reconciled_count ?? 0
+    if (status.review?.fully_reconciled) {
+      lines.push(`证据：${status.counts.total} 条（已完成全量对账：${reconciled}/${expected}）`)
+      if (attention > 0) lines.push(`采集线索：当时 ${attention} 条需要人工归属，现已结案`)
+    } else {
+      lines.push(`证据：${status.counts.total} 条（需人工判断 ${attention} 条）`)
+      if (status.apply?.matched_snapshot && expected !== null) {
+        lines.push(`对账记录：⚠️ ${reconciled}/${expected}，不能确认已完整结案`)
+      }
+    }
     const reasons = formatReviewReasons(status.review_reasons)
     if (reasons) lines.push(`审查线索：${reasons}`)
   }

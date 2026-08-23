@@ -162,3 +162,50 @@ test('status 将需人工判断拆成可行动的审查原因', () => {
   })
   assert.match(formatStatus(status), /审查线索：未映射 3 · 多候选 1 · 仅元数据 1 · 单候选 1/)
 })
+
+test('status 区分采集时的归属线索与已完成的全量对账', () => {
+  const packet = {
+    snapshot_id: 'snap-settled', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+    source_health: { feishu: { ok: true, count: 2 } },
+    coverage: { complete: true, gaps: [] },
+    counts: { total: 2, review_attention: 2, by_review_reason: { no_candidate_mapping: 2 } },
+    review_items: [{ source_id: 'feishu:0' }, { source_id: 'feishu:1' }],
+  }
+  const status = buildStatus({
+    packet,
+    changeset: {
+      snapshot_id: 'snap-settled', all_ok: true, changeset_id: 'chg-settled',
+      reconciliation: [
+        { source_id: 'feishu:0', decision: 'mapped' },
+        { source_id: 'feishu:1', decision: 'irrelevant' },
+      ],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.review.fully_reconciled, true)
+  assert.equal(status.review.reconciled_count, 2)
+  assert.match(formatStatus(status), /已完成全量对账：2\/2/)
+  assert.match(formatStatus(status), /当时 2 条需要人工归属，现已结案/)
+  assert.doesNotMatch(formatStatus(status), /证据：2 条（需人工判断/)
+})
+
+test('status 不将缺少逐项对账的旧 changeset 误报为结案', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-incomplete', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 2 } },
+      coverage: { complete: true, gaps: [] },
+      counts: { total: 2, review_attention: 2 },
+      review_items: [{ source_id: 'feishu:0' }, { source_id: 'feishu:1' }],
+    },
+    changeset: {
+      snapshot_id: 'snap-incomplete', all_ok: true, changeset_id: 'chg-incomplete',
+      reconciliation: [{ source_id: 'feishu:0', decision: 'mapped' }],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.apply.matched_snapshot, true)
+  assert.equal(status.review.fully_reconciled, false)
+  assert.match(formatStatus(status), /对账记录：⚠️ 1\/2/)
+  assert.match(status.next_action, /缺少可核验的全量对账记录/)
+})
