@@ -129,6 +129,22 @@ export function buildSummaryArgs(root, scriptName, days, lastAt) {
   return args
 }
 
+// 子进程 exit 0 只证明命令运行结束；更新流程还必须确认输出确实是
+// 可消费的数组。否则空数组会伪装成“没有新增”，进而让不完整快照通过。
+export function parseJsonArrayOutput(output) {
+  try {
+    const value = JSON.parse(output)
+    if (!Array.isArray(value)) return { ok: false, value: [], detail: '输出不是数组' }
+    return { ok: true, value, detail: null }
+  } catch {
+    return { ok: false, value: [], detail: '输出解析失败' }
+  }
+}
+
+export function isSnapshotHealthy({ feishuOk, codexOk, dshOk, boardOk, knowledgeBaseOk }) {
+  return Boolean(feishuOk && codexOk && dshOk && boardOk && knowledgeBaseOk)
+}
+
 // 增量窗口起点：分析游标（无则退化最近 3 天由 codex/dsh 的 --days 兜底）
 const LAST_AT = readAnalysisState().reviewed_at || null
 const REPORT_FILE = path.join(ROOT, 'workflow', 'latest-report.md')
@@ -380,12 +396,12 @@ async function main() {
   const codexArgs = buildSummaryArgs(ROOT, 'codex-summary.js', DAYS, LAST_AT)
   const codexRes = await run('node', codexArgs, 240000)
   let codex = []
+  let codexOk = false
   if (codexRes.ok) {
-    try {
-      codex = JSON.parse(codexRes.stdout)
-    } catch {
-      steps.push({ name: 'Codex 摘要', ok: false, detail: '摘要输出解析失败' })
-    }
+    const parsed = parseJsonArrayOutput(codexRes.stdout)
+    codex = parsed.value
+    codexOk = parsed.ok
+    if (!parsed.ok) steps.push({ name: 'Codex 摘要', ok: false, detail: `摘要${parsed.detail}` })
   } else {
     steps.push({ name: 'Codex 摘要', ok: false, detail: codexRes.stderr.slice(0, 200) })
   }
@@ -394,12 +410,12 @@ async function main() {
   const dshArgs = buildSummaryArgs(ROOT, 'dsh-summary.js', DAYS, LAST_AT)
   const dshRes = await run('node', dshArgs, 240000)
   let dsh = []
+  let dshOk = false
   if (dshRes.ok) {
-    try {
-      dsh = JSON.parse(dshRes.stdout)
-    } catch {
-      steps.push({ name: 'DSH 摘要', ok: false, detail: '摘要输出解析失败' })
-    }
+    const parsed = parseJsonArrayOutput(dshRes.stdout)
+    dsh = parsed.value
+    dshOk = parsed.ok
+    if (!parsed.ok) steps.push({ name: 'DSH 摘要', ok: false, detail: `摘要${parsed.detail}` })
   } else {
     steps.push({ name: 'DSH 摘要', ok: false, detail: dshRes.stderr.slice(0, 200) })
   }
@@ -407,21 +423,23 @@ async function main() {
   // ---- 4. 当前看板 ----
   const boardRes = await run('node', [path.join(ROOT, 'scripts', 'agent.js'), 'list', '--json'], 60000)
   let board = []
+  let boardOk = false
   if (boardRes.ok) {
-    try {
-      board = JSON.parse(boardRes.stdout)
-    } catch {
-      board = []
-    }
+    const parsed = parseJsonArrayOutput(boardRes.stdout)
+    board = parsed.value
+    boardOk = parsed.ok
   }
-  steps.push({ name: '当前看板', ok: boardRes.ok, detail: boardRes.ok ? `${board.length} 个任务` : boardRes.stderr.slice(0, 200) })
+  steps.push({ name: '当前看板', ok: boardOk, detail: boardOk ? `${board.length} 个任务` : (boardRes.ok ? `看板${parseJsonArrayOutput(boardRes.stdout).detail}` : boardRes.stderr.slice(0, 200)) })
 
   // ---- 5. 知识库 ----
   let knowledgeBase = ''
+  let knowledgeBaseOk = false
   try {
     knowledgeBase = fs.readFileSync(path.join(ROOT, 'docs', 'KNOWLEDGE_BASE.md'), 'utf8')
+    knowledgeBaseOk = true
   } catch {
     knowledgeBase = '（知识库读取失败）'
+    steps.push({ name: '知识库', ok: false, detail: '文件读取失败' })
   }
 
   // ---- 5.5 第四数据源：本地新文件（Downloads/Desktop/Documents 白名单，仅元数据）----
@@ -429,9 +447,7 @@ async function main() {
   steps.push({ name: '本地新文件', ok: true, detail: `${localFiles.length} 个候选（自分析游标以来，元数据）` })
 
   // ---- 快照健康：任一关键源失败即 degraded（apply 默认拒绝对接快照）----
-  const codexOk = !codexRes || codexRes.ok
-  const dshOk = !dshRes || dshRes.ok
-  const snapshot_health = feishuOk && codexOk && dshOk ? 'ok' : 'degraded'
+  const snapshot_health = isSnapshotHealthy({ feishuOk, codexOk, dshOk, boardOk, knowledgeBaseOk }) ? 'ok' : 'degraded'
 
   // ---- 候选提示（规则化线索，供 Agent 分析优先参考，降低从零提炼的漏/错）----
   const candidates = buildCandidates({ codexSessions: codex, dshSessions: dsh, feishuText, board })
@@ -461,6 +477,8 @@ async function main() {
       feishu: { ok: feishuOk, file: feishuFile },
       codex: { ok: codexOk, count: codex.length },
       dsh: { ok: dshOk, count: dsh.length },
+      board: { ok: boardOk, count: board.length },
+      knowledge_base: { ok: knowledgeBaseOk },
       local_files: localFiles,
     },
     steps,

@@ -142,7 +142,7 @@ export function formatStatus(status) {
     lines.push('来源健康：⚠️ 未记录（旧版快照；建议重新运行 npm run dashboard:prepare）')
   } else {
     for (const [label, source] of Object.entries(status.source_health || {})) {
-      const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件' }[label] || label
+      const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件', board: '当前看板', knowledge_base: '知识库' }[label] || label
       const count = source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
       lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${source.detail ? ` · ${source.detail}` : ''}`)
     }

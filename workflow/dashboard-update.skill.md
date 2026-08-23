@@ -17,7 +17,7 @@ description: 更新「个人工作进度看板」（work-dashboard）。用户�
 ## 流程
 
 1. `cd /Users/zongyi/Workspace/work-dashboard && npm run dashboard:prepare`
-2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，不得读取知识库/审查条目，也不得生成 ops 或 apply；但“停止看板写入”不等于“停止排障”。
+2. 先执行只读预检 `npm run dashboard:status -- --json`。若快照不存在、`snapshot_health=degraded`、`coverage.complete=false`、快照过期或来源健康未记录，不得读取知识库/审查条目，也不得生成 ops 或 apply；但“停止看板写入”不等于“停止排障”。快照健康同时要求四类采集来源、当前看板 JSON 和知识库均可读取，任一解析/读取失败都必须降级。
    - 飞书诊断 JSON 含 `failedChats` 且 Cookies 仍有效时，在同一任务内先用公开聊天核心和 `--chat-id` 隔离重试，必须带 `--no-update-state`。隔离成功后重新运行一次 `dashboard:prepare`。
    - 若隔离成功但完整采集继续随机换不同会话 `openfail`，将其视为批量切换缺陷：在 `/Users/zongyi/Workspace/feishu-export-public` 复现、修复并补回归测试，再重新运行 `dashboard:prepare`；不要把某个联系人误报为“会话损坏”，也不要只汇报失败后结束任务。
    - 只有登录态/Cookies 失效、飞书外部状态持续不可用，或完成一次有回归测试的代码修复后完整采集仍失败，才报告 JSON 中的 `next_action` 并停止。排障期间始终保留安全闸门，不得使用部分导出或旧健康快照 apply。

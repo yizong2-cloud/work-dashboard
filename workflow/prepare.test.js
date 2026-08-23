@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, snapshotNotification, unmappedCwdRequired } from './prepare.mjs'
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([
@@ -102,6 +102,20 @@ test('Codex and DSH each use one full JSON scan bound to the analysis cursor', (
     '/tmp/workboard/scripts/codex-summary.js', '--days', '3', '--json', '--since-time', '2026-08-19T10:00:00.000Z',
   ])
   assert.doesNotMatch(buildSummaryArgs('/tmp/workboard', 'dsh-summary.js', 3, null).join(' '), /--detail/)
+})
+
+test('successful child process output still fails health checks when it is not a JSON array', () => {
+  assert.deepEqual(parseJsonArrayOutput('[{"cwd":"/repo"}]'), { ok: true, value: [{ cwd: '/repo' }], detail: null })
+  assert.deepEqual(parseJsonArrayOutput('{"cwd":"/repo"}'), { ok: false, value: [], detail: '输出不是数组' })
+  assert.deepEqual(parseJsonArrayOutput('not json'), { ok: false, value: [], detail: '输出解析失败' })
+})
+
+test('snapshot health requires parseable summaries, current board, and knowledge base', () => {
+  const allHealthy = { feishuOk: true, codexOk: true, dshOk: true, boardOk: true, knowledgeBaseOk: true }
+  assert.equal(isSnapshotHealthy(allHealthy), true)
+  for (const key of Object.keys(allHealthy)) {
+    assert.equal(isSnapshotHealthy({ ...allHealthy, [key]: false }), false, `${key} 失败必须让快照降级`)
+  }
 })
 
 test('source-map task keywords only reference declared candidate tasks', () => {

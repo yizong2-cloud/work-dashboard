@@ -35,6 +35,27 @@ test('review packet inventories every source while keeping excerpts compact', ()
   assert.ok(packet.review_items.every((item) => item.excerpt.length <= 420))
 })
 
+test('review packet exposes failed board and knowledge-base dependencies in source health', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    snapshot_health: 'degraded',
+    sources: {
+      ...context.sources,
+      board: { ok: false, count: 0 },
+      knowledge_base: { ok: false },
+    },
+    steps: [
+      { name: '当前看板', ok: false, detail: '看板输出解析失败' },
+      { name: '知识库', ok: false, detail: '文件读取失败' },
+    ],
+  })
+  assert.equal(packet.source_health.board.ok, false)
+  assert.equal(packet.source_health.board.count, 0)
+  assert.match(packet.source_health.board.detail, /看板输出解析失败/)
+  assert.equal(packet.source_health.knowledge_base.ok, false)
+  assert.match(packet.source_health.knowledge_base.detail, /文件读取失败/)
+})
+
 test('review attention explains ambiguity instead of pretending task urgency', () => {
   const packet = buildReviewPacket({
     ...context,

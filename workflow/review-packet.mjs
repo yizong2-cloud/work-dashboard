@@ -170,7 +170,7 @@ function sourceHealth(ctx) {
     ...source(name, fallback),
     count: fallback?.count ?? count ?? null,
   })
-  return {
+  const health = {
     // 飞书导出器的 source 元数据不一定返回 count；以当前快照中实际可审查群数补齐，
     // 避免状态页把健康来源误显示成“条数未知”。
     feishu: sourceWithCount('飞书增量导出', ctx.sources?.feishu, splitFeishuGroups(ctx.feishu?.content).length),
@@ -183,6 +183,11 @@ function sourceHealth(ctx) {
       detail: steps.get('本地新文件')?.detail ? redactSensitiveText(steps.get('本地新文件').detail).slice(0, 240) : null,
     },
   }
+  // 看板和知识库不是待逐条对账的“第四来源”，但它们是分析依赖。
+  // 将其纳入健康报告，使解析/读取失败不会被伪装成可安全 apply 的快照。
+  if (ctx.sources?.board) health.board = sourceWithCount('当前看板', ctx.sources.board, (ctx.board || []).length)
+  if (ctx.sources?.knowledge_base) health.knowledge_base = source('知识库', ctx.sources.knowledge_base)
+  return health
 }
 
 export function buildReviewItems(ctx) {
