@@ -2,6 +2,7 @@
   "_comment": "候选提示的「目录 / 飞书群 → 任务」映射表。pattern 为大小写不敏感的子串匹配；hint 给 Agent 一句话线索；tasks 为候选看板任务标题（供 Agent 判断归属，非强制）；可选 task_keywords 按任务标题配置已确认关键词，只用于候选排序，不会自动归属。AGENT 必须结合会话/消息内容判断，不能只靠 pattern 或关键词。ignored_cwd 仅用于明确排除工具维护/测试目录，不代表来源已被删除；未列入映射的目录一律进入待确认。",
   "ignored_cwd": [
     { "pattern": "/work-dashboard", "hint": "Workboard 自身仓库（工具维护/系统迭代），不作为业务任务候选" },
+    { "pattern": "Workspace/feishu_export", "hint": "飞书导出运行目录（采集工具维护/导出物），不作为业务任务候选" },
     { "pattern": "Documents/Codex", "hint": "Codex 临时/测试会话，不作为业务任务候选" }
   ],
   "codex_cwd": [
@@ -11,6 +12,9 @@
     { "pattern": "jigsaw-cms", "hint": "多产品矩阵 CMS + 客户端 API 后端（fantasy/legacy/peace/farm 几个产品）", "tasks": ["Farm 项目 CMS 接入与研发排期", "Fantasy 积分制与完成页激励文案开发", "Fantasy 成就系统收尾（接手杨柯迪）", "Peace 印度版广告 SDK（ADX/双 banner）接入验证"] },
     { "pattern": "jigsaw-h5-ad", "hint": "H5 广告 / 可玩广告制作", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
     { "pattern": "jigsaw-card-solitaire", "hint": "JigsawCard（卡片拼图项目）——对应 leader 新插入的难度曲线调研", "tasks": ["JigsawCard 难度曲线调研"] },
+    { "pattern": "Workspace/bi-cli", "hint": "拼图矩阵 BI 查询/口径工具；工具开发与数据核对均归入 BI 数据问题治理，不新建独立工具任务", "tasks": ["拼图矩阵 BI 数据问题修复与口径治理"] },
+    { "pattern": "classic-jigsaw-android", "hint": "Classic/Countryside 客户端源码；动图、测试与配置问题优先归 Countryside 动图功能修复，具体以会话主题确认", "tasks": ["Countryside 动图功能修复与小米测试跟进", "Legacy Jigsaw 试玩（可玩广告）制作"], "task_keywords": { "Countryside 动图功能修复与小米测试跟进": ["动图", "countryside", "小米", "测试服", "配置"], "Legacy Jigsaw 试玩（可玩广告）制作": ["试玩", "可玩广告", "广告"] } },
+    { "pattern": "Workspace/classic-cms", "hint": "Classic/Countryside CMS；测试服、图库和动图配置优先归 Countryside 动图修复，仍需结合会话主题确认", "tasks": ["Countryside 动图功能修复与小米测试跟进"] },
     { "pattern": "Downloads/试完广告修改需求", "hint": "试玩广告竞改迭代（高琦/张震威）", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Fun Color 试玩（可玩广告）制作"] },
     { "pattern": "Fantasy Jigsaw-适配moloco试玩", "hint": "Fantasy 试玩 Moloco 渠道适配（张震威投放需求）", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配"] },
     { "pattern": "FunColor", "hint": "涂色产品 Fun Color 试玩（涂色线，与拼图不同部门）", "tasks": ["Fun Color 试玩（可玩广告）制作"] },

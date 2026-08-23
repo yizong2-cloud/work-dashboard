@@ -116,6 +116,20 @@ test('source-map task keywords only reference declared candidate tasks', () => {
   }
 })
 
+test('migrated active project directories retain explicit candidate mappings or ignore rules', () => {
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
+  const result = buildSessionCandidates([
+    { cwd: '/Users/zongyi/Workspace/bi-cli' },
+    { cwd: '/Users/zongyi/Workspace/classic-jigsaw-android' },
+    { cwd: '/Users/zongyi/Workspace/classic-cms' },
+    { cwd: '/Users/zongyi/Workspace/feishu_export' },
+    { cwd: '/Users/zongyi/Documents/Codex/2026-08-22/temporary-thread' },
+  ], sourceMap, 'codex')
+  assert.deepEqual(result.unmapped, [])
+  assert.equal(result.hits.length, 3)
+  assert.deepEqual(result.hits[0].tasks, ['拼图矩阵 BI 数据问题修复与口径治理'])
+})
+
 test('degraded prepare preserves the previous healthy snapshot while replacing latest', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-snapshots-'))
   const files = {
