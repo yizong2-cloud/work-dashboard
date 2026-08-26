@@ -83,7 +83,7 @@ npm run agent -- create --title "任务名" \
   [--status in_progress] [--progress 30] [--interrupt] [--note "创建说明"]
 
 # 更新进度 / 状态 / 通用字段
-npm run agent -- progress <id> --to 75 --note "完成 XX 模块，正在联调"
+npm run agent -- progress <id> --to 75 --current_status "完成 XX 模块，正在联调" --note "3/4 个明确里程碑已完成"
 npm run agent -- status <id> --to paused --note "等待设计稿，暂时挂起"
   # ⚠️ status 只允许 planned/in_progress/paused/cancelled；
   #    blocked 用 block（需 --reason），completed 用 complete
@@ -102,6 +102,7 @@ npm run agent -- unblock <id> --note "素材已到位，恢复开发"
 npm run agent -- complete <id> --note "已发布上线，观察无异常"
 npm run agent -- note <id> --type interrupt --content "临时插入线上问题排查，占用约2小时" [--at "时间"]
 # note 默认按 progress 处理并即时推送；纯备注请显式使用 --type note（默认静默）
+# 批处理字段可显式传 notify_mode=immediate|silent，批量 progress 还可用 merge；这只控制通知，不影响看板写入
 
 # Leader 协作操作（同样触发飞书通知）
 npm run agent -- nudge <id> --note "这个周五前能完成吗？"   # 催进度（橙色飞书卡 + 时间线留痕）
@@ -148,7 +149,7 @@ npm run dashboard:steward -- --json
 | 用户说 | 你执行 |
 | --- | --- |
 | 「我新建了一个任务：XXX，预计下周五完成」 | `create --title "XXX" --end <下周五日期> [--priority normal]` |
-| 「XXX 做了一半了，大概 50%」 | `progress <id> --to 50` |
+| 「XXX 做了一半了，大概 50%」 | `progress <id> --to 50`（更新工作流中标 `progress_basis=user_explicit`） |
 | 「XXX 做完了」 | `complete <id> --note <用户提到的补充>` |
 | 「XXX 被堵住了，因为等 XX」 | `block <id> --reason "等 XX"` |
 | 「XXX 排期要延后两天」 | `schedule <id> --end <新日期> --note "原因"` |
@@ -167,9 +168,9 @@ npm run dashboard:steward -- --json
 {
   "ops": [
     { "op": "create", "title": "分享海报生成", "priority": "normal", "end": "2025-08-25", "note": "用户反馈需要分享海报" },
-    { "op": "progress", "id": "t-theme", "to": 80, "note": "主题解锁逻辑完成，开始联调" },
-    { "op": "schedule", "id": "t-theme", "end": "2025-08-20", "note": "联调比预期顺利，提前一天" },
-    { "op": "block", "id": "t-bgm", "reason": "音效资源未到位" }
+    { "op": "progress", "id": "t-theme", "to": 80, "current_status": "主题解锁逻辑完成，开始联调", "progress_basis": "milestone_ratio", "notify_mode": "merge", "note": "4/5 个里程碑已完成" },
+    { "op": "schedule", "id": "t-theme", "end": "2025-08-20", "notify_mode": "immediate", "note": "联调比预期顺利，提前一天" },
+    { "op": "block", "id": "t-bgm", "reason": "音效资源未到位", "notify_mode": "immediate" }
   ]
 }
 ```

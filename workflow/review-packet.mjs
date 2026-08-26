@@ -4,7 +4,7 @@
 import { redactSensitiveText, redactSensitiveValue } from './redaction.mjs'
 
 const MAX_EXCERPT = 420
-const RECONCILIATION_DECISIONS = new Set(['mapped', 'irrelevant', 'needs_confirmation'])
+const RECONCILIATION_DECISIONS = new Set(['mapped', 'reviewed_no_change', 'irrelevant', 'needs_confirmation'])
 
 function removeToolNoise(value) {
   if (Array.isArray(value)) {
@@ -136,7 +136,8 @@ export function buildCoverage(ctx, items) {
   }
   const actual = Object.fromEntries(['codex', 'dsh', 'feishu', 'local'].map((source) => [
     source,
-    (items || []).filter((item) => item.source === source).length,
+    (items || []).filter((item) => item.source === source)
+      .reduce((sum, item) => sum + (Array.isArray(item.member_source_ids) ? item.member_source_ids.length : 1), 0),
   ]))
   const gaps = Object.keys(expected).filter((source) => expected[source] !== actual[source])
   return { expected, actual, complete: gaps.length === 0, gaps }
@@ -149,6 +150,22 @@ export function splitFeishuGroups(text) {
     const end = headings[index + 1]?.index ?? String(text || '').length
     return { group: match[1].trim(), content: String(text || '').slice(start, end).trim() }
   })
+}
+
+export function groupLocalFiles(files, maxGroupSize = 8) {
+  const groups = []
+  const byDirectory = new Map()
+  for (const [index, file] of (files || []).entries()) {
+    const directory = String(file.path || '').replace(/\/[^/]+$/, '') || '未知目录'
+    if (!byDirectory.has(directory)) byDirectory.set(directory, [])
+    byDirectory.get(directory).push({ file, index })
+  }
+  for (const [directory, rows] of byDirectory) {
+    for (let start = 0; start < rows.length; start += maxGroupSize) {
+      groups.push({ directory, rows: rows.slice(start, start + maxGroupSize) })
+    }
+  }
+  return groups
 }
 
 function taskBrief(task) {
@@ -244,17 +261,23 @@ export function buildReviewItems(ctx) {
     })
   }
 
-  for (const [index, file] of (ctx.sources?.local_files || []).entries()) {
+  for (const [groupIndex, group] of groupLocalFiles(ctx.sources?.local_files || []).entries()) {
+    const single = group.rows.length === 1
+    const file = group.rows[0].file
+    const names = group.rows.map(({ file: row }) => row.name || row.path || '未命名文件')
     add({
-      source_id: `local:${index}`,
+      source_id: single ? `local:${group.rows[0].index}` : `localgroup:${groupIndex}`,
       source: 'local',
-      kind: 'file',
-      label: file.name || file.path || `本地文件 ${index + 1}`,
-      at: file.mtime || null,
+      kind: single ? 'file' : 'artifact_bundle',
+      label: single ? (file.name || file.path || '本地文件') : `${group.directory.split('/').pop() || group.directory} · ${group.rows.length} 个文件`,
+      at: group.rows.map(({ file: row }) => row.mtime).filter(Boolean).sort().at(-1) || null,
+      ...(single ? {} : { member_source_ids: group.rows.map(({ index }) => `local:${index}`) }),
       candidate_tasks: [],
-      hint: '本地文件只采集元数据；按文件名判断，必要时展开或读取文件。',
-      excerpt: `${file.ext || 'file'} · ${file.size || 0} bytes · ${file.path || ''}`,
-      ...reviewMeta(null, 'metadata_only', file.name || file.path || ''),
+      hint: single ? '本地文件只采集元数据；按文件名判断，必要时展开或读取文件。' : '同目录文件已合并为一组证据；展开时仍会返回全部成员元数据。',
+      excerpt: single
+        ? `${file.ext || 'file'} · ${file.size || 0} bytes · ${file.path || ''}`
+        : `${group.directory} · ${names.slice(0, 5).join('、')}${names.length > 5 ? ` 等 ${names.length} 个文件` : ''}`,
+      ...reviewMeta(null, 'metadata_only', names.join('\n')),
     })
   }
   return items
@@ -264,13 +287,13 @@ export function buildReviewPacket(ctx) {
   const items = buildReviewItems(ctx)
   const bySource = Object.fromEntries(['codex', 'dsh', 'feishu', 'local'].map((source) => [source, items.filter((item) => item.source === source).length]))
   return {
-    schema_version: 1,
+    schema_version: 2,
     snapshot_id: ctx.snapshot_id,
     captured_at: ctx.captured_at,
     snapshot_health: ctx.snapshot_health,
     source_health: sourceHealth(ctx),
     review_contract: {
-      required_decisions: ['mapped', 'irrelevant', 'needs_confirmation'],
+      required_decisions: ['mapped', 'reviewed_no_change', 'irrelevant', 'needs_confirmation'],
       instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
       review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。intentionally_ignored 是显式维护的非业务来源：仍须写 reconciliation，但可按 suggested_decision=irrelevant 快速结案。candidate_tasks 仅在 source-map 为任务明确配置关键词且证据唯一命中时做稳定排序；仍须人工确认，不代表自动归属。',
     },
@@ -310,8 +333,20 @@ export function getEvidence(ctx, sourceId) {
   if (source === 'codex') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.codex, ctx.codex_detail)[index] || null))
   if (source === 'dsh') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.dsh, ctx.dsh_detail)[index] || null))
   if (source === 'local') return redactSensitiveValue(removeToolNoise(ctx.sources?.local_files?.[index] || null))
+  if (source === 'localgroup') {
+    const group = groupLocalFiles(ctx.sources?.local_files || [])[index]
+    return redactSensitiveValue(removeToolNoise(group ? {
+      directory: group.directory,
+      files: group.rows.map(({ file, index: memberIndex }) => ({ source_id: `local:${memberIndex}`, ...file })),
+    } : null))
+  }
   if (source === 'feishu') return redactSensitiveValue(removeToolNoise(splitFeishuGroups(ctx.feishu?.content)[index] || null))
   return null
+}
+
+export function reconciliationTaskIds(entry) {
+  const values = Array.isArray(entry?.task_ids) ? entry.task_ids : (entry?.task_id ? [entry.task_id] : [])
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))]
 }
 
 export function validateReconciliation(reviewItems, reconciliation) {
@@ -330,7 +365,7 @@ export function validateReconciliation(reviewItems, reconciliation) {
     if (seen.has(id)) errors.push(`reconciliation[${index}]: source_id 重复: ${id}`)
     seen.add(id)
     if (!RECONCILIATION_DECISIONS.has(entry?.decision)) errors.push(`reconciliation[${index}]: decision 非法`)
-    if (entry?.decision === 'mapped' && !entry.task_id) errors.push(`reconciliation[${index}]: mapped 项缺 task_id`)
+    if (entry?.decision === 'mapped' && reconciliationTaskIds(entry).length === 0) errors.push(`reconciliation[${index}]: mapped 项缺 task_id/task_ids`)
   }
   for (const id of expected) {
     if (!seen.has(id)) errors.push(`缺少对账结论: ${id}`)
@@ -344,6 +379,7 @@ export function summarizeReconciliation(reconciliation) {
   const summary = {
     total: rows.length,
     mapped: 0,
+    reviewed_no_change: 0,
     irrelevant: 0,
     needs_confirmation: 0,
     invalid: 0,

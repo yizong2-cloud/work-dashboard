@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCoverage, buildReviewPacket, compactExcerpt, getEvidence, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { buildCoverage, buildReviewPacket, compactExcerpt, getEvidence, groupLocalFiles, mergeSessionRows, summarizeReconciliation, validateReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { formatReviewBrief } from './review-brief.mjs'
 import { redactSensitiveText } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
@@ -275,6 +275,9 @@ test('reconciliation rejects omissions, duplicates, unknown sources, and incompl
   assert.match(validateReconciliation(items, [...complete, complete[0]]).join('\n'), /source_id 重复/)
   assert.match(validateReconciliation(items, [{ source_id: 'unknown:0', decision: 'irrelevant' }]).join('\n'), /不属于当前快照/)
   assert.match(validateReconciliation(items, items.map((item) => ({ source_id: item.source_id, decision: 'mapped' }))).join('\n'), /mapped 项缺 task_id/)
+  const multi = items.map((item) => ({ source_id: item.source_id, decision: 'reviewed_no_change' }))
+  multi[0] = { source_id: items[0].source_id, decision: 'mapped', task_ids: ['task-a-id', 'task-b-id'] }
+  assert.deepEqual(validateReconciliation(items, multi), [])
 })
 
 test('reconciliation summary keeps chat output compact without dropping full decisions', () => {
@@ -287,11 +290,28 @@ test('reconciliation summary keeps chat output compact without dropping full dec
   assert.deepEqual(summary, {
     total: 4,
     mapped: 1,
+    reviewed_no_change: 0,
     irrelevant: 1,
     needs_confirmation: 1,
     invalid: 1,
     needs_confirmation_source_ids: ['feishu:0'],
   })
+})
+
+test('local artifacts in one directory are bundled without losing member coverage', () => {
+  const files = [
+    { name: 'a.md', path: '/tmp/delivery/a.md', size: 1, ext: 'md' },
+    { name: 'b.png', path: '/tmp/delivery/b.png', size: 2, ext: 'png' },
+  ]
+  assert.equal(groupLocalFiles(files).length, 1)
+  const packet = buildReviewPacket({ ...context, sources: { ...context.sources, local_files: files } })
+  const local = packet.review_items.find((item) => item.source === 'local')
+  assert.equal(local.kind, 'artifact_bundle')
+  assert.deepEqual(local.member_source_ids, ['local:0', 'local:1'])
+  assert.equal(packet.coverage.expected.local, 2)
+  assert.equal(packet.coverage.actual.local, 2)
+  assert.equal(packet.coverage.complete, true)
+  assert.equal(getEvidence({ ...context, sources: { ...context.sources, local_files: files } }, local.source_id).files.length, 2)
 })
 
 test('review spec binds reconciliation to one current snapshot', () => {

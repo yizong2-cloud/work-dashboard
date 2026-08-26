@@ -134,6 +134,19 @@ test('progress 原子更新：进度变更 + 时间线各一条', () => {
   assert.equal(timelineCount, 1)
 })
 
+test('progress 可在同一次原子写入中同步 current_status，并独立选择静默通知', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '原子进度与现状任务')
+  const id = extractId(c.stdout)
+  const p = run('progress', id, '--to', '70', '--current_status', '接口已验收，等待上线', '--notify_mode', 'silent', '--note', '两个里程碑已完成一个')
+  assert.ok(p.ok, p.stderr)
+  const db = JSON.parse(fs.readFileSync(p.dbFile, 'utf8'))
+  assert.equal(db.tasks.find((task) => task.id === id).progress, 70)
+  assert.equal(db.tasks.find((task) => task.id === id).current_status, '接口已验收，等待上线')
+  assert.equal(db.updates.at(-1).notify_mode, 'silent')
+  assert.equal(db.updates.filter((update) => update.task_id === id && update.type === 'progress').length, 1)
+})
+
 test('block 不带原因必须报错', () => {
   const run = makeRunner()
   const c = run('create', '--title', '测试任务C')

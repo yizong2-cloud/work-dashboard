@@ -19,7 +19,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { approvalMatchesSpec, consumeApproval, DEFAULT_APPROVAL_FILE, markPreviewApplied } from './publish.mjs'
-import { summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
+import { reconciliationTaskIds, summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { notificationIntentFor, summarizeNotificationIntents } from './operation-intent.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -43,6 +43,8 @@ const VALID_STATUS = ['planned', 'in_progress', 'blocked', 'paused', 'completed'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const INTERRUPT_KEYWORDS = ['interrupt'] // future
 const PROGRESS_PERCENT_CLAIM = /(?:进度|完成度)\s*(?:(?:更新|提升|降低|升高)(?:至|到)?|降(?:至|到)|变为|为|到)?\s*[:：]?\s*(\d{1,3})\s*%/
+const PROGRESS_BASES = ['user_explicit', 'milestone_ratio', 'agent_estimate']
+const NOTIFY_MODES = ['immediate', 'merge', 'silent']
 
 function parseArgs(argv) {
   const args = { file: path.join(ROOT, 'workflow', 'ops.json'), dryRun: false, force: false }
@@ -116,6 +118,18 @@ function main() {
       if (!String(op.note ?? op.content ?? '').trim()) {
         errors.push(`第 ${i + 1} 条 progress: 必须提供 note 或 content 说明进度依据`)
       }
+      if (!PROGRESS_BASES.includes(op.progress_basis)) {
+        errors.push(`第 ${i + 1} 条 progress: 必须提供 progress_basis（${PROGRESS_BASES.join('/')}），不得把模糊描述伪装成精确百分比`)
+      }
+    }
+    if (op.notify_mode !== undefined && !NOTIFY_MODES.includes(op.notify_mode)) {
+      errors.push(`第 ${i + 1} 条: notify_mode 非法（允许 ${NOTIFY_MODES.join('/')}）`)
+    }
+    if (op.op !== 'create' && op.notify_mode === undefined) {
+      errors.push(`第 ${i + 1} 条 ${op.op}: 必须显式提供 notify_mode，确保预览与实际飞书行为完全一致`)
+    }
+    if (op.notify_mode === 'merge' && op.op !== 'progress') {
+      errors.push(`第 ${i + 1} 条: notify_mode=merge 仅用于 progress 批量进展；其他操作请选择 immediate 或 silent`)
     }
     if (op.op === 'note' && (op.type ?? 'progress') === 'progress' && PROGRESS_PERCENT_CLAIM.test(String(op.content || ''))) {
       errors.push(`第 ${i + 1} 条 note: 含任务百分比的进度声明必须改用 progress 操作，避免只写时间线却未更新 progress 字段`)
@@ -169,8 +183,8 @@ function main() {
       }
     }
     for (const [i, item] of (reconciliation || []).entries()) {
-      if (item?.decision === 'mapped' && item.task_id && !byId.has(item.task_id)) {
-        errors.push(`reconciliation[${i}]: mapped 的任务不存在 ${item.task_id}`)
+      for (const taskId of item?.decision === 'mapped' ? reconciliationTaskIds(item) : []) {
+        if (!byId.has(taskId)) errors.push(`reconciliation[${i}]: mapped 的任务不存在 ${taskId}`)
       }
     }
   }
@@ -184,13 +198,13 @@ function main() {
   const noChange = ops.length === 0
   const reconciliationSummary = summarizeReconciliation(reconciliation)
   const notificationIntent = summarizeNotificationIntents(ops)
-  console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
+  console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 已审查无需改动 ${reconciliationSummary.reviewed_no_change} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
   if (reconciliationSummary.needs_confirmation_source_ids.length > 0) {
     const ids = reconciliationSummary.needs_confirmation_source_ids.slice(0, 8).join(', ')
     const suffix = reconciliationSummary.needs_confirmation_source_ids.length > 8 ? ' …' : ''
     console.log(`待确认 source_id（最多显示 8 项）：${ids}${suffix}`)
   }
-  console.log(`通知意图：即时入队 ${notificationIntent.immediate} · 静默 ${notificationIntent.silent} · 历史补记 ${notificationIntent.historical}`)
+  console.log(`通知意图：即时入队 ${notificationIntent.immediate} · 批内合并 ${notificationIntent.merge} · 静默 ${notificationIntent.silent} · 历史补记 ${notificationIntent.historical}`)
   console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
   for (const [i, op] of ops.entries()) {
     const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')
@@ -204,6 +218,7 @@ function main() {
 
   // ---- 5) 执行 + changeset ----
   const changeset_id = `chg-${Date.now()}`
+  const applyStartedAt = new Date().toISOString()
   // Confirmation is single-use. If execution partially fails, a newly reviewed
   // preview and a fresh owner confirmation are required before any retry.
   consumeApproval(spec)
@@ -228,9 +243,9 @@ function main() {
   try {
     fs.writeFileSync(CHANGESET_FILE, JSON.stringify({
       changeset_id, snapshot_id: snapshot.snapshot_id || null, all_ok: true,
-      applied_at: new Date().toISOString(), ops_count: ops.length, reviewed_no_change: noChange,
+      started_at: applyStartedAt, applied_at: new Date().toISOString(), ops_count: ops.length, reviewed_no_change: noChange,
       notification_intent: notificationIntent,
-      ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null })),
+      ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null, notify_mode: notificationIntentFor(o) })),
       reconciliation: reconciliation || [],
     }, null, 2))
     markPreviewApplied(spec, changeset_id)

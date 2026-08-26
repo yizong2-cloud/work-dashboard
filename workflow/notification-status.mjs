@@ -10,6 +10,7 @@ import { classifyDeliveryFailure } from '../supabase/functions/feishu-notify/del
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ENV_FILE = path.join(ROOT, '.env')
+const CHANGESET_FILE = path.join(ROOT, 'workflow', 'last-changeset.json')
 
 function loadEnv() {
   const env = {}
@@ -41,7 +42,7 @@ export function attentionAction(row) {
   return '可重试：等待退避并检查外部限流/网络'
 }
 
-export function summarizeOutbox(rows, now = new Date()) {
+export function summarizeOutbox(rows, now = new Date(), scope = null) {
   const counts = { pending: 0, sending: 0, failed: 0, sent: 0, skipped: 0, unknown: 0 }
   for (const row of rows || []) {
     if (Object.prototype.hasOwnProperty.call(counts, row?.status)) counts[row.status] += 1
@@ -65,6 +66,7 @@ export function summarizeOutbox(rows, now = new Date()) {
     sampled_rows: Array.isArray(rows) ? rows.length : 0,
     counts,
     attention,
+    scope,
   }
 }
 
@@ -79,6 +81,7 @@ export function formatNotificationStatus(summary) {
   const c = summary.counts
   const lines = [
     'Workboard 通知 outbox',
+    ...(summary.scope?.changeset_id ? [`范围：本次 changeset ${summary.scope.changeset_id}（自 ${summary.scope.since}）`] : ['范围：最近 200 条（未找到可用 changeset 起点）']),
     `健康：${summary.health} · 采样 ${summary.sampled_rows} 条`,
     `数量：pending ${c.pending} · sending ${c.sending} · failed ${c.failed} · sent ${c.sent} · skipped ${c.skipped}`,
   ]
@@ -94,12 +97,13 @@ export function formatNotificationStatus(summary) {
   return lines.join('\n')
 }
 
-async function fetchOutbox(env) {
+async function fetchOutbox(env, since = null) {
   const baseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL
   const key = env.SUPABASE_SERVICE_ROLE_KEY
   if (!baseUrl || !key) throw new Error('缺少 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY（仅从本机 .env 读取）')
   const select = encodeURIComponent('id,event_type,status,attempts,last_error,created_at,updated_at,sent_at')
-  const endpoint = `${baseUrl.replace(/\/?$/, '')}/rest/v1/notification_outbox?select=${select}&order=updated_at.desc&limit=200`
+  const sinceFilter = since ? `&created_at=gte.${encodeURIComponent(since)}` : ''
+  const endpoint = `${baseUrl.replace(/\/?$/, '')}/rest/v1/notification_outbox?select=${select}${sinceFilter}&order=updated_at.desc&limit=200`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 10000)
   try {
@@ -116,7 +120,13 @@ async function fetchOutbox(env) {
 
 export async function main(argv = process.argv.slice(2)) {
   try {
-    const summary = summarizeOutbox(await fetchOutbox(loadEnv()))
+    const changeset = (() => {
+      if (argv.includes('--all')) return null
+      try { return JSON.parse(fs.readFileSync(CHANGESET_FILE, 'utf8')) } catch { return null }
+    })()
+    const since = changeset?.started_at || null
+    const scope = since ? { changeset_id: changeset.changeset_id || null, since } : null
+    const summary = summarizeOutbox(await fetchOutbox(loadEnv(), since), new Date(), scope)
     console.log(argv.includes('--json') ? JSON.stringify(summary, null, 2) : formatNotificationStatus(summary))
   } catch (error) {
     console.error(`❌ ${error instanceof Error ? error.message : String(error)}`)

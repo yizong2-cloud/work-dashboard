@@ -14,9 +14,13 @@
         "required": ["source_id", "decision"],
         "properties": {
           "source_id": { "type": "string" },
-          "decision": { "type": "string", "enum": ["mapped", "irrelevant", "needs_confirmation"] },
-          "task_id": { "type": "string", "description": "mapped 时必填" },
-          "evidence": { "type": "string", "description": "可选：简短判断依据" }
+          "decision": { "type": "string", "enum": ["mapped", "reviewed_no_change", "irrelevant", "needs_confirmation"] },
+          "task_id": { "type": "string", "description": "mapped 到单个任务时填写（兼容旧格式）" },
+          "task_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true, "description": "同一证据涉及多个任务时填写" },
+          "evidence": { "type": "string", "description": "可选：简短判断依据" },
+          "reason": { "type": "string", "description": "待确认原因或人工确认依据" },
+          "impact": { "type": "string", "description": "待确认答案会影响什么" },
+          "recommendation": { "type": "string", "description": "Agent 给用户的建议" }
         },
         "additionalProperties": false
       }
@@ -42,6 +46,8 @@
         "note": { "type": "string" },
         "priority": { "type": "string", "enum": ["urgent", "high", "normal", "low"] },
         "current_status": { "type": "string" },
+        "progress_basis": { "type": "string", "enum": ["user_explicit", "milestone_ratio", "agent_estimate"], "description": "progress 必填：百分比的来源口径" },
+        "notify_mode": { "type": "string", "enum": ["immediate", "merge", "silent"], "description": "除 create 外必填：写入与通知解耦；merge 仅用于 progress" },
         "start_date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
         "interrupt": { "type": ["boolean", "string"] },
         "at": { "type": "string", "description": "note 回填历史时间，如 2026-08-14T18:00:00" }

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildPendingPlan, pendingForSnapshot, readJson } from './pending.mjs'
+import { buildPendingPlan, formatPendingPlan, pendingForSnapshot, readJson } from './pending.mjs'
 
 const reviewPacket = {
   snapshot_id: 'snap-pending',
@@ -23,9 +23,36 @@ test('pending plan keeps a concise, snapshot-bound question', () => {
   const plan = buildPendingPlan(spec, reviewPacket, '2026-08-22T00:00:00Z')
   assert.equal(plan.state, 'awaiting_confirmation')
   assert.equal(plan.questions[0].source_id, 'dsh:0')
+  assert.equal(plan.questions[0].question_id, 'Q1')
   assert.match(plan.questions[0].candidates[0], /排行榜研究/)
+  const text = formatPendingPlan(plan)
+  assert.match(text, /Q1 · 请确认这段工作信息应如何处理/)
+  assert.match(text, /DSH 工作会话/)
+  assert.match(text, /原始内容：排行榜系统是否有成就入口/)
+  assert.match(text, /追踪信息（无需理解或照抄）：dsh:0/)
   assert.equal(pendingForSnapshot(plan, 'snap-pending'), true)
   assert.equal(pendingForSnapshot(plan, 'other-snapshot'), false)
+})
+
+test('question ids stay stable when an earlier question is resolved', () => {
+  const twoQuestionSpec = {
+    ...spec,
+    reconciliation: [
+      spec.reconciliation[0],
+      { source_id: 'codex:1', decision: 'needs_confirmation', reason: '归属不明确' },
+    ],
+  }
+  const twoQuestionReview = {
+    ...reviewPacket,
+    review_items: [...reviewPacket.review_items, { source_id: 'codex:1', source: 'codex', label: '/repo/b', excerpt: '完成了测试' }],
+  }
+  const first = buildPendingPlan(twoQuestionSpec, twoQuestionReview, '2026-08-22T00:00:00Z')
+  const remaining = buildPendingPlan({
+    ...twoQuestionSpec,
+    reconciliation: [{ source_id: 'dsh:0', decision: 'reviewed_no_change' }, twoQuestionSpec.reconciliation[1]],
+  }, twoQuestionReview, '2026-08-22T01:00:00Z', first)
+  assert.equal(remaining.questions[0].source_id, 'codex:1')
+  assert.equal(remaining.questions[0].question_id, 'Q2')
 })
 
 test('resolve updates only the confirmed source and closes the pending plan', () => {
@@ -42,7 +69,7 @@ test('resolve updates only the confirmed source and closes the pending plan', ()
     )
     execFileSync('node', [
       'workflow/pending.mjs', 'resolve', '--file', opsFile, '--review', reviewFile, '--pending', pendingFile,
-      '--source', 'dsh:0', '--decision', 'mapped', '--task', 'task-rank', '--reason', '用户确认归入排行榜研究',
+      '--question', 'Q1', '--decision', 'mapped', '--task', 'task-rank', '--reason', '用户确认归入排行榜研究',
     ], { encoding: 'utf8', stdio: 'pipe' })
     const resolved = readJson(opsFile)
     assert.deepEqual(resolved.reconciliation[0], {

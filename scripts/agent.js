@@ -38,10 +38,16 @@ const UPDATE_TYPES = ['progress', 'status_change', 'schedule_change', 'blocked',
  * 通知策略：进展类事件默认即时推送，纯备注默认静默；历史补记永不推送。
  * --notify 只负责把当前事件显式升级为即时推送，不能突破历史补记规则。
  */
-function noteNotifyMode({ type, at, notify }) {
+function noteNotifyMode({ type, at, notify, notifyMode }) {
   if (at) return 'silent'
+  if (['immediate', 'merge', 'silent'].includes(notifyMode)) return notifyMode
   if (notify) return 'immediate'
   return type === 'note' ? 'silent' : 'immediate'
+}
+
+function operationNotifyMode(op, fallback = 'immediate') {
+  if (['immediate', 'merge', 'silent'].includes(op.notify_mode)) return op.notify_mode
+  return fallback
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -251,17 +257,19 @@ async function opProgress(op) {
   const id = requireOp(op, 'id', '任务 id')
   const to = assertProgress(op.to ?? op.progress)
   const note = op.note ?? op.content ?? `进度更新为 ${to}%。`
+  const notifyMode = operationNotifyMode(op, op.merge ? 'merge' : 'immediate')
+  if (notifyMode === 'merge' && !op.merge) fail('progress 的 notify_mode=merge 必须由 batch 提供合并批号；单条进度请选择 immediate 或 silent')
   if (dryRun) {
-    human(`[dry-run] 任务 ${id} 进度 → ${to}%，时间线: ${note}`)
+    human(`[dry-run] 任务 ${id} 进度 → ${to}%${op.current_status !== undefined ? `，现状 → ${op.current_status}` : ''}，时间线: ${note}`)
     return null
   }
   const task = await store.applyTaskUpdate(
     id,
-    { progress: to },
+    { progress: to, ...(op.current_status !== undefined ? { current_status: String(op.current_status) } : {}) },
     {
       type: 'progress', content: note, created_by: who,
       // Agent 批量声明：--merge 批号 → 本批合并成一条聚合卡（batch 命令自动带）
-      notify_mode: op.merge ? 'merge' : 'immediate',
+      notify_mode: notifyMode,
       merge_key: op.merge ? String(op.merge) : undefined,
     },
   )
@@ -285,7 +293,7 @@ async function opStatus(op) {
   const task = await store.applyTaskUpdate(
     id,
     { status: to },
-    { type: 'status_change', content: note, created_by: who },
+    { type: 'status_change', content: note, created_by: who, notify_mode: operationNotifyMode(op) },
   )
   human(`✅ 任务 ${id} 状态已更新为 ${to}`)
   human(renderTask(task))
@@ -313,6 +321,7 @@ async function opSchedule(op) {
       old_expected_end_date: before.expected_end_date,
       new_expected_end_date: end,
       created_by: who,
+      notify_mode: operationNotifyMode(op),
     },
   )
   human(`✅ 任务 ${id} 预计完成日期: ${before.expected_end_date ?? '—'} → ${end}`)
@@ -370,7 +379,7 @@ async function opUpdate(op) {
   const task = await store.applyTaskUpdate(id, patch, {
     type, content, created_by: who,
     // 修改 current_status 就是进展信号；单纯标题/描述等编辑仍保持静默。
-    notify_mode: op.notify || patch.current_status !== undefined || type !== 'note' ? 'immediate' : 'silent',
+    notify_mode: operationNotifyMode(op, op.notify || patch.current_status !== undefined || type !== 'note' ? 'immediate' : 'silent'),
   })
   human(`✅ 任务 ${id} 已更新（字段: ${changed}）`)
   human(renderTask(task))
@@ -387,7 +396,7 @@ async function opBlock(op) {
   const task = await store.applyTaskUpdate(
     id,
     { status: 'blocked', block_reason: reason },
-    { type: 'blocked', content: `标记阻塞：${reason}`, created_by: who },
+    { type: 'blocked', content: `标记阻塞：${reason}`, created_by: who, notify_mode: operationNotifyMode(op) },
   )
   human(`✅ 任务 ${id} 已标记阻塞`)
   human(renderTask(task))
@@ -404,7 +413,7 @@ async function opUnblock(op) {
   const task = await store.applyTaskUpdate(
     id,
     { status: 'in_progress', block_reason: '' },
-    { type: 'unblocked', content: note, created_by: who },
+    { type: 'unblocked', content: note, created_by: who, notify_mode: operationNotifyMode(op) },
   )
   human(`✅ 任务 ${id} 已解除阻塞`)
   human(renderTask(task))
@@ -422,7 +431,7 @@ async function opComplete(op) {
   const task = await store.applyTaskUpdate(
     id,
     { status: 'completed', progress: 100, actual_end_date: today },
-    { type: 'completed', content: note, created_by: who },
+    { type: 'completed', content: note, created_by: who, notify_mode: operationNotifyMode(op) },
   )
   human(`✅ 任务 ${id} 已完成（${today}）`)
   human(renderTask(task))
@@ -451,7 +460,7 @@ async function opNote(op) {
     type,
     content,
     created_by: who,
-    notify_mode: noteNotifyMode({ type, at, notify: op.notify }),
+    notify_mode: noteNotifyMode({ type, at, notify: op.notify, notifyMode: op.notify_mode }),
     ...(at ? { created_at: at } : {}),
   })
   human(`✅ 已记录 [${type}]${at ? ` @${at}` : ''}`)
@@ -575,7 +584,7 @@ async function opBatch(op) {
       continue
     }
     try {
-      if (opName === 'progress' && item.merge === undefined) item.merge = batchId
+      if (opName === 'progress' && item.merge === undefined && (item.notify_mode === undefined || item.notify_mode === 'merge')) item.merge = batchId
       const r = await ops[opName](item)
       results.push({ op: opName, ok: true, id: r?.id ?? item.id ?? null })
     } catch (e) {
@@ -621,7 +630,8 @@ function opHelp() {
   create --title "任务名" [--description] [--status] [--priority]
         [--progress 0-100] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
         [--interrupt] [--note "创建说明"]       新建任务（自动记录时间线）
-  progress <id> --to 70 [--note "说明"]         更新进度（自动记录）
+  progress <id> --to 70 [--current_status "现状"] [--note "依据"]
+                                               原子更新进度与现状（自动记录一条时间线）
   status <id> --to in_progress [--note]         修改状态（自动记录）
   update <id> --title "新标题" --description "..." --current_status "..." 
         [--priority high] [--start_date YYYY-MM-DD] [--interrupt] [--note "说明"]
@@ -637,7 +647,8 @@ function opHelp() {
                                        由 batch 命令自动携带）
   nudge <id> [--note "附言"]           催进度（记录时间线 + 飞书通知任务负责人）
   delete <id>                                   删除任务（含时间线）
-  batch --file ops.json                         批量执行（数组或 {ops: [...]}）
+  batch --file ops.json                         批量执行（数组或 {ops: [...]}；每项可设
+                                               notify_mode=immediate|merge|silent）
   plan-add <id> --from YYYY-MM-DD --to YYYY-MM-DD [--summary ".."]   给任务添加日计划块
   plan-move <plan-id> [--from] [--to] [--note "原因"]                 调整计划块（记录历史）
   plan-done <plan-id> [--note]                                        标记计划块完成

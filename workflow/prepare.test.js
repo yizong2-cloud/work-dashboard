@@ -3,7 +3,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, persistSnapshotFiles, resolveFeishuPaths, run, scanLocalFiles, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, pendingPrepareBlock, persistSnapshotFiles, resolveFeishuPaths, run, scanLocalFiles, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
+
+test('prepare refuses to replace an unresolved snapshot', () => {
+  assert.deepEqual(pendingPrepareBlock({
+    state: 'awaiting_confirmation', snapshot_id: 'snap-old', questions: [{ question_id: 'Q1' }, { question_id: 'Q2' }],
+  }), { snapshot_id: 'snap-old', count: 2, message: '快照 snap-old 仍有 2 个待确认问题' })
+  assert.equal(pendingPrepareBlock({ state: 'resolved', questions: [{ question_id: 'Q1' }] }), null)
+})
 
 test('source-map can explicitly exclude the Workboard maintenance repository', () => {
   const result = buildSessionCandidates([

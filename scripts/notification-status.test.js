@@ -33,3 +33,10 @@ test('sending 与 pending 会进入关注列表，但不伪装成 failed', () =>
   assert.equal(summary.attention.length, 2)
   assert.ok(summary.attention.every((row) => row.status !== 'failed'))
 })
+
+test('通知状态可明确标注本次 changeset 范围，避免用全局 sent 总数冒充本批结果', () => {
+  const summary = summarizeOutbox([{ status: 'sent', event_type: 'task_update' }], new Date(), {
+    changeset_id: 'chg-123', since: '2026-08-27T10:00:00.000Z',
+  })
+  assert.match(formatNotificationStatus(summary), /范围：本次 changeset chg-123/)
+})

@@ -15,6 +15,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { buildReviewPacket } from './review-packet.mjs'
+import { loadPendingPlan } from './pending.mjs'
 import { redactSensitiveValue } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
 
@@ -49,6 +50,7 @@ const configuredFeishuTimeout = Number(process.env.WORKBOARD_FEISHU_TIMEOUT_MS |
 const FEISHU_TIMEOUT_MS = Number.isFinite(configuredFeishuTimeout) && configuredFeishuTimeout > 0 ? configuredFeishuTimeout : DEFAULT_FEISHU_TIMEOUT_MS
 const CONTEXT_FILE = path.join(ROOT, 'workflow', 'update-context.json')
 const REVIEW_PACKET_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
+const PENDING_PLAN_FILE = path.join(ROOT, 'workflow', 'pending-plan.json')
 const LAST_HEALTHY_CONTEXT_FILE = path.join(ROOT, 'workflow', 'last-healthy-context.json')
 const LAST_HEALTHY_PACKET_FILE = path.join(ROOT, 'workflow', 'last-healthy-review-packet.json')
 const ANALYSIS_STATE = path.join(ROOT, 'workflow', '.analysis-state.json')
@@ -99,6 +101,15 @@ export function snapshotNotification({ snapshotHealth, failedCount, noScheduleCo
     body: noScheduleCount > 0
       ? `${noScheduleCount} 个活跃任务未排期；数据源已拉取，可说"开始更新"`
       : '数据源已拉取，可说"开始更新"',
+  }
+}
+
+export function pendingPrepareBlock(plan) {
+  if (plan?.state !== 'awaiting_confirmation' || !Array.isArray(plan.questions) || plan.questions.length === 0) return null
+  return {
+    snapshot_id: plan.snapshot_id || null,
+    count: plan.questions.length,
+    message: `快照 ${plan.snapshot_id || '未知'} 仍有 ${plan.questions.length} 个待确认问题`,
   }
 }
 
@@ -418,6 +429,11 @@ export function summarizeFeishuStep(output, fallback = '') {
 }
 
 async function main() {
+  const pendingPlan = loadPendingPlan(PENDING_PLAN_FILE)
+  const pendingBlock = pendingPrepareBlock(pendingPlan)
+  if (pendingBlock) {
+    throw new Error(`${pendingBlock.message}。为防止问题被新快照静默覆盖，本次 prepare 已停止；先运行 dashboard:pending -- show 续办，或在用户明确放弃后运行 dashboard:pending -- cancel --reason "原因"。`)
+  }
   const steps = []
   // 说明：prepare 全程无状态重叠窗口（Codex/DSH 用 --since-time=分析游标、飞书用 --since=分析游标、
   // 本地文件自分析游标起）——不推进任何游标；分析游标仅由 verify 在「本快照已成功 apply」后推进。

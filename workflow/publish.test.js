@@ -15,16 +15,34 @@ const review = {
 const spec = {
   snapshot_id: 'snap-publish',
   reconciliation: [{ source_id: 'feishu:0', decision: 'mapped', task_id: 'task-1' }],
-  ops: [{ op: 'progress', id: 'task-1', to: 80, note: '已完成联调验收' }],
+  ops: [{ op: 'progress', id: 'task-1', to: 80, current_status: '联调已验收', progress_basis: 'milestone_ratio', notify_mode: 'merge', note: '已完成联调验收' }],
 }
 
 test('发布预览明确列出拟写入内容与飞书意图', () => {
   const preview = buildPublishPreview(spec, review, '2026-08-23T00:00:00Z')
   const text = formatPublishPreview(preview)
   assert.match(text, /尚未写入看板，尚未触发飞书通知/)
-  assert.match(text, /成就系统收尾 → 80%/)
-  assert.match(text, /将进入飞书投递队列/)
+  assert.match(text, /更新进度 → 80%/)
+  assert.match(text, /T1\. 成就系统收尾/)
+  assert.match(text, /同步现状：联调已验收/)
+  assert.match(text, /按已完成里程碑计算/)
+  assert.match(text, /合并后进入飞书队列/)
   assert.match(text, /确认推送/)
+})
+
+test('发布预览提醒到期未完成和百分比未同步现状，而不是静默制造看板矛盾', () => {
+  const risky = buildPublishPreview({
+    ...spec,
+    ops: [{ op: 'progress', id: 'task-1', to: 70, progress_basis: 'agent_estimate', notify_mode: 'silent', note: '根据对话估算' }],
+  }, {
+    ...review,
+    board: [{ id: 'task-1', title: '成就系统收尾', expected_end_date: '2026-08-22' }],
+  }, '2026-08-23T00:00:00Z')
+  const text = formatPublishPreview(risky)
+  assert.match(text, /Agent 估算（需你确认）/)
+  assert.match(text, /预计完成日为 2026-08-22/)
+  assert.match(text, /没有同步“当前情况”/)
+  assert.match(text, /静默写入，不推送/)
 })
 
 test('确认只能消费与当前快照和变更完全一致的预览', () => {

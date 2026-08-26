@@ -58,10 +58,36 @@ test('通知意图与百分比进度字段语义独立', () => {
   assert.equal(notificationIntentFor({ op: 'note', type: 'note' }), 'silent')
   assert.equal(notificationIntentFor({ op: 'note', type: 'progress' }), 'immediate')
   assert.deepEqual(summarizeNotificationIntents([
-    { op: 'progress', to: 80, note: '完成验收' },
+    { op: 'progress', to: 80, note: '完成验收', notify_mode: 'merge' },
     { op: 'note', type: 'note' },
     { op: 'note', type: 'progress', at: '2026-08-21' },
-  ]), { immediate: 1, silent: 1, historical: 1 })
+  ]), { immediate: 0, merge: 1, silent: 1, historical: 1 })
+})
+
+test('通知模式可独立于看板写入选择即时、合并或静默', () => {
+  assert.equal(notificationIntentFor({ op: 'complete', notify_mode: 'silent' }), 'silent')
+  assert.equal(notificationIntentFor({ op: 'progress', notify_mode: 'merge' }), 'merge')
+  assert.equal(notificationIntentFor({ op: 'update', current_status: '完成', notify_mode: 'silent' }), 'silent')
+})
+
+test('workflow 操作必须显式声明通知模式，避免预览与 batch 默认行为不一致', () => {
+  const file = path.join(os.tmpdir(), `workboard-notify-mode-${Date.now()}.json`)
+  const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
+  const packet = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'review-packet.json'), 'utf8'))
+  const reconciliation = packet.review_items.map((item) => ({ source_id: item.source_id, decision: 'reviewed_no_change' }))
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'note', id: 'task-1', type: 'note', content: '只写一个备注' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('必须显式提供 notify_mode'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
 })
 
 test('百分比进度不能只写 progress note 而不更新任务字段', () => {
@@ -78,6 +104,26 @@ test('百分比进度不能只写 progress note 而不更新任务字段', () =>
     assert.throws(
       () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
       (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('必须改用 progress 操作'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
+test('精确百分比必须标注来源口径，不能把 Agent 模糊判断伪装成事实', () => {
+  const file = path.join(os.tmpdir(), `workboard-progress-basis-${Date.now()}.json`)
+  const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
+  const packet = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'review-packet.json'), 'utf8'))
+  const reconciliation = packet.review_items.map((item) => ({ source_id: item.source_id, decision: 'reviewed_no_change' }))
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'progress', id: 'task-1', to: 70, note: '进度不错，所以估算为 70%' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('progress_basis'),
     )
   } finally {
     fs.rmSync(file, { force: true })
