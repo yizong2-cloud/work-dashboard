@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { buildReviewPacket } from './review-packet.mjs'
+import { buildReviewPacket, splitFeishuGroups } from './review-packet.mjs'
 import { loadPendingPlan } from './pending.mjs'
 import { redactSensitiveValue } from './redaction.mjs'
 import { feishuFailureDetail, feishuOutputIncomplete, feishuSnapshot } from './source-safety.mjs'
@@ -428,6 +428,87 @@ export function summarizeFeishuStep(output, fallback = '') {
   }
 }
 
+export function parseFeishuCompletion(output) {
+  const match = String(output || '').match(/完成：\s*(\d+)\s*个会话、\s*(\d+)\s*条消息/)
+  return match
+    ? { chats: Number(match[1]), messages: Number(match[2]) }
+    : { chats: null, messages: null }
+}
+
+function feishuMessageCount(text) {
+  return String(text || '').split('\n').filter((line) => /^- \*\*.+\*\* \(\d{2}:\d{2}\):/.test(line)).length
+}
+
+function filterFeishuGroupContent(content, cutoffMs) {
+  const lines = String(content || '').split('\n')
+  const keptByDate = new Map()
+  let date = null
+  let chunk = null
+  const flush = () => {
+    if (!chunk) return
+    if (chunk.keep && chunk.date) {
+      if (!keptByDate.has(chunk.date)) keptByDate.set(chunk.date, [])
+      keptByDate.get(chunk.date).push(...chunk.lines)
+    }
+    chunk = null
+  }
+  for (const line of lines) {
+    const dateMatch = line.match(/^###\s+(\d{4}-\d{2}-\d{2})\s*$/)
+    if (dateMatch) {
+      flush()
+      date = dateMatch[1]
+      continue
+    }
+    const messageMatch = line.match(/^- \*\*.+\*\* \((\d{2}:\d{2})\):/)
+    if (messageMatch) {
+      flush()
+      const timestamp = date ? new Date(`${date}T${messageMatch[1]}:00+08:00`).getTime() : 0
+      chunk = { date, keep: Number.isFinite(timestamp) && timestamp >= cutoffMs, lines: [line] }
+      continue
+    }
+    if (chunk) chunk.lines.push(line)
+  }
+  flush()
+  const out = []
+  for (const [day, messages] of keptByDate) {
+    out.push(`### ${day}`, '', ...messages)
+  }
+  return out.join('\n').trim()
+}
+
+// The exporter intentionally overlaps by calendar day so it cannot miss a
+// message around midnight. Preserve that full scan for integrity checks, then
+// expose only the minute-level delta to the review packet. Keeping the cursor
+// minute inclusive avoids losing a message whose exporter timestamp has no
+// seconds; at worst one boundary-minute message is reviewed twice.
+export function filterFeishuMarkdownSince(text, sinceIso) {
+  const groups = splitFeishuGroups(text)
+  if (!sinceIso) {
+    return {
+      content: String(text || ''),
+      raw_chat_count: groups.length,
+      delta_chat_count: groups.length,
+      delta_message_count: feishuMessageCount(text),
+    }
+  }
+  const parsedCutoff = new Date(sinceIso).getTime()
+  const cutoffMs = Number.isFinite(parsedCutoff) ? Math.floor(parsedCutoff / 60000) * 60000 : 0
+  const kept = []
+  let messageCount = 0
+  for (const group of groups) {
+    const content = filterFeishuGroupContent(group.content, cutoffMs)
+    if (!content) continue
+    messageCount += feishuMessageCount(content)
+    kept.push(`## ${group.group}\n\n${content}`)
+  }
+  return {
+    content: kept.join('\n\n'),
+    raw_chat_count: groups.length,
+    delta_chat_count: kept.length,
+    delta_message_count: messageCount,
+  }
+}
+
 async function main() {
   const pendingPlan = loadPendingPlan(PENDING_PLAN_FILE)
   const pendingBlock = pendingPrepareBlock(pendingPlan)
@@ -450,17 +531,35 @@ async function main() {
     ? await run(FEISHU_BIN, feishuArgs, FEISHU_TIMEOUT_MS, { stream: true })
     : { ok: false, stdout: '', stderr: 'cookies.json 不存在', code: 'MISSING_COOKIES', timed_out: false }
   const feishuIncomplete = feishuRes.ok && feishuOutputIncomplete(feishuRes.stdout)
-  const feishuOk = feishuRes.ok && !feishuIncomplete
+  const feishuCompletion = parseFeishuCompletion(feishuRes.stdout)
+  let feishuOk = feishuRes.ok && !feishuIncomplete
   // A successful command that produced no new file is still an empty source;
   // never reuse the previous range export as if it were current evidence.
   const freshFeishuFile = feishuOk ? latestFile(DAILY_DIR, /^range_.*\.md$/, feishuStartedAt - 2000) : null
   let feishuFile = freshFeishuFile
   let feishuText = ''
+  let feishuRawChatCount = 0
+  let feishuDeltaChatCount = 0
+  let feishuDeltaMessageCount = 0
+  if (feishuOk && feishuCompletion.chats > 0 && !feishuFile) {
+    feishuOk = false
+    feishuRes.stderr = `导出器报告 ${feishuCompletion.chats} 个会话，但没有生成新的 Markdown 文件；拒绝把缺失文件当作空增量`
+  }
   if (feishuOk && feishuFile) {
     try {
-      feishuText = fs.readFileSync(path.join(DAILY_DIR, feishuFile), 'utf8').slice(0, 30000)
+      const rawFeishuText = fs.readFileSync(path.join(DAILY_DIR, feishuFile), 'utf8')
+      const filtered = filterFeishuMarkdownSince(rawFeishuText, LAST_AT)
+      feishuText = filtered.content
+      feishuRawChatCount = filtered.raw_chat_count
+      feishuDeltaChatCount = filtered.delta_chat_count
+      feishuDeltaMessageCount = filtered.delta_message_count
+      if (feishuCompletion.chats !== null && feishuCompletion.chats !== feishuRawChatCount) {
+        feishuOk = false
+        feishuRes.stderr = `导出器报告 ${feishuCompletion.chats} 个会话，但 Markdown 仅解析到 ${feishuRawChatCount} 个群；拒绝生成不完整快照`
+      }
     } catch {
-      feishuText = '（飞书增量文件读取失败）'
+      feishuOk = false
+      feishuRes.stderr = '飞书增量文件读取失败'
     }
   }
   ;({ file: feishuFile, content: feishuText } = feishuSnapshot({ ok: feishuOk, file: feishuFile, content: feishuText }))
@@ -555,7 +654,15 @@ async function main() {
     source_range_days: DAYS,
     snapshot_health,
     sources: {
-      feishu: { ok: feishuOk, file: feishuFile },
+      feishu: {
+        ok: feishuOk,
+        file: feishuFile,
+        exported_chat_count: feishuCompletion.chats,
+        exported_message_count: feishuCompletion.messages,
+        parsed_chat_count: feishuRawChatCount,
+        delta_chat_count: feishuDeltaChatCount,
+        delta_message_count: feishuDeltaMessageCount,
+      },
       codex: { ok: codexOk, count: codex.length },
       dsh: { ok: dshOk, count: dsh.length },
       board: { ok: boardOk, count: board.length },

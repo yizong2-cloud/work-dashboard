@@ -26,6 +26,7 @@
     "decision:clarify": "node --experimental-strip-types scripts/decision.js clarify",
     "decision:enrich": "node --experimental-strip-types scripts/decision.js enrich",
     "dashboard:prepare": "node workflow/prepare.mjs",
+    "dashboard:update": "node workflow/update.mjs",
     "dashboard:status": "node workflow/status.mjs",
     "dashboard:health": "node workflow/health.mjs",
     "dashboard:steward": "node workflow/stewardship.mjs",

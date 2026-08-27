@@ -32,6 +32,7 @@ function itemLines(item, tasks) {
   const lines = [`- ${item.source_id} · ${item.review_reason || '未知原因'} · ${item.label || '未命名来源'}`]
   const candidates = candidateText(item, tasks)
   if (candidates) lines.push(`  候选（仍需核对）：${candidates}`)
+  if (item.knowledge_hints?.length) lines.push(`  已确认边界：${item.knowledge_hints.join(' / ')}`)
   if (item.suggested_decision) lines.push(`  建议结论：${item.suggested_decision}（显式规则，不是自动写入）`)
   lines.push(`  摘录：${shortExcerpt(item.excerpt)}`)
   return lines
@@ -64,7 +65,7 @@ export function formatReviewBrief(packet, { changeset = null, forceFull = false 
     settled
       ? '🧭 审查简报（只读审计；本快照已结案，不得重新写入或推送）'
       : '🧭 审查简报（只读；尚未写入看板或发送飞书）',
-    `快照：${packet.snapshot_id || '未知'} · 证据 ${items.length} 条 · 需判断 ${high.length} 条`,
+    `快照：${packet.snapshot_id || '未知'} · 审查组 ${items.length} 个 · 覆盖原始证据 ${packet.counts?.raw_evidence_members ?? items.length} 条 · 需判断 ${high.length} 个`,
     settled
       ? '这是历史审计展开。以 changeset 中已有结论为准；不得重新生成 ops.json、apply 或推送。'
       : '使用此简报时，仍必须在 ops.json 为每一个 source_id 写唯一 reconciliation；不清楚的单项才用 dashboard:evidence 展开。',

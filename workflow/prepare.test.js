@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseJsonArrayOutput, pendingPrepareBlock, persistSnapshotFiles, resolveFeishuPaths, run, scanLocalFiles, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
+import { buildFeishuArgs, buildFeishuCandidates, buildSessionCandidates, buildSummaryArgs, filterFeishuMarkdownSince, hasMatchingHealthySnapshot, isSnapshotHealthy, normalizeMappingText, parseFeishuCompletion, parseJsonArrayOutput, pendingPrepareBlock, persistSnapshotFiles, resolveFeishuPaths, run, scanLocalFiles, snapshotNotification, summarizeFeishuStep, unmappedCwdRequired } from './prepare.mjs'
 
 test('prepare refuses to replace an unresolved snapshot', () => {
   assert.deepEqual(pendingPrepareBlock({
@@ -137,6 +137,44 @@ test('successful Feishu recovery is a warning, not a source failure detail', () 
   assert.equal(summary.warning, '胡贺伟: 连续两次无法切换，重新加载飞书 Messenger 后再试')
 })
 
+test('Feishu completion metadata is machine-checkable instead of trusting a truncated file', () => {
+  assert.deepEqual(parseFeishuCompletion('完成：24 个会话、2418 条消息 → /tmp/export.json'), {
+    chats: 24,
+    messages: 2418,
+  })
+  assert.deepEqual(parseFeishuCompletion('Markdown 汇总 → /tmp/export.md'), { chats: null, messages: null })
+})
+
+test('Feishu delta filtering keeps every group scan but only injects messages after the exact cursor', () => {
+  const markdown = [
+    '# 飞书聊天记录汇总',
+    '',
+    '## 王昊楠（3 条）',
+    '',
+    '### 2026-08-26',
+    '',
+    '- **王昊楠** (23:59): 旧消息',
+    '### 2026-08-27',
+    '',
+    '- **宗意** (00:20): 边界分钟消息',
+    '- **王昊楠** (00:35): 新交付',
+    '  补充说明',
+    '',
+    '## 无新增群（1 条）',
+    '',
+    '### 2026-08-26',
+    '',
+    '- **同事** (12:00): 更早消息',
+  ].join('\n')
+  const result = filterFeishuMarkdownSince(markdown, '2026-08-27T00:20:42+08:00')
+  assert.equal(result.raw_chat_count, 2)
+  assert.equal(result.delta_chat_count, 1)
+  assert.equal(result.delta_message_count, 2)
+  assert.match(result.content, /边界分钟消息/)
+  assert.match(result.content, /新交付\n  补充说明/)
+  assert.doesNotMatch(result.content, /旧消息|更早消息|无新增群/)
+})
+
 test('Codex and DSH each use one full JSON scan bound to the analysis cursor', () => {
   assert.deepEqual(buildSummaryArgs('/tmp/workboard', 'codex-summary.js', 3, '2026-08-19T10:00:00.000Z'), [
     '/tmp/workboard/scripts/codex-summary.js', '--days', '3', '--json', '--since-time', '2026-08-19T10:00:00.000Z',
@@ -203,6 +241,14 @@ test('source-map matches chat title whitespace and keeps explicit non-business c
   assert.deepEqual(result.hits[1].tasks, ['Jigslide（宁静华容道）CMS 与 API 联调支持'])
   assert.equal(result.hits[2].ignored, true)
   assert.equal(result.hits[2].suggested_decision, 'irrelevant')
+})
+
+test('Wang Haonan video-generator chat has a strong independent task anchor', () => {
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'source-map.json'), 'utf8'))
+  const result = buildFeishuCandidates('## 王昊楠（3 条）\nPuzzle-Ad-Generator Windows v35 已交付', sourceMap)
+  assert.deepEqual(result.unmappedGroups, [])
+  assert.deepEqual(result.hits[0].tasks, ['本地拼图广告生成器（Puzzle-Ad-Generator）开发'])
+  assert.match(result.hits[0].hint, /不归 HTML 试玩广告/)
 })
 
 test('degraded prepare preserves the previous healthy snapshot while replacing latest', () => {

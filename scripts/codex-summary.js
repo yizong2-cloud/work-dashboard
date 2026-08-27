@@ -115,6 +115,7 @@ function summarizeSession(file) {
   const actions = [] // {type, detail}
   let lastTs = ''
   let linesRead = 0
+  let totalLines = 0
   let truncated = false
   let fileBytes = 0
   let fileMtime = 0
@@ -127,12 +128,14 @@ function summarizeSession(file) {
   const limit = fileBytes > MAX_FILE_MB * 1024 * 1024 ? 2500 : MAX_LINES
 
   const raw = fs.readFileSync(file, 'utf8')
-  for (const line of raw.split('\n')) {
+  const allLines = raw.split('\n')
+  totalLines = allLines.length
+  const lines = allLines.length > limit
+    ? [...allLines.slice(0, Math.min(200, limit)), ...allLines.slice(-(Math.max(0, limit - 200)))]
+    : allLines
+  truncated = allLines.length > limit
+  for (const line of lines) {
     linesRead++
-    if (linesRead > limit) {
-      truncated = true
-      break
-    }
     if (!line.trim()) continue
     let e
     try {
@@ -155,7 +158,8 @@ function summarizeSession(file) {
         for (const c of p.content || []) {
           if (c.type === 'input_text' && role === 'user') {
             const text = stripSystemText(c.text || '')
-            if (text) userReqs.push(text.slice(0, 6000))
+            const eventMs = ts ? new Date(ts).getTime() : 0
+            if (text && (!sinceMs || eventMs > sinceMs)) userReqs.push(text.slice(0, 6000))
           }
         }
       } else if (p.type === 'function_call' || p.type === 'custom_tool_call') {
@@ -187,7 +191,8 @@ function summarizeSession(file) {
         } else {
           detail = `${name}: ${JSON.stringify(args).slice(0, 120)}`
         }
-        if (detail && actions.length < 12) actions.push({ type: name, detail })
+        const eventMs = ts ? new Date(ts).getTime() : 0
+        if (detail && actions.length < 12 && (!sinceMs || eventMs > sinceMs)) actions.push({ type: name, detail })
       }
     }
   }
@@ -219,6 +224,7 @@ function summarizeSession(file) {
     commits: commits.slice(0, 5),
     actionCount: actions.length,
     linesRead,
+    totalLines,
     truncated,
   }
 }
@@ -258,7 +264,7 @@ function renderMarkdown(sessions, home) {
       lines.push('用户: （无文本请求，可能为工具调试会话）', '')
     }
     if (s.truncated) {
-      lines.push('⚠️ 会话过大，仅读取了前段（可能遗漏最新内容）', '')
+      lines.push('ℹ️ 会话过大，已读取会话元数据与最新尾段（中间工具噪声已省略）', '')
     }
     if (s.commits.length > 0) {
       lines.push('提交:')

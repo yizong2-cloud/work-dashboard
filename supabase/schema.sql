@@ -29,7 +29,7 @@ create table if not exists public.tasks (
   --   已完成的任务进度必须为 100 且必须有实际完成日期；
   --   被阻塞的任务必须有阻塞原因（trim 后非空）。
   constraint tasks_completed_progress_ck check (status <> 'completed' or progress = 100),
-  constraint tasks_completed_actual_ck   check (status <> 'completed' or actual_end_date is not null),
+  constraint tasks_actual_completion_state_ck check ((status = 'completed') = (actual_end_date is not null)),
   constraint tasks_blocked_reason_ck     check (status <> 'blocked' or btrim(block_reason) <> '')
 );
 
@@ -38,10 +38,12 @@ create table if not exists public.tasks (
 -- 因此这里用 DO block 幂等重建（新库则由建表语句自带约束）。
 do $$
 begin
+  update public.tasks set actual_end_date = null where status <> 'completed' and actual_end_date is not null;
   alter table public.tasks drop constraint if exists tasks_completed_progress_ck;
   alter table public.tasks add constraint tasks_completed_progress_ck check (status <> 'completed' or progress = 100);
   alter table public.tasks drop constraint if exists tasks_completed_actual_ck;
-  alter table public.tasks add constraint tasks_completed_actual_ck check (status <> 'completed' or actual_end_date is not null);
+  alter table public.tasks drop constraint if exists tasks_actual_completion_state_ck;
+  alter table public.tasks add constraint tasks_actual_completion_state_ck check ((status = 'completed') = (actual_end_date is not null));
   alter table public.tasks drop constraint if exists tasks_blocked_reason_ck;
   alter table public.tasks add constraint tasks_blocked_reason_ck check (status <> 'blocked' or btrim(block_reason) <> '');
   -- 兼容两个约束名：create table 内联约束自动命名 tasks_priority_check（旧库残留），
@@ -135,7 +137,7 @@ begin
         progress          = coalesce((p_patch->>'progress')::int, t.progress),
         start_date        = coalesce((p_patch->>'start_date')::date, t.start_date),
         expected_end_date = coalesce((p_patch->>'expected_end_date')::date, t.expected_end_date),
-        actual_end_date   = coalesce((p_patch->>'actual_end_date')::date, t.actual_end_date),
+        actual_end_date   = case when p_patch ? 'actual_end_date' then nullif(p_patch->>'actual_end_date', '')::date else t.actual_end_date end,
         current_status    = coalesce(p_patch->>'current_status', t.current_status),
         block_reason      = coalesce(p_patch->>'block_reason', t.block_reason),
         is_interrupt_task = coalesce((p_patch->>'is_interrupt_task')::boolean, t.is_interrupt_task),

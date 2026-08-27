@@ -29,6 +29,8 @@ export const TEST_FILES = [
   'scripts/test-runner.test.js',
   'workflow/review-packet.test.js',
   'workflow/prepare.test.js',
+  'workflow/update.test.js',
+  'workflow/verify.test.js',
   'workflow/pending.test.js',
   'workflow/publish.test.js',
   'workflow/apply-safety.test.js',

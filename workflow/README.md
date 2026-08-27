@@ -12,6 +12,7 @@
 | 命令 | 作用 |
 | --- | --- |
 | `npm run dashboard:prepare` | 拉取四数据源并生成两层产物：原始快照 `update-context.json` 与紧凑审查包 `review-packet.json`。飞书 Cookies 缺失/失效会明确提示且不复用旧数据。**可无人值守** |
+| `npm run dashboard:update -- start|preview|status|confirm` | 日常 Agent 使用的深模块入口：隐藏 prepare/status/preview/apply/verify 的固定顺序，并在任一安全闸门失败时停止。 |
 | `npm run dashboard:status [-- --json]` | 只读查看最近快照、四个来源、审查游标和 apply 匹配状态；不展开原始快照、不写数据库。 |
 | `npm run dashboard:health [-- --json]` | 一次只读汇总采集/审查、发布、通知队列和受管工作区；不调用采集器、不写库、不发通知。 |
 | `npm run dashboard:notify-status [-- --json]` | 只读查看 Supabase 通知 outbox 的 pending/failed/重试摘要；仅使用本机 service role，不输出 payload。 |
@@ -26,7 +27,7 @@
 
 飞书导出默认超时 600 秒（完整刷新可能覆盖多个活跃会话）；确需更短或更长时间时可设置 `WORKBOARD_FEISHU_TIMEOUT_MS`。导出器对单个会话另有独立预算，登录态失效、单会话失败或总超时都不会复用旧导出。聊天采集核心固定为 `~/Workspace/feishu-export-public/bin/feishu-export`；Cookie 为 `~/Workspace/feishu_export/cookies.json`，输出为 `~/Workspace/feishu_export/daily`。也就是说，公开仓库提供代码，本地目录提供私有认证与运行数据。`WORKBOARD_FEISHU_BIN` 只供紧急诊断显式覆盖，不构成第二套例行工作流。
 
-日常只运行 `npm run dashboard:prepare`，不要直接运行任一 `feishu-export`。仓库内 `workflow/dashboard-update.skill.md` 是唯一 Skill 源文件；修改后运行 `npm run dashboard:skill:install`，并以 `npm run dashboard:skill:check` 确认 `.agents`/`.codex` 副本没有漂移。
+日常 Agent 只运行 `npm run dashboard:update -- start`，不要直接运行任一 `feishu-export`。底层 `dashboard:prepare` 仍供定时采集与排障使用。仓库内 `workflow/dashboard-update.skill.md` 是唯一 Skill 源文件；修改后运行 `npm run dashboard:skill:install`，并以 `npm run dashboard:skill:check` 确认安装副本没有漂移。
 
 `dashboard:prepare` 会实时透传飞书导出器的会话序号、名称、耗时与失败状态；Codex / DSH 等短步骤仍保持紧凑输出，避免长采集阶段看起来无响应。
 

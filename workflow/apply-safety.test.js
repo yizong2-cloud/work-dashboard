@@ -130,6 +130,26 @@ test('精确百分比必须标注来源口径，不能把 Agent 模糊判断伪�
   }
 })
 
+test('Agent 估算使用阶段锚点，拒绝 92% 这类伪精度', () => {
+  const file = path.join(os.tmpdir(), `workboard-progress-anchor-${Date.now()}.json`)
+  const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
+  const packet = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'review-packet.json'), 'utf8'))
+  const reconciliation = packet.review_items.map((item) => ({ source_id: item.source_id, decision: 'reviewed_no_change' }))
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'progress', id: 'task-1', to: 92, note: 'Agent 综合判断', progress_basis: 'agent_estimate', notify_mode: 'silent' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('阶段锚点'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
 test('实际 apply 没有当前预览确认时必须停止', () => {
   const file = path.join(os.tmpdir(), `workboard-unapproved-${Date.now()}.json`)
   const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))

@@ -256,6 +256,9 @@ async function opCreate(op) {
 async function opProgress(op) {
   const id = requireOp(op, 'id', '任务 id')
   const to = assertProgress(op.to ?? op.progress)
+  const before = await store.getTask(id)
+  if (!before) fail(`任务不存在: ${id}`)
+  if (before.status === 'completed') fail('已完成任务需要继续推进时请用 reopen，不能只改进度并残留实际完成日期')
   const note = op.note ?? op.content ?? `进度更新为 ${to}%。`
   const notifyMode = operationNotifyMode(op, op.merge ? 'merge' : 'immediate')
   if (notifyMode === 'merge' && !op.merge) fail('progress 的 notify_mode=merge 必须由 batch 提供合并批号；单条进度请选择 immediate 或 silent')
@@ -285,6 +288,11 @@ async function opStatus(op) {
   // （block 会校验原因并记录阻塞说明；complete 会置 progress=100 + 实际完成日）
   if (to === 'blocked') fail('请用 block 命令标记阻塞（需提供 --reason）')
   if (to === 'completed') fail('请用 complete 命令标记完成（会自动置 100% 与实际完成日期）')
+  const before = await store.getTask(id)
+  if (!before) fail(`任务不存在: ${id}`)
+  if (before.status === 'completed' && to !== 'completed') {
+    fail('已完成任务恢复为活跃状态必须使用 reopen 命令，以原子清除实际完成日期并重设进度')
+  }
   const note = op.note ?? op.content ?? `状态变更为 ${to}。`
   if (dryRun) {
     human(`[dry-run] 任务 ${id} 状态 → ${to}`)
@@ -296,6 +304,35 @@ async function opStatus(op) {
     { type: 'status_change', content: note, created_by: who, notify_mode: operationNotifyMode(op) },
   )
   human(`✅ 任务 ${id} 状态已更新为 ${to}`)
+  human(renderTask(task))
+  return task
+}
+
+async function opReopen(op) {
+  const id = requireOp(op, 'id', '任务 id')
+  const progress = assertProgress(requireOp(op, 'to', '恢复后的进度（0-99）'))
+  if (progress >= 100) fail('reopen 后进度必须低于 100；若仍是 100% 请保持 completed')
+  const before = await store.getTask(id)
+  if (!before) fail(`任务不存在: ${id}`)
+  if (before.status !== 'completed') fail(`只有 completed 任务可以 reopen；当前状态为 ${before.status}`)
+  const note = op.note ?? op.content ?? '验收发现后续事项，任务重新进入进行中。'
+  const patch = {
+    status: 'in_progress',
+    progress,
+    actual_end_date: null,
+    block_reason: '',
+    ...(op.current_status !== undefined ? { current_status: String(op.current_status) } : {}),
+  }
+  if (dryRun) {
+    human(`[dry-run] 任务 ${id} 重新打开 → in_progress ${progress}%，清除实际完成日期`)
+    return null
+  }
+  const task = await store.applyTaskUpdate(
+    id,
+    patch,
+    { type: 'status_change', content: note, created_by: who, notify_mode: operationNotifyMode(op) },
+  )
+  human(`✅ 任务 ${id} 已重新打开（in_progress ${progress}%，已清除实际完成日期）`)
   human(renderTask(task))
   return task
 }
@@ -640,6 +677,8 @@ function opHelp() {
   block <id> --reason "原因"                    标记阻塞（必填原因）
   unblock <id> [--note]                         解除阻塞
   complete <id> [--note]                        标记完成（进度=100，记录实际完成日）
+  reopen <id> --to 95 [--current_status "现状"] [--note]
+                                               重新打开已完成任务（原子清除实际完成日）
   note <id> --content "内容" [--type 类型] [--at "YYYY-MM-DDTHH:MM:SS"] [--notify]
                                        追加时间线（默认按 progress 即时推送；--type note
                                        纯备注默认静默；--at 回填历史时间）
@@ -675,6 +714,7 @@ const ops = {
   block: opBlock,
   unblock: opUnblock,
   complete: opComplete,
+  reopen: opReopen,
   note: opNote,
   nudge: opNudge,
   delete: opDelete,

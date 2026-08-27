@@ -1,6 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildStatus, formatStatus } from './status.mjs'
+import { buildStatus, formatStatus, statusAllowsPrepare, statusIsReviewable } from './status.mjs'
+
+test('strict review gate requires a fresh healthy and fully covered snapshot', () => {
+  const healthy = {
+    packet_available: true,
+    snapshot_health: 'ok',
+    snapshot_stale: false,
+    coverage: { complete: true },
+    source_health_recorded: true,
+    pending: { active: false },
+    publish: { awaiting_confirmation: false },
+  }
+  assert.equal(statusIsReviewable(healthy), true)
+  assert.equal(statusIsReviewable({ ...healthy, coverage: { complete: false } }), false)
+  assert.equal(statusIsReviewable({ ...healthy, snapshot_health: 'degraded' }), false)
+})
 
 test('status 在 degraded 快照时指出失败来源和恢复动作', () => {
   const status = buildStatus({
@@ -261,4 +276,10 @@ test('status 不会被条数相等但 source_id 重复的伪对账欺骗', () =>
   })
   assert.equal(status.review.fully_reconciled, false)
   assert.match(formatStatus(status), /不能确认已完整结案/)
+})
+
+test('prepare guard 只阻止覆盖待确认计划或待推送预览', () => {
+  assert.equal(statusAllowsPrepare({ pending: { active: false }, publish: { awaiting_confirmation: false } }), true)
+  assert.equal(statusAllowsPrepare({ pending: { active: true }, publish: { awaiting_confirmation: false } }), false)
+  assert.equal(statusAllowsPrepare({ pending: { active: false }, publish: { awaiting_confirmation: true } }), false)
 })

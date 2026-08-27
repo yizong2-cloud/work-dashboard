@@ -59,6 +59,7 @@ function operationText(op, tasks) {
     case 'block': return `标记阻塞：${task}；原因：${note}`
     case 'unblock': return `解除阻塞：${task}${note ? `；说明：${note}` : ''}`
     case 'complete': return `标记完成：${task}${note ? `；说明：${note}` : ''}`
+    case 'reopen': return `重新打开：${task} → 进行中 ${op.to}%（清除实际完成日期）${op.current_status ? `；同步现状：${op.current_status}` : ''}${op.progress_basis ? `；口径：${PROGRESS_BASIS_LABELS[op.progress_basis] || op.progress_basis}` : ''}${note ? `；依据：${note}` : ''}`
     case 'note': return `补充${(op.type ?? 'progress') === 'note' ? '备注' : '进展'}：${task}；${note}`
     case 'update': {
       const fields = Object.entries(op)

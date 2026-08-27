@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DEFAULT_PENDING_FILE, loadPendingPlan, pendingForSnapshot } from './pending.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -43,6 +43,22 @@ async function supabaseRead(table, select, filter = '') {
   return res.json()
 }
 
+export function validateTaskInvariants(board) {
+  const issues = []
+  for (const t of board || []) {
+    if (t.status === 'completed' && (t.progress !== 100 || !t.actual_end_date)) {
+      issues.push(`completed 但不完整: ${t.title}（progress=${t.progress}, actual=${t.actual_end_date}）`)
+    }
+    if (t.status !== 'completed' && t.actual_end_date) {
+      issues.push(`未完成任务残留实际完成日期: ${t.title}（status=${t.status}, actual=${t.actual_end_date}）`)
+    }
+    if (t.status === 'blocked' && !(t.block_reason || '').trim()) {
+      issues.push(`blocked 无原因: ${t.title}`)
+    }
+  }
+  return issues
+}
+
 function main() {
   // A pending plan is an intentional stop state. Never advance the analysis
   // cursor past a snapshot that still needs the user's mapping decision.
@@ -64,18 +80,8 @@ function main() {
     process.exit(1)
   }
 
-  const issues = []
+  const issues = validateTaskInvariants(board)
   const taskIds = new Set(board.map((t) => t.id))
-
-  // 1) 不变量：completed/blocked（与 DB CHECK 一致，双保险）
-  for (const t of board) {
-    if (t.status === 'completed' && (t.progress !== 100 || !t.actual_end_date)) {
-      issues.push(`completed 但不完整: ${t.title}（progress=${t.progress}, actual=${t.actual_end_date}）`)
-    }
-    if (t.status === 'blocked' && !(t.block_reason || '').trim()) {
-      issues.push(`blocked 无原因: ${t.title}`)
-    }
-  }
 
   // 2) 引用完整性：孤儿时间线 / 孤儿计划块（线上模式）
   ;(async () => {
@@ -155,4 +161,4 @@ function main() {
   })()
 }
 
-main()
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

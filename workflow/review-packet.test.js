@@ -117,7 +117,7 @@ test('审查简报保留每个 source_id，并按可快速结案、低歧义和�
       { source_id: 'codex:2', label: '客户端', review_reason: 'multiple_candidate_tasks', review_priority: 'high', candidate_tasks: ['任务 A', '任务 B'], excerpt: '需要判断究竟在修哪个功能' },
     ],
   })
-  assert.match(brief, /证据 3 条 · 需判断 1 条/)
+  assert.match(brief, /审查组 3 个 · 覆盖原始证据 3 条 · 需判断 1 个/)
   assert.match(brief, /明确无关（1 条/)
   assert.match(brief, /低歧义线索（1 条/)
   assert.match(brief, /需要判断（1 条/)
@@ -248,6 +248,33 @@ test('review packet covers all summary sessions while enriching matching detail 
     codex_detail: [],
   }, 'codex:0')
   assert.equal(evidence.userReqs[0], 'Bearer [REDACTED]')
+})
+
+test('same-task session continuations are bundled without weakening member coverage', () => {
+  const packet = buildReviewPacket({
+    ...context,
+    codex: [
+      { file: '/repo/a-1.jsonl', cwd: '/repo/a', lastTs: '2026-08-19T09:00:00Z', userReqs: ['完成接口'] },
+      { file: '/repo/a-2.jsonl', cwd: '/repo/a', lastTs: '2026-08-19T10:00:00Z', userReqs: ['继续验收'] },
+    ],
+    codex_detail: [],
+  })
+  const rows = packet.review_items.filter((item) => item.source === 'codex')
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].source_id, 'codexgroup:0')
+  assert.deepEqual(rows[0].member_source_ids, ['codex:0', 'codex:1'])
+  assert.equal(packet.coverage.expected.codex, 2)
+  assert.equal(packet.coverage.actual.codex, 2)
+  assert.equal(packet.coverage.complete, true)
+  const evidence = getEvidence({
+    ...context,
+    codex: [
+      { file: '/repo/a-1.jsonl', cwd: '/repo/a', userReqs: ['完成接口'] },
+      { file: '/repo/a-2.jsonl', cwd: '/repo/a', userReqs: ['继续验收'] },
+    ],
+    codex_detail: [],
+  }, 'codexgroup:0')
+  assert.equal(evidence.sessions.length, 2)
 })
 
 test('review packet exposes the failing source without opening raw snapshot', () => {

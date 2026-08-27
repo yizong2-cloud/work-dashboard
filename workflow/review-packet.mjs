@@ -127,6 +127,47 @@ export function mergeSessionRows(summaryRows, detailRows) {
   return merged
 }
 
+function sessionText(session, source) {
+  return ((source === 'codex' ? session?.userReqs : session?.userMsgs) || []).join('\n')
+}
+
+function sessionAt(session) {
+  return session?.lastTs || session?.lastTsMs || session?.start || null
+}
+
+// Repeated continuations in the same repository often describe one workstream.
+// Bundle only when routing is deterministic: an explicitly ignored cwd, a
+// single candidate task, or a uniquely keyword-ranked task. Truly ambiguous
+// sessions remain separate so compression cannot hide a task-boundary choice.
+export function groupSessionEvidence(ctx, source) {
+  const sessions = mergeSessionRows(ctx?.[source], ctx?.[`${source}_detail`])
+  const buckets = new Map()
+  for (const [index, session] of sessions.entries()) {
+    const candidate = candidateForSession(ctx, source, session.cwd)
+    const ranking = rankCandidateTasks(candidate, sessionText(session, source))
+    let routingKey = null
+    if (candidate?.ignored) routingKey = `ignored|${session.cwd || ''}`
+    else if ((candidate?.tasks || []).length === 1) routingKey = `single|${session.cwd || ''}|${candidate.tasks[0]}`
+    else if (ranking.applied) routingKey = `ranked|${session.cwd || ''}|${ranking.tasks[0]}`
+    const key = routingKey || `individual|${index}`
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key).push({ index, session, candidate })
+  }
+  let groupIndex = 0
+  return [...buckets.values()].map((members) => {
+    const grouped = members.length > 1
+    const sourceId = grouped ? `${source}group:${groupIndex++}` : `${source}:${members[0].index}`
+    return {
+      source_id: sourceId,
+      members,
+      candidate: members[0].candidate,
+      member_source_ids: members.map(({ index }) => `${source}:${index}`),
+      text: members.map(({ session }) => sessionText(session, source)).filter(Boolean).join('\n'),
+      at: members.map(({ session }) => sessionAt(session)).filter(Boolean).sort().at(-1) || null,
+    }
+  })
+}
+
 export function buildCoverage(ctx, items) {
   const expected = {
     codex: mergeSessionRows(ctx.codex, ctx.codex_detail).length,
@@ -179,6 +220,19 @@ function taskBrief(task) {
   }
 }
 
+function knowledgeHints(knowledgeBase, candidateTasks, limit = 2) {
+  const anchors = (candidateTasks || []).flatMap((title) => {
+    const base = String(title || '').replace(/（[^）]*）/g, '').trim()
+    return [String(title || '').trim(), base].filter((value) => value.length >= 4)
+  })
+  if (!anchors.length) return []
+  return String(knowledgeBase || '').split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^\|?\s*[-:]+/.test(line) && anchors.some((anchor) => line.includes(anchor)))
+    .slice(0, limit)
+    .map((line) => compactExcerpt(line, 300))
+}
+
 function sourceHealth(ctx) {
   const steps = new Map((ctx.steps || []).map((step) => [step.name, step]))
   const source = (name, fallback = {}) => ({
@@ -195,7 +249,14 @@ function sourceHealth(ctx) {
   const health = {
     // 飞书导出器的 source 元数据不一定返回 count；以当前快照中实际可审查群数补齐，
     // 避免状态页把健康来源误显示成“条数未知”。
-    feishu: sourceWithCount('飞书增量导出', ctx.sources?.feishu, splitFeishuGroups(ctx.feishu?.content).length),
+    feishu: {
+      ...sourceWithCount('飞书增量导出', ctx.sources?.feishu, splitFeishuGroups(ctx.feishu?.content).length),
+      exported_chat_count: ctx.sources?.feishu?.exported_chat_count ?? null,
+      exported_message_count: ctx.sources?.feishu?.exported_message_count ?? null,
+      parsed_chat_count: ctx.sources?.feishu?.parsed_chat_count ?? null,
+      delta_chat_count: ctx.sources?.feishu?.delta_chat_count ?? splitFeishuGroups(ctx.feishu?.content).length,
+      delta_message_count: ctx.sources?.feishu?.delta_message_count ?? null,
+    },
     codex: sourceWithCount('Codex 摘要', ctx.sources?.codex, mergeSessionRows(ctx.codex, ctx.codex_detail).length),
     dsh: sourceWithCount('DSH 摘要', ctx.sources?.dsh, mergeSessionRows(ctx.dsh, ctx.dsh_detail).length),
     local_files: {
@@ -216,33 +277,39 @@ export function buildReviewItems(ctx) {
   const items = []
   const add = (item) => items.push({ ...item, raw_available: true })
 
-  for (const [index, session] of mergeSessionRows(ctx.codex, ctx.codex_detail).entries()) {
-    const candidate = candidateForSession(ctx, 'codex', session.cwd)
+  for (const group of groupSessionEvidence(ctx, 'codex')) {
+    const session = group.members[0].session
+    const candidate = group.candidate
     add({
-      source_id: `codex:${index}`,
+      source_id: group.source_id,
       source: 'codex',
-      kind: 'session',
-      label: session.cwd || session.file || `Codex 会话 ${index + 1}`,
-      at: session.lastTs || session.start || null,
+      kind: group.members.length > 1 ? 'session_bundle' : 'session',
+      label: `${session.cwd || session.file || 'Codex 会话'}${group.members.length > 1 ? ` · ${group.members.length} 个续接会话` : ''}`,
+      at: group.at,
+      ...(group.members.length > 1 ? { member_source_ids: group.member_source_ids } : {}),
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
-      excerpt: compactExcerpt((session.userReqs || []).join('\n')),
-      ...reviewMeta(candidate, null, (session.userReqs || []).join('\n')),
+      knowledge_hints: knowledgeHints(ctx.knowledge_base, candidate?.tasks),
+      excerpt: compactExcerpt(group.text),
+      ...reviewMeta(candidate, null, group.text),
     })
   }
 
-  for (const [index, session] of mergeSessionRows(ctx.dsh, ctx.dsh_detail).entries()) {
-    const candidate = candidateForSession(ctx, 'dsh', session.cwd)
+  for (const group of groupSessionEvidence(ctx, 'dsh')) {
+    const session = group.members[0].session
+    const candidate = group.candidate
     add({
-      source_id: `dsh:${index}`,
+      source_id: group.source_id,
       source: 'dsh',
-      kind: 'session',
-      label: session.cwd || session.file || `DSH 会话 ${index + 1}`,
-      at: session.lastTs || session.lastTsMs || session.start || null,
+      kind: group.members.length > 1 ? 'session_bundle' : 'session',
+      label: `${session.cwd || session.file || 'DSH 会话'}${group.members.length > 1 ? ` · ${group.members.length} 个续接会话` : ''}`,
+      at: group.at,
+      ...(group.members.length > 1 ? { member_source_ids: group.member_source_ids } : {}),
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
-      excerpt: compactExcerpt((session.userMsgs || []).join('\n')),
-      ...reviewMeta(candidate, null, (session.userMsgs || []).join('\n')),
+      knowledge_hints: knowledgeHints(ctx.knowledge_base, candidate?.tasks),
+      excerpt: compactExcerpt(group.text),
+      ...reviewMeta(candidate, null, group.text),
     })
   }
 
@@ -256,6 +323,7 @@ export function buildReviewItems(ctx) {
       at: null,
       candidate_tasks: candidate?.tasks || [],
       hint: candidate?.hint || null,
+      knowledge_hints: knowledgeHints(ctx.knowledge_base, candidate?.tasks),
       excerpt: compactExcerpt(group.content),
       ...reviewMeta(candidate, null, group.content),
     })
@@ -286,6 +354,7 @@ export function buildReviewItems(ctx) {
 export function buildReviewPacket(ctx) {
   const items = buildReviewItems(ctx)
   const bySource = Object.fromEntries(['codex', 'dsh', 'feishu', 'local'].map((source) => [source, items.filter((item) => item.source === source).length]))
+  const coverage = buildCoverage(ctx, items)
   return {
     schema_version: 2,
     snapshot_id: ctx.snapshot_id,
@@ -294,13 +363,15 @@ export function buildReviewPacket(ctx) {
     source_health: sourceHealth(ctx),
     review_contract: {
       required_decisions: ['mapped', 'reviewed_no_change', 'irrelevant', 'needs_confirmation'],
-      instruction: '每个 source_id 恰好写一条 reconciliation。先看短摘录；不确定时用 dashboard:evidence 按 id 展开原始材料。',
+      instruction: '每个审查组 source_id 恰好写一条 reconciliation；session_bundle 的全部 member_source_ids 已由机器计入覆盖。先看短摘录，不确定时才用 dashboard:evidence 展开。',
       review_priority_semantics: 'review_priority/review_attention 表示证据需要多少人工判断，不是任务 priority，也不代表加急。以 review_reason 解释原因。intentionally_ignored 是显式维护的非业务来源：仍须写 reconciliation，但可按 suggested_decision=irrelevant 快速结案。candidate_tasks 仅在 source-map 为任务明确配置关键词且证据唯一命中时做稳定排序；仍须人工确认，不代表自动归属。',
     },
-    coverage: buildCoverage(ctx, items),
+    coverage,
     counts: {
       total: items.length,
       by_source: bySource,
+      raw_evidence_members: Object.values(coverage.expected).reduce((sum, count) => sum + count, 0),
+      raw_by_source: coverage.expected,
       // Human attention is intentionally kept strict, but its cause needs to
       // stay visible. A missing directory mapping, a genuine multi-task
       // choice, and a local-file metadata check are different follow-up work.
@@ -332,6 +403,14 @@ export function getEvidence(ctx, sourceId) {
   const index = Number(rawIndex)
   if (source === 'codex') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.codex, ctx.codex_detail)[index] || null))
   if (source === 'dsh') return redactSensitiveValue(removeToolNoise(mergeSessionRows(ctx.dsh, ctx.dsh_detail)[index] || null))
+  if (source === 'codexgroup' || source === 'dshgroup') {
+    const baseSource = source === 'codexgroup' ? 'codex' : 'dsh'
+    const group = groupSessionEvidence(ctx, baseSource)[index]
+    return redactSensitiveValue(removeToolNoise(group ? {
+      member_source_ids: group.member_source_ids,
+      sessions: group.members.map(({ session }) => session),
+    } : null))
+  }
   if (source === 'local') return redactSensitiveValue(removeToolNoise(ctx.sources?.local_files?.[index] || null))
   if (source === 'localgroup') {
     const group = groupLocalFiles(ctx.sources?.local_files || [])[index]

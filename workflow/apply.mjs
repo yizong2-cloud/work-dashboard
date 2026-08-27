@@ -37,6 +37,7 @@ const OP_RULES = {
   block: ['id', 'reason'],
   unblock: ['id'],
   complete: ['id'],
+  reopen: ['id', 'to'],
   note: ['id', 'content'],
 }
 const VALID_STATUS = ['planned', 'in_progress', 'blocked', 'paused', 'completed', 'cancelled']
@@ -44,6 +45,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const INTERRUPT_KEYWORDS = ['interrupt'] // future
 const PROGRESS_PERCENT_CLAIM = /(?:进度|完成度)\s*(?:(?:更新|提升|降低|升高)(?:至|到)?|降(?:至|到)|变为|为|到)?\s*[:：]?\s*(\d{1,3})\s*%/
 const PROGRESS_BASES = ['user_explicit', 'milestone_ratio', 'agent_estimate']
+const AGENT_ESTIMATE_ANCHORS = new Set([0, 10, 25, 50, 70, 85, 95])
 const NOTIFY_MODES = ['immediate', 'merge', 'silent']
 
 function parseArgs(argv) {
@@ -110,16 +112,19 @@ function main() {
       }
     }
     if (op.op === 'status' && op.to && !VALID_STATUS.includes(op.to)) errors.push(`第 ${i + 1} 条: 非法状态 "${op.to}"`)
-    if (op.op === 'progress') {
+    if (op.op === 'progress' || op.op === 'reopen') {
       const progress = Number(op.to)
-      if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
-        errors.push(`第 ${i + 1} 条 progress: to 必须是 0-100 整数`)
+      if (!Number.isInteger(progress) || progress < 0 || progress > (op.op === 'reopen' ? 99 : 100)) {
+        errors.push(`第 ${i + 1} 条 ${op.op}: to 必须是 0-${op.op === 'reopen' ? 99 : 100} 整数`)
       }
       if (!String(op.note ?? op.content ?? '').trim()) {
-        errors.push(`第 ${i + 1} 条 progress: 必须提供 note 或 content 说明进度依据`)
+        errors.push(`第 ${i + 1} 条 ${op.op}: 必须提供 note 或 content 说明依据`)
       }
       if (!PROGRESS_BASES.includes(op.progress_basis)) {
-        errors.push(`第 ${i + 1} 条 progress: 必须提供 progress_basis（${PROGRESS_BASES.join('/')}），不得把模糊描述伪装成精确百分比`)
+        errors.push(`第 ${i + 1} 条 ${op.op}: 必须提供 progress_basis（${PROGRESS_BASES.join('/')}），不得把模糊描述伪装成精确百分比`)
+      }
+      if (op.progress_basis === 'agent_estimate' && !AGENT_ESTIMATE_ANCHORS.has(progress)) {
+        errors.push(`第 ${i + 1} 条 ${op.op}: Agent 估算只能使用阶段锚点 ${[...AGENT_ESTIMATE_ANCHORS].join('/')}；不要制造 92%/96% 这类伪精度`)
       }
     }
     if (op.notify_mode !== undefined && !NOTIFY_MODES.includes(op.notify_mode)) {
@@ -175,10 +180,16 @@ function main() {
     for (const [i, op] of ops.entries()) {
       if (op.op === 'create') continue
       if (op.id && !byId.has(op.id)) errors.push(`第 ${i + 1} 条 ${op.op}: 任务不存在 ${op.id}`)
-      if (op.op === 'schedule' || op.op === 'progress' || op.op === 'status') {
+      if (op.op === 'schedule' || op.op === 'progress' || op.op === 'status' || op.op === 'reopen') {
         // 状态迁移合法性：blocked/completed 必须走专用命令（DB 也会兜底）
         if (op.op === 'status' && (op.to === 'blocked' || op.to === 'completed')) {
           errors.push(`第 ${i + 1} 条: status 不能直接到 blocked/completed，请用 block/complete`)
+        }
+        if (op.op === 'status' && byId.get(op.id)?.status === 'completed' && op.to !== 'completed') {
+          errors.push(`第 ${i + 1} 条: completed 任务不能用 status 恢复，请用 reopen 原子清除实际完成日期`)
+        }
+        if (op.op === 'reopen' && byId.get(op.id)?.status !== 'completed') {
+          errors.push(`第 ${i + 1} 条: reopen 只适用于 completed 任务`)
         }
       }
     }

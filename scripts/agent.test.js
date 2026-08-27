@@ -171,6 +171,42 @@ test('complete 满足不变量：progress=100 且 actual_end_date=本地今天',
   assert.match(g.stdout, new RegExp(`实际完成:${today}`))
 })
 
+test('reopen 原子恢复已完成任务并清除实际完成日期', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '需要重新打开的任务')
+  const id = extractId(c.stdout)
+  assert.ok(run('complete', id, '--note', '第一次完成').ok)
+  const reopened = run('reopen', id, '--to', '95', '--current_status', '验收发现问题，继续修复', '--notify_mode', 'silent', '--note', '重新进入验收修复')
+  assert.ok(reopened.ok, reopened.stderr)
+  const db = JSON.parse(fs.readFileSync(reopened.dbFile, 'utf8'))
+  const task = db.tasks.find((item) => item.id === id)
+  assert.equal(task.status, 'in_progress')
+  assert.equal(task.progress, 95)
+  assert.equal(task.actual_end_date, null)
+  assert.equal(task.current_status, '验收发现问题，继续修复')
+  assert.equal(db.updates.at(-1).type, 'status_change')
+})
+
+test('普通 status 不允许绕过 reopen 从 completed 回到活跃状态', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '状态迁移保护')
+  const id = extractId(c.stdout)
+  assert.ok(run('complete', id).ok)
+  const result = run('status', id, '--to', 'in_progress')
+  assert.ok(!result.ok)
+  assert.match(result.stderr, /reopen/)
+})
+
+test('completed 任务不能绕过 reopen 直接修改进度', () => {
+  const run = makeRunner()
+  const c = run('create', '--title', '完成态进度保护')
+  const id = extractId(c.stdout)
+  assert.ok(run('complete', id).ok)
+  const result = run('progress', id, '--to', '95', '--note', '继续修复')
+  assert.ok(!result.ok)
+  assert.match(result.stderr, /reopen/)
+})
+
 test('update 禁止修改状态类字段', () => {
   const run = makeRunner()
   const c = run('create', '--title', '测试任务E')

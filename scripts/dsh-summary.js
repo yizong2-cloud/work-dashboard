@@ -129,7 +129,8 @@ function summarizeSession(file) {
         if (c.type !== 'text') continue
         const text = c.text || ''
         const cleaned = stripSystemBlocks(text)
-        if (!isSystemText(cleaned)) {
+        const eventMs = typeof ts === 'number' ? ts : new Date(ts).getTime()
+        if (!isSystemText(cleaned) && (!sinceMs || (Number.isFinite(eventMs) && eventMs > sinceMs))) {
           userMsgs.push(cleaned.slice(0, 4000))
           break
         }
@@ -192,7 +193,7 @@ const files = collectFiles(windowStartMs)
 let sessions = files
   .map(summarizeSession)
   .filter(Boolean)
-  .filter((s) => !since || (s.start && s.start.slice(0, 10) >= since))
+  .filter((s) => Boolean(sinceMs || !since || (s.start && s.start.slice(0, 10) >= since)))
   // 增量模式：会话在窗口内有「任何」活动才算增量——开始时间、最后一条事件、
   // 或文件仍被写入（跨窗口长会话）。start 已是北京时间，比较前换算回 UTC。
   .filter((s) => {

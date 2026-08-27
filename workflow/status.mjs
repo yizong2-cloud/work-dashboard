@@ -177,10 +177,10 @@ export function formatStatus(status) {
     const expected = status.review?.expected_count
     const reconciled = status.review?.reconciled_count ?? 0
     if (status.review?.fully_reconciled) {
-      lines.push(`证据：${status.counts.total} 条（已完成全量对账：${reconciled}/${expected}）`)
+      lines.push(`证据：${status.counts.total} 个审查组 / ${status.counts.raw_evidence_members ?? status.counts.total} 条原始证据（已完成全量对账：${reconciled}/${expected}）`)
       if (attention > 0) lines.push(`采集线索：当时 ${attention} 条需要人工归属，现已结案`)
     } else {
-      lines.push(`证据：${status.counts.total} 条（需人工判断 ${attention} 条）`)
+      lines.push(`证据：${status.counts.total} 个审查组 / ${status.counts.raw_evidence_members ?? status.counts.total} 条原始证据（需人工判断 ${attention} 个）`)
       if (status.apply?.matched_snapshot && expected !== null) {
         lines.push(`对账记录：⚠️ ${reconciled}/${expected}，不能确认已完整结案`)
       }
@@ -196,7 +196,9 @@ export function formatStatus(status) {
   } else {
     for (const [label, source] of Object.entries(status.source_health || {})) {
       const name = { feishu: '飞书', codex: 'Codex', dsh: 'DSH', local_files: '本地文件', board: '当前看板', knowledge_base: '知识库' }[label] || label
-      const count = source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
+      const count = label === 'feishu' && source.exported_chat_count !== null && source.exported_chat_count !== undefined
+        ? ` · 完整扫描 ${source.parsed_chat_count ?? source.exported_chat_count}/${source.exported_chat_count} 群、${source.exported_message_count ?? '?'} 条消息 · 本轮增量 ${source.delta_chat_count ?? source.count ?? 0} 群、${source.delta_message_count ?? '?'} 条消息`
+        : source.count === null || source.count === undefined ? '' : ` · ${source.count} 条`
       const rendered = formatSourceDetail(source)
       lines.push(`来源：${source.ok ? '✅' : '❌'} ${name}${count}${rendered.detail ? ` · ${rendered.detail}` : ''}`)
       if (source.ok && rendered.warning) lines.push(`  过程告警（已恢复）：${rendered.warning}`)
@@ -210,6 +212,20 @@ export function formatStatus(status) {
   return lines.join('\n')
 }
 
+export function statusIsReviewable(status) {
+  return Boolean(status?.packet_available
+    && status.snapshot_health === 'ok'
+    && status.snapshot_stale === false
+    && status.coverage?.complete === true
+    && status.source_health_recorded
+    && !status.pending?.active
+    && !status.publish?.awaiting_confirmation)
+}
+
+export function statusAllowsPrepare(status) {
+  return !status?.pending?.active && !status?.publish?.awaiting_confirmation
+}
+
 export function main(argv = process.argv.slice(2)) {
   const packet = readJson(PACKET_FILE)
   const status = buildStatus({
@@ -219,7 +235,9 @@ export function main(argv = process.argv.slice(2)) {
     analysisState: readJson(ANALYSIS_STATE_FILE),
     changeset: readJson(CHANGESET_FILE),
   })
-  console.log(argv.includes('--json') ? JSON.stringify(status, null, 2) : formatStatus(status))
+  if (!argv.includes('--quiet')) console.log(argv.includes('--json') ? JSON.stringify(status, null, 2) : formatStatus(status))
+  if (argv.includes('--strict-review') && !statusIsReviewable(status)) process.exitCode = 2
+  if (argv.includes('--guard-prepare') && !statusAllowsPrepare(status)) process.exitCode = 2
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

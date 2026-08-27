@@ -47,6 +47,7 @@
     { "pattern": "叶子", "hint": "Countryside 动图、测试服与 AB 命中问题；已确认相关 CMS/客户端推进均归此任务", "tasks": ["Countryside 动图功能修复与小米测试跟进"] },
     { "pattern": "高琦", "hint": "多线：华容道 CMS/图库、成就、试玩——需结合消息主题归任务", "tasks": [] },
     { "pattern": "张震威", "hint": "投放(UA)：Fantasy 试玩 Moloco + Fun Color google/AppLovin", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Fun Color 试玩（可玩广告）制作"] },
+    { "pattern": "王昊楠", "hint": "视频广告生成器协作；这是独立的 Puzzle-Ad-Generator 工具任务，不归 HTML 试玩广告", "tasks": ["本地拼图广告生成器（Puzzle-Ad-Generator）开发"], "task_keywords": { "本地拼图广告生成器（Puzzle-Ad-Generator）开发": ["Puzzle-Ad-Generator", "广告生成器", "视频", "竞品", "逐帧", "编辑器", "Windows", "v35"] } },
     { "pattern": "商雯祺", "hint": "产品经理：成就/积分（共同负责）、Jigsaw H5 Demo、反馈优化——按消息主题归", "tasks": [] },
     { "pattern": "黄思杰", "hint": "Leader：插任务/排期/风险反馈——需单独看消息内容", "tasks": [] }
   ]

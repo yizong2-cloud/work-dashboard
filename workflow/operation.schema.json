@@ -34,12 +34,12 @@
       "properties": {
         "op": {
           "type": "string",
-          "enum": ["create", "progress", "status", "update", "schedule", "block", "unblock", "complete", "note"]
+          "enum": ["create", "progress", "status", "update", "schedule", "block", "unblock", "complete", "reopen", "note"]
         },
         "id": { "type": "string", "description": "任务 id（除 create 外必填）" },
         "title": { "type": "string", "description": "create: 任务名称（必填）" },
         "description": { "type": "string" },
-        "to": { "type": ["integer", "string"], "description": "progress/status: 目标值（progress 0-100；status 仅普通状态，blocked/completed 用 block/complete）" },
+        "to": { "type": ["integer", "string"], "description": "progress/status/reopen: 目标值（progress 0-100；reopen 0-99；status 仅普通状态）" },
         "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "schedule: 新的预计完成日期" },
         "reason": { "type": "string", "description": "block: 阻塞原因（必填，trim 后非空）" },
         "content": { "type": "string", "description": "note/complete/block 等: 内容说明" },
