@@ -8,7 +8,7 @@
 **个人工作进度看板**：向 Leader 透明展示个人任务/进度/排期/变化原因的轻量工具。
 - 数据：Supabase（`tasks` / `task_updates`，RLS 全开放，无登录）
 - 前端：React+Vite，GitHub Pages（`https://yizong2-cloud.github.io/work-dashboard/`）
-- 维护：用户说「开始更新」后，Agent 自动采集、分析并生成更新预览；**只有用户明确回复「确认推送」后**才写入看板并触发飞书通知。
+- 维护：用户说「开始更新」后，Agent 自动采集、分析并把完整更新预览直接发在对话里；**只有用户明确同意当前完整预览后**才写入看板并触发飞书通知，无需固定口令。
 
 ## 唯一入口
 
@@ -25,7 +25,7 @@
 ```bash
 npm run dashboard:prepare   # 拉取四数据源（含本地 Downloads 白名单）+ 打包 update-context.json + 候选提示（可定时无人值守，无状态不推进游标）
 npm run dashboard:publish -- preview  # 冻结并输出待用户审核的更新/飞书通知预览
-npm run dashboard:apply     # 仅接受已获“确认推送”的当前预览（先 --dry-run）
+npm run dashboard:apply     # 仅接受已获用户明确同意且指纹匹配的当前预览（先 --dry-run）
 npm run dashboard:verify    # 校验数据不变量
 npm run dashboard:cron:install | uninstall   # 定时任务（工作日 11:00/15:30/19:30 自动 prepare，--no-advance 只拉不推进游标）
 ```

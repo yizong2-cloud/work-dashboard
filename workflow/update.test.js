@@ -14,15 +14,26 @@ test('start hides prepare/status/brief ordering behind one interface', () => {
 test('preview preserves dry-run before the human confirmation preview', () => {
   const plan = updateCommandPlan('preview')
   assert.deepEqual(plan.map(([file, ...args]) => [file.split('/').at(-1), ...args]), [
-    ['apply.mjs', '--dry-run'],
+    ['apply.mjs', '--dry-run', '--quiet'],
     ['publish.mjs', 'preview'],
   ])
 })
 
-test('confirm requires the exact phrase and stops on the first failed gate', () => {
-  assert.throws(() => updateCommandPlan('confirm', '可以'), /确认推送/)
+test('retry reuses the still-valid fingerprint approval without asking for a magic phrase', () => {
+  assert.deepEqual(updateCommandPlan('retry').map(([file, ...args]) => [file.split('/').at(-1), ...args]), [
+    ['apply.mjs'],
+    ['verify.mjs'],
+    ['notification-status.mjs'],
+  ])
+})
+
+test('confirm accepts explicit natural-language approval and stops on the first failed gate', () => {
+  assert.doesNotThrow(() => updateCommandPlan('confirm', '确认'))
+  assert.doesNotThrow(() => updateCommandPlan('confirm', '按这版推送'))
+  assert.doesNotThrow(() => updateCommandPlan('confirm', '把我说的这些改了，你就可以更新了'))
+  assert.throws(() => updateCommandPlan('confirm', '先不要推送'), /明确同意/)
   const calls = []
-  const exit = runUpdate('confirm', '确认推送', (_node, args) => {
+  const exit = runUpdate('confirm', '确认', (_node, args) => {
     calls.push(args[0].split('/').at(-1))
     return { status: calls.length === 2 ? 1 : 0 }
   })

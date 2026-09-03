@@ -36,7 +36,8 @@ function hasCompleteReconciliation(packet, changeset, matched) {
 function nextAction({ packet, changeset, matched, reconciliationComplete, ageHoursValue, lastHealthy, pending, publish }) {
   if (!packet) return '先运行 npm run dashboard:prepare'
   if (pending?.active) return `当前快照有 ${pending.count} 项待确认；运行 npm run dashboard:pending -- show，向用户逐项确认后 resolve；不要重新 prepare`
-  if (publish?.awaiting_confirmation) return '当前快照已有更新预览；把 dashboard:publish -- show 的完整内容发给用户，等待其明确回复“确认推送”'
+  if (publish?.awaiting_retry) return '当前快照上次执行部分失败；原授权仍有效，运行 npm run dashboard:update -- retry，只重试失败项'
+  if (publish?.awaiting_confirmation) return '当前快照已有更新预览；把 dashboard:publish -- show 的完整内容逐项发给用户，等待其明确同意（无需固定口令）'
   if (packet.coverage?.complete === false) return '审查索引不完整：先重新运行 npm run dashboard:prepare，禁止对账或写入'
   if (packet.snapshot_health === 'degraded') {
     const reference = lastHealthy?.available ? `；最近健康快照 ${lastHealthy.snapshot_id} 仅供诊断，不能替代当前快照 apply` : ''
@@ -87,6 +88,7 @@ export function buildStatus({ packet, lastHealthyContext, lastHealthyPacket, ana
   }
   const publish = {
     awaiting_confirmation: publishPreview?.state === 'awaiting_owner_confirmation' && publishPreview.snapshot_id === packet?.snapshot_id,
+    awaiting_retry: publishPreview?.state === 'awaiting_retry' && publishPreview.snapshot_id === packet?.snapshot_id,
     snapshot_id: publishPreview?.snapshot_id || null,
     operations: Array.isArray(publishPreview?.operations) ? publishPreview.operations.length : 0,
   }
@@ -207,6 +209,7 @@ export function formatStatus(status) {
   lines.push(`审查游标：${status.analysis_reviewed_at || '未推进'}`)
   if (status.pending?.active) lines.push(`待确认：⏸️ ${status.pending.count} 项（当前快照，已保存可续办计划）`)
   if (status.publish?.awaiting_confirmation) lines.push(`待推送审核：⏸️ ${status.publish.operations} 项（当前快照，尚未写入/通知）`)
+  if (status.publish?.awaiting_retry) lines.push(`执行待续跑：⚠️ ${status.publish.operations} 项原始变更（原授权仍有效，只重试失败项）`)
   lines.push(`apply：${status.apply.matched_snapshot ? '已匹配当前快照' : '尚未匹配当前快照'}`)
   lines.push(`下一步：${status.next_action}`)
   return lines.join('\n')
@@ -219,11 +222,12 @@ export function statusIsReviewable(status) {
     && status.coverage?.complete === true
     && status.source_health_recorded
     && !status.pending?.active
-    && !status.publish?.awaiting_confirmation)
+    && !status.publish?.awaiting_confirmation
+    && !status.publish?.awaiting_retry)
 }
 
 export function statusAllowsPrepare(status) {
-  return !status?.pending?.active && !status?.publish?.awaiting_confirmation
+  return !status?.pending?.active && !status?.publish?.awaiting_confirmation && !status?.publish?.awaiting_retry
 }
 
 export function main(argv = process.argv.slice(2)) {

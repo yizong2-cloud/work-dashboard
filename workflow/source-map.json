@@ -5,6 +5,7 @@
     { "pattern": "feishu_export", "hint": "飞书导出运行目录（采集工具维护/导出物），不作为业务任务候选" },
     { "pattern": "feishu-export-public", "hint": "公开飞书聊天采集器（工具维护），不作为业务任务候选" },
     { "pattern": "player_app", "hint": "私人项目，已确认不上工作看板" },
+    { "pattern": "扎烦恼", "hint": "私人项目，用户已确认不上工作看板" },
     { "pattern": "Documents/Codex", "hint": "Codex 临时/测试会话，不作为业务任务候选" }
   ],
   "codex_cwd": [
@@ -12,7 +13,8 @@
     { "pattern": "StudioProjects/jigsaw-android", "hint": "迁移前 Fantasy 客户端历史 cwd；与 Workspace/jigsaw-android 使用同一候选任务映射", "tasks": ["Fantasy 成就系统收尾（接手杨柯迪）", "Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）", "Fantasy 积分制与完成页激励文案开发"], "task_keywords": { "Fantasy 成就系统收尾（接手杨柯迪）": ["成就", "徽章", "奖励", "领取", "解锁"], "Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配": ["试玩", "可玩广告", "Moloco", "AppLovin", "Google Ads", "投放渠道"], "Jigsaw H5 Demo（拼接反馈动效多方案验证）": ["H5 Demo", "拼接反馈", "反馈动效", "吸附", "拖拽反馈"], "Fantasy 积分制与完成页激励文案开发": ["积分制", "积分", "完成页激励", "激励文案"] } },
     { "pattern": "Unified_API_Playground/packages/jigsawcard", "hint": "JigsawCard 竞品触觉/震动反馈逆向，已确认归入华容道排行榜竞品研究", "tasks": ["华容道排行榜功能（九月初预定）"] },
     { "pattern": "jigsolitaire-cms", "hint": "华容道 CMS/API（与小米共用后端仓库、域名区分；一般只改我们自己华容道那部分）。多用于华容道 CMS 分类/图库/API 联调", "tasks": ["华容道正式服图库数据填充与关卡排布", "华容道 CMS 分类管理功能", "Jigslide（宁静华容道）CMS 与 API 联调支持"], "task_keywords": { "华容道正式服图库数据填充与关卡排布": ["排图", "关卡排布", "图片顺序", "daily排图", "图库数据", "正式服图片", "兜底"], "华容道 CMS 分类管理功能": ["分类管理", "单色", "彩绘", "标签管理"], "Jigslide（宁静华容道）CMS 与 API 联调支持": ["Jigslide", "API 联调", "接口联调", "域名", "Mongo 事务"] } },
-    { "pattern": "jigsaw-cms", "hint": "多产品矩阵 CMS + 客户端 API 后端（fantasy/legacy/peace/farm 几个产品）", "tasks": ["Farm 项目 CMS 接入与研发排期", "Fantasy 积分制与完成页激励文案开发", "Fantasy 成就系统收尾（接手杨柯迪）", "Peace 印度版广告 SDK（ADX/双 banner）接入验证"] },
+    { "pattern": "jigsaw-cms", "hint": "多产品矩阵 CMS + 客户端 API 后端（fantasy/legacy/peace/farm 几个产品）；鸟/建筑/水井标签与批量审核交互属于 Fantasy CMS 新需求，不归涂色任务", "tasks": ["Farm 项目 CMS 接入与研发排期", "Fantasy 积分制与完成页激励文案开发", "Fantasy 成就系统收尾（接手杨柯迪）", "Fantasy CMS AI 打标签功能优化", "Peace 印度版广告 SDK（ADX/双 banner）接入验证"], "task_keywords": { "Fantasy CMS AI 打标签功能优化": ["AI 打标签", "一键驳回", "批量选择", "自动定位", "鸟", "建筑", "水井"] } },
+    { "pattern": "Jigsolitaire_Unity", "hint": "华容道 Unity 接手、问题修复与验收测试 CLI 是同一工作，不再拆分", "tasks": ["华容道 Unity 项目接手、问题修复与验收工具建设"] },
     { "pattern": "jigsaw-h5-ad", "hint": "H5 广告 / 可玩广告制作", "tasks": ["Fantasy Jigsaw 试玩（可玩广告）制作与多渠道适配", "Jigsaw H5 Demo（拼接反馈动效多方案验证）"] },
     { "pattern": "jigsaw-card-solitaire", "hint": "JigsawCard（卡片拼图项目）——对应 leader 新插入的难度曲线调研", "tasks": ["JigsawCard 难度曲线调研"] },
     { "pattern": "bi-cli", "hint": "拼图矩阵 BI 查询/口径工具；工具开发与数据核对均归入 BI 数据问题治理，不新建独立工具任务", "tasks": ["拼图矩阵 BI 数据问题修复与口径治理"] },

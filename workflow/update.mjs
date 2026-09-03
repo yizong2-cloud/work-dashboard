@@ -6,6 +6,7 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { isExplicitApproval } from './publish.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -20,10 +21,10 @@ export function updateCommandPlan(command, phrase = null) {
     ]
   }
   if (command === 'preview') {
-    return [script('apply.mjs', '--dry-run'), script('publish.mjs', 'preview')]
+    return [script('apply.mjs', '--dry-run', '--quiet'), script('publish.mjs', 'preview')]
   }
   if (command === 'confirm') {
-    if (phrase !== '确认推送') throw new Error('confirm 必须显式提供 --phrase "确认推送"')
+    if (!isExplicitApproval(phrase)) throw new Error('confirm 必须提供用户对当前完整预览的明确同意原话')
     return [
       script('publish.mjs', 'confirm', '--phrase', phrase),
       script('apply.mjs'),
@@ -31,8 +32,11 @@ export function updateCommandPlan(command, phrase = null) {
       script('notification-status.mjs'),
     ]
   }
+  if (command === 'retry') {
+    return [script('apply.mjs'), script('verify.mjs'), script('notification-status.mjs')]
+  }
   if (command === 'status') return [script('status.mjs')]
-  throw new Error('用法: dashboard:update -- start|preview|status|confirm --phrase "确认推送"')
+  throw new Error('用法: dashboard:update -- start|preview|status|retry|confirm --phrase "<用户明确同意原话>"')
 }
 
 function parseArgs(argv) {

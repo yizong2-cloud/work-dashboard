@@ -15,7 +15,25 @@ export const DEFAULT_OPS_FILE = path.join(ROOT, 'workflow', 'ops.json')
 export const DEFAULT_REVIEW_FILE = path.join(ROOT, 'workflow', 'review-packet.json')
 export const DEFAULT_PREVIEW_FILE = path.join(ROOT, 'workflow', 'publish-preview.json')
 export const DEFAULT_APPROVAL_FILE = path.join(ROOT, 'workflow', 'publish-approval.json')
-export const CONFIRM_PHRASE = '确认推送'
+const NEGATED_APPROVAL = /(?:先(?:不|别)|暂(?:不|缓)|不要|不能|别|取消)(?:再)?(?:更新|推送|确认)|(?:更新|推送)(?:先)?(?:不要|不行|取消)/
+const EXPLICIT_APPROVAL_PATTERNS = [
+  /^(?:确认|同意)(?:更新|推送)?(?:吧|了)?$/,
+  /^(?:可以|没问题)(?:更新|推送)?(?:吧|了)?$/,
+  /^按(?:这|此|这个|当前)(?:版|个)?(?:内容)?(?:更新|推送|来)(?:吧)?$/,
+  /^(?:就)?(?:这样|这么)(?:更新|推送|做|来)(?:吧)?$/,
+  /^(?:更新|推送)(?:吧|即可)$/,
+  /(?:改完|改好|改了|修改后).*(?:可以|就).*(?:更新|推送)/,
+  /(?:可以|就可以)(?:直接)?(?:更新|推送)(?:了|吧)?$/,
+]
+
+export function isExplicitApproval(value) {
+  const text = String(value ?? '')
+    .replace(/[`*_]/g, '')
+    .replace(/[\s，,。.!！]+/g, '')
+    .trim()
+  if (!text || /[?？]/.test(text) || NEGATED_APPROVAL.test(text)) return false
+  return EXPLICIT_APPROVAL_PATTERNS.some((pattern) => pattern.test(text))
+}
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize)
@@ -52,8 +70,25 @@ function operationText(op, tasks) {
   const task = taskLabel(op, tasks)
   const note = String(op.note ?? op.content ?? op.reason ?? '').trim()
   switch (op.op) {
-    case 'create': return `新建任务：${task}${note ? `；说明：${note}` : ''}`
-    case 'progress': return `更新进度：${task} → ${op.to}%${op.current_status ? `；同步现状：${op.current_status}` : ''}${op.progress_basis ? `；口径：${PROGRESS_BASIS_LABELS[op.progress_basis] || op.progress_basis}` : ''}${note ? `；依据：${note}` : ''}`
+    case 'create': {
+      const status = { planned: '待开始', in_progress: '进行中', blocked: '阻塞', paused: '暂停', completed: '已完成', cancelled: '已取消' }[op.status] || op.status || '待开始'
+      const priority = { urgent: '紧急', high: '高', normal: '普通', low: '低' }[op.priority] || op.priority || '普通'
+      const start = op.start ?? op.start_date
+      const end = op.end ?? op.expected_end ?? op.expected_end_date
+      const fields = [
+        op.description ? `描述：${op.description}` : null,
+        `状态：${status}`,
+        `优先级：${priority}`,
+        `进度：${op.progress ?? 0}%`,
+        start ? `开始：${start}` : null,
+        end ? `预计完成：${end}` : null,
+        op.current_status ? `当前情况：${op.current_status}` : null,
+        op.creation_basis ? `创建依据类型：${{ source_explicit: '来源明确安排', user_explicit: '用户明确提出', owner_confirmed: '用户已确认归属' }[op.creation_basis] || op.creation_basis}` : null,
+        note ? `创建依据：${note}` : null,
+      ].filter(Boolean)
+      return `新建任务：${task}；${fields.join('；')}`
+    }
+    case 'progress': return `更新进度：${task} → ${op.to}%${op.current_status ? `；同步现状：${op.current_status}` : ''}${op.progress_basis ? `；口径：${PROGRESS_BASIS_LABELS[op.progress_basis] || op.progress_basis}` : ''}${op.evidence_quote ? `；用户原话：${op.evidence_quote}` : ''}${note ? `；依据：${note}` : ''}`
     case 'status': return `更新状态：${task} → ${op.to}${note ? `；说明：${note}` : ''}`
     case 'schedule': return `调整排期：${task} → ${op.end}${note ? `；原因：${note}` : ''}`
     case 'block': return `标记阻塞：${task}；原因：${note}`
@@ -63,7 +98,7 @@ function operationText(op, tasks) {
     case 'note': return `补充${(op.type ?? 'progress') === 'note' ? '备注' : '进展'}：${task}；${note}`
     case 'update': {
       const fields = Object.entries(op)
-        .filter(([key]) => !['op', 'id', 'note', 'content', 'notify', 'notify_mode'].includes(key))
+        .filter(([key]) => !['op', 'id', 'note', 'content', 'notify', 'notify_mode', 'evidence_quote'].includes(key))
         .map(([key, value]) => `${key}=${value}`)
       return `更新任务信息：${task}${fields.length ? `；${fields.join('，')}` : ''}${note ? `；说明：${note}` : ''}`
     }
@@ -156,7 +191,7 @@ export function formatPublishPreview(preview) {
     lines.push('风险提示：')
     for (const warning of preview.warnings) lines.push(`- ${warning}`)
   }
-  lines.push('请审核以上内容；同意后请回复“确认推送”。在此之前，任何 apply 都会被机器拒绝。')
+  lines.push('请审核以上完整内容；明确回复同意即可，例如“确认”“可以更新”或“按这版推送”，无需固定口令。在此之前，任何 apply 都会被机器拒绝。')
   return lines.join('\n')
 }
 
@@ -179,6 +214,30 @@ export function consumeApproval(spec, {
     writeJsonAtomic(previewFile, preview)
   }
   try { fs.unlinkSync(approvalFile) } catch { /* missing approval is handled by apply before this point */ }
+}
+
+export function markPreviewExecuting(spec, {
+  previewFile = DEFAULT_PREVIEW_FILE,
+  now = new Date().toISOString(),
+} = {}) {
+  const preview = readJson(previewFile)
+  if (preview?.fingerprint !== specFingerprint(spec) || preview.snapshot_id !== spec?.snapshot_id) return
+  preview.state = 'executing'
+  preview.apply_started_at = preview.apply_started_at || now
+  delete preview.last_error
+  writeJsonAtomic(previewFile, preview)
+}
+
+export function markPreviewRetryable(spec, message, {
+  previewFile = DEFAULT_PREVIEW_FILE,
+  now = new Date().toISOString(),
+} = {}) {
+  const preview = readJson(previewFile)
+  if (preview?.fingerprint !== specFingerprint(spec) || preview.snapshot_id !== spec?.snapshot_id) return
+  preview.state = 'awaiting_retry'
+  preview.last_failed_at = now
+  preview.last_error = String(message || '部分操作执行失败')
+  writeJsonAtomic(previewFile, preview)
 }
 
 export function markPreviewApplied(spec, changesetId, {
@@ -235,7 +294,7 @@ function preview(args) {
 }
 
 function confirm(args) {
-  if (args.phrase !== CONFIRM_PHRASE) fail(`确认必须显式带 --phrase "${CONFIRM_PHRASE}"`)
+  if (!isExplicitApproval(args.phrase)) fail('没有识别到明确同意；请在审核完整预览后回复“确认”“可以更新”或“按这版推送”等清晰授权')
   const { spec } = loadCurrentSpec(args)
   const previewRecord = readJson(args.preview)
   if (!previewRecord || previewRecord.fingerprint !== specFingerprint(spec) || previewRecord.snapshot_id !== spec.snapshot_id) {
@@ -247,7 +306,7 @@ function confirm(args) {
     snapshot_id: spec.snapshot_id,
     fingerprint: specFingerprint(spec),
     confirmed_at: new Date().toISOString(),
-    confirmation_phrase: CONFIRM_PHRASE,
+    confirmation_phrase: String(args.phrase).trim(),
   }
   writeJsonAtomic(args.approval, approval)
   console.log(`✅ 已记录用户确认；当前快照 ${spec.snapshot_id} 可执行 dashboard:apply。`)
@@ -258,7 +317,7 @@ export function main(argv = process.argv.slice(2)) {
   if (args.command === 'preview') return preview(args)
   if (args.command === 'confirm') return confirm(args)
   if (args.command === 'show') return console.log(formatPublishPreview(readJson(args.preview)))
-  fail('用法: dashboard:publish -- preview|show|confirm --phrase "确认推送"')
+  fail('用法: dashboard:publish -- preview|show|confirm --phrase "<用户明确同意原话>"')
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

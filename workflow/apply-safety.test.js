@@ -90,6 +90,25 @@ test('workflow 操作必须显式声明通知模式，避免预览与 batch 默�
   }
 })
 
+test('新建任务必须声明创建依据和来源，不能把无法归类的线索直接变成任务', () => {
+  const file = path.join(os.tmpdir(), `workboard-create-basis-${Date.now()}.json`)
+  const { context, reconciliation } = currentReviewFixture()
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'create', title: '含糊的新任务', note: 'Agent 猜测应该新建' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('creation_basis')
+        && `${error.stdout || ''}${error.stderr || ''}`.includes('source_ids'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
 test('百分比进度不能只写 progress note 而不更新任务字段', () => {
   const file = path.join(os.tmpdir(), `workboard-progress-note-${Date.now()}.json`)
   const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
@@ -150,6 +169,75 @@ test('Agent 估算使用阶段锚点，拒绝 92% 这类伪精度', () => {
   }
 })
 
+function currentReviewFixture() {
+  const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
+  const packet = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'review-packet.json'), 'utf8'))
+  return {
+    context,
+    packet,
+    taskId: packet.board.find((task) => task.status !== 'completed')?.id || packet.board[0].id,
+    reconciliation: packet.review_items.map((item) => ({ source_id: item.source_id, decision: 'irrelevant' })),
+  }
+}
+
+test('user_explicit 百分比必须有包含同一数字的用户原话，不能把阶段描述伪装成 96%', () => {
+  const file = path.join(os.tmpdir(), `workboard-progress-quote-${Date.now()}.json`)
+  const { context, taskId, reconciliation } = currentReviewFixture()
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{
+      op: 'progress', id: taskId, to: 96, progress_basis: 'user_explicit',
+      evidence_quote: 'Bug 都修完了，等待产品经理验收',
+      note: '用户确认已经修完', notify_mode: 'silent',
+    }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('用户原话必须明确包含 96%'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
+test('dry-run 使用真实执行器预检，拒绝 update 偷改 progress', () => {
+  const file = path.join(os.tmpdir(), `workboard-preflight-update-${Date.now()}.json`)
+  const { context, taskId, reconciliation } = currentReviewFixture()
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'update', id: taskId, progress: 96, current_status: '等待验收', notify_mode: 'silent' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('update 不允许修改状态类字段'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
+test('dry-run 使用真实执行器预检，拒绝执行器不支持的带时区 at', () => {
+  const file = path.join(os.tmpdir(), `workboard-preflight-at-${Date.now()}.json`)
+  const { context, taskId, reconciliation } = currentReviewFixture()
+  fs.writeFileSync(file, JSON.stringify({
+    snapshot_id: context.snapshot_id,
+    reconciliation,
+    ops: [{ op: 'note', id: taskId, content: '历史补记', at: '2026-09-02T08:00:00+08:00', notify_mode: 'silent' }],
+  }))
+  try {
+    assert.throws(
+      () => execFileSync('node', ['workflow/apply.mjs', '--file', file, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' }),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('非法 --at 时间'),
+    )
+  } finally {
+    fs.rmSync(file, { force: true })
+  }
+})
+
 test('实际 apply 没有当前预览确认时必须停止', () => {
   const file = path.join(os.tmpdir(), `workboard-unapproved-${Date.now()}.json`)
   const context = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'workflow', 'update-context.json'), 'utf8'))
@@ -159,7 +247,7 @@ test('实际 apply 没有当前预览确认时必须停止', () => {
   try {
     assert.throws(
       () => execFileSync('node', ['workflow/apply.mjs', '--file', file], { encoding: 'utf8', stdio: 'pipe' }),
-      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('确认推送'),
+      (error) => `${error.stdout || ''}${error.stderr || ''}`.includes('明确同意'),
     )
   } finally {
     fs.rmSync(file, { force: true })

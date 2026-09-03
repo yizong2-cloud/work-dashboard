@@ -16,9 +16,15 @@
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { approvalMatchesSpec, consumeApproval, DEFAULT_APPROVAL_FILE, markPreviewApplied } from './publish.mjs'
+import {
+  approvalMatchesSpec, consumeApproval, DEFAULT_APPROVAL_FILE,
+  markPreviewApplied, markPreviewExecuting, markPreviewRetryable, specFingerprint,
+} from './publish.mjs'
+import { buildExecutionPlan, mergeOperationResults } from './apply-journal.mjs'
+import { writeJsonAtomic } from './pending.mjs'
 import { reconciliationTaskIds, summarizeReconciliation, validateReviewSpec } from './review-packet.mjs'
 import { notificationIntentFor, summarizeNotificationIntents } from './operation-intent.mjs'
 
@@ -47,13 +53,15 @@ const PROGRESS_PERCENT_CLAIM = /(?:进度|完成度)\s*(?:(?:更新|提升|降�
 const PROGRESS_BASES = ['user_explicit', 'milestone_ratio', 'agent_estimate']
 const AGENT_ESTIMATE_ANCHORS = new Set([0, 10, 25, 50, 70, 85, 95])
 const NOTIFY_MODES = ['immediate', 'merge', 'silent']
+const CREATION_BASES = ['source_explicit', 'user_explicit', 'owner_confirmed']
 
 function parseArgs(argv) {
-  const args = { file: path.join(ROOT, 'workflow', 'ops.json'), dryRun: false, force: false }
+  const args = { file: path.join(ROOT, 'workflow', 'ops.json'), dryRun: false, force: false, quiet: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') args.file = argv[++i]
     else if (argv[i] === '--dry-run') args.dryRun = true
     else if (argv[i] === '--force') args.force = true
+    else if (argv[i] === '--quiet') args.quiet = true
   }
   return args
 }
@@ -70,6 +78,38 @@ function loadTasks() {
 function fail(msg) {
   console.error(`❌ ${msg}`)
   process.exit(1)
+}
+
+function runAgentOperations(operations, { dryRun = false } = {}) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workboard-apply-'))
+  const file = path.join(tempDir, 'ops.json')
+  try {
+    fs.writeFileSync(file, JSON.stringify({ ops: operations }, null, 2))
+    const command = [AGENT, 'batch', '--file', file, '--json']
+    if (dryRun) command.push('--dry-run')
+    let output
+    try {
+      output = execFileSync('node', command, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+    } catch (error) {
+      throw new Error(String(error.stderr || error.stdout || error.message || '').trim())
+    }
+    let results
+    try {
+      results = JSON.parse(output)
+    } catch {
+      throw new Error(`执行器返回了无法解析的结果: ${String(output).slice(0, 300)}`)
+    }
+    if (!Array.isArray(results)) throw new Error('执行器未返回逐项结果')
+    return results
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+}
+
+function batchFailures(results) {
+  return results
+    .map((result, index) => ({ ...result, index }))
+    .filter((result) => !result.ok)
 }
 
 // Keep notification semantics visible at the workflow seam. This is an intent
@@ -100,6 +140,7 @@ function main() {
 
   // ---- 1) 字段校验 ----
   const errors = []
+  const reviewSourceIds = new Set((reviewPacket?.review_items || []).map((item) => item.source_id))
   for (const [i, op] of ops.entries()) {
     const rules = OP_RULES[op.op]
     if (!rules) {
@@ -109,6 +150,18 @@ function main() {
     for (const key of rules) {
       if (op[key] === undefined || op[key] === null || op[key] === '') {
         errors.push(`第 ${i + 1} 条 ${op.op}: 缺少必填字段 "${key}"`)
+      }
+    }
+    if (op.op === 'create') {
+      if (!CREATION_BASES.includes(op.creation_basis)) {
+        errors.push(`第 ${i + 1} 条 create: 必须提供 creation_basis（${CREATION_BASES.join('/')}）；无法确定是否是工作任务时必须走 needs_confirmation`)
+      }
+      if (!Array.isArray(op.source_ids) || op.source_ids.length === 0) {
+        errors.push(`第 ${i + 1} 条 create: 必须提供 source_ids，说明新任务来自当前快照的哪些证据`)
+      } else {
+        for (const sourceId of op.source_ids) {
+          if (!reviewSourceIds.has(sourceId)) errors.push(`第 ${i + 1} 条 create: source_ids 包含当前审查包不存在的来源 ${sourceId}`)
+        }
       }
     }
     if (op.op === 'status' && op.to && !VALID_STATUS.includes(op.to)) errors.push(`第 ${i + 1} 条: 非法状态 "${op.to}"`)
@@ -125,6 +178,13 @@ function main() {
       }
       if (op.progress_basis === 'agent_estimate' && !AGENT_ESTIMATE_ANCHORS.has(progress)) {
         errors.push(`第 ${i + 1} 条 ${op.op}: Agent 估算只能使用阶段锚点 ${[...AGENT_ESTIMATE_ANCHORS].join('/')}；不要制造 92%/96% 这类伪精度`)
+      }
+      if (op.progress_basis === 'user_explicit') {
+        const quote = String(op.evidence_quote ?? '').trim()
+        const quotedPercent = new RegExp(`(^|\\D)${progress}\\s*%`).test(quote)
+        if (!quotedPercent) {
+          errors.push(`第 ${i + 1} 条 ${op.op}: progress_basis=user_explicit 时，用户原话必须明确包含 ${progress}%；只有阶段描述时请改用 agent_estimate 阶段锚点或只更新 current_status`)
+        }
       }
     }
     if (op.notify_mode !== undefined && !NOTIFY_MODES.includes(op.notify_mode)) {
@@ -164,7 +224,7 @@ function main() {
       try { return JSON.parse(fs.readFileSync(DEFAULT_APPROVAL_FILE, 'utf8')) } catch { return null }
     })()
     if (!approvalMatchesSpec(approval, spec)) {
-      fail('尚未获得当前更新预览的用户“确认推送”。先运行 dashboard:publish -- preview 并发给用户；收到确认后运行 dashboard:publish -- confirm --phrase "确认推送"。')
+      fail('尚未获得用户对当前完整预览的明确同意。先运行 dashboard:publish -- preview 并把完整内容逐项发给用户；收到“确认”“可以更新”“按这版推送”等清晰授权后，把用户原话传给 dashboard:publish -- confirm --phrase。')
     }
     try {
       if (snapshot.snapshot_health === 'degraded') {
@@ -206,62 +266,119 @@ function main() {
     process.exit(1)
   }
 
+  const fingerprint = specFingerprint(spec)
+  const previousChangeset = (() => {
+    try {
+      const previous = JSON.parse(fs.readFileSync(CHANGESET_FILE, 'utf8'))
+      return previous?.all_ok === false && previous?.fingerprint === fingerprint ? previous : null
+    } catch { return null }
+  })()
+  const fullPlan = ops.map((op, index) => ({ op, index }))
+  const executionPlan = args.dryRun ? fullPlan : buildExecutionPlan(ops, previousChangeset, fingerprint)
+
+  // ---- 4.5) 与真实执行器共用同一条逐项预检路径 ----
+  // apply 自己负责更新流程政策；agent batch --dry-run 负责命令字段、日期格式、
+  // 状态迁移等执行语义。两者都通过后才允许发生第一条真实写入。
+  let executorPreflight = []
+  if (executionPlan.length > 0) {
+    try {
+      executorPreflight = runAgentOperations(executionPlan.map((entry) => entry.op), { dryRun: true })
+    } catch (error) {
+      fail(`真实执行器预检失败: ${error.message}`)
+    }
+    const failures = batchFailures(executorPreflight)
+    if (failures.length > 0) {
+      const details = failures.map((result) => {
+        const originalIndex = executionPlan[result.index]?.index ?? result.index
+        return `第 ${originalIndex + 1} 条 ${result.op}: ${result.message}`
+      }).join('；')
+      fail(`真实执行器预检失败（尚未写入任何数据）：${details}`)
+    }
+  }
+
   const noChange = ops.length === 0
   const reconciliationSummary = summarizeReconciliation(reconciliation)
   const notificationIntent = summarizeNotificationIntents(ops)
-  console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 已审查无需改动 ${reconciliationSummary.reviewed_no_change} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
-  if (reconciliationSummary.needs_confirmation_source_ids.length > 0) {
-    const ids = reconciliationSummary.needs_confirmation_source_ids.slice(0, 8).join(', ')
-    const suffix = reconciliationSummary.needs_confirmation_source_ids.length > 8 ? ' …' : ''
-    console.log(`待确认 source_id（最多显示 8 项）：${ids}${suffix}`)
-  }
-  console.log(`通知意图：即时入队 ${notificationIntent.immediate} · 批内合并 ${notificationIntent.merge} · 静默 ${notificationIntent.silent} · 历史补记 ${notificationIntent.historical}`)
-  console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
-  for (const [i, op] of ops.entries()) {
-    const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')
-    console.log(`  ${i + 1}. ${op.op} ${brief}`)
+  if (!args.quiet) {
+    console.log(`对账摘要：共 ${reconciliationSummary.total} 项 · 已映射 ${reconciliationSummary.mapped} · 已审查无需改动 ${reconciliationSummary.reviewed_no_change} · 无关 ${reconciliationSummary.irrelevant} · 待确认 ${reconciliationSummary.needs_confirmation}`)
+    if (reconciliationSummary.needs_confirmation_source_ids.length > 0) {
+      const ids = reconciliationSummary.needs_confirmation_source_ids.slice(0, 8).join(', ')
+      const suffix = reconciliationSummary.needs_confirmation_source_ids.length > 8 ? ' …' : ''
+      console.log(`待确认 source_id（最多显示 8 项）：${ids}${suffix}`)
+    }
+    console.log(`通知意图：即时入队 ${notificationIntent.immediate} · 批内合并 ${notificationIntent.merge} · 静默 ${notificationIntent.silent} · 历史补记 ${notificationIntent.historical}`)
+    console.log(`${noChange ? '无数据写入，确认审查结案' : `共 ${ops.length} 条变更`}（快照已对账 ${reconciliation.length} 项），开始${args.dryRun ? '预演' : '执行'}…`)
+    for (const [i, op] of ops.entries()) {
+      const brief = Object.entries(op).filter(([k]) => k !== 'op').map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' ')
+      console.log(`  ${i + 1}. ${op.op} ${brief}`)
+    }
   }
 
   if (args.dryRun) {
-    console.log(`✅ 预演通过（已校验完整对账、字段/日期/任务存在/状态迁移；${noChange ? '不会写入看板' : '未写入'}）。去掉 --dry-run 执行。`)
+    if (!args.quiet) console.log(`✅ 预演通过（已由真实执行器校验完整对账、全部字段/日期/任务存在/状态迁移；${noChange ? '不会写入看板' : '未写入'}）。去掉 --dry-run 执行。`)
     return
   }
 
   // ---- 5) 执行 + changeset ----
-  const changeset_id = `chg-${Date.now()}`
-  const applyStartedAt = new Date().toISOString()
-  // Confirmation is single-use. If execution partially fails, a newly reviewed
-  // preview and a fresh owner confirmation are required before any retry.
-  consumeApproval(spec)
-  let batchOut = ''
-  if (!noChange) {
+  const changeset_id = previousChangeset?.changeset_id || `chg-${Date.now()}`
+  const applyStartedAt = previousChangeset?.started_at || new Date().toISOString()
+  markPreviewExecuting(spec)
+
+  const initialResults = mergeOperationResults(ops, previousChangeset, [], [])
+  const attempts = [...(previousChangeset?.attempts || []), {
+    started_at: new Date().toISOString(),
+    operation_indices: executionPlan.map((entry) => entry.index),
+    status: 'executing',
+  }]
+  const baseChangeset = {
+    changeset_id, snapshot_id: snapshot.snapshot_id || null, fingerprint, all_ok: false,
+    state: 'executing', started_at: applyStartedAt, ops_count: ops.length,
+    reviewed_no_change: noChange, notification_intent: notificationIntent,
+    ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null, notify_mode: notificationIntentFor(o) })),
+    operation_results: initialResults, reconciliation: reconciliation || [], attempts,
+  }
+  writeJsonAtomic(CHANGESET_FILE, baseChangeset)
+
+  let attemptResults = []
+  if (!noChange && executionPlan.length > 0) {
     try {
-      batchOut = execFileSync('node', [AGENT, 'batch', '--file', args.file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
-      console.log(batchOut)
-    } catch (e) {
-      console.error(String(e.stdout || ''))
-      fail(`应用失败: ${String(e.stderr || e.message || '').slice(0, 500)}`)
+      attemptResults = runAgentOperations(executionPlan.map((entry) => entry.op))
+    } catch (error) {
+      attemptResults = executionPlan.map((entry) => ({ op: entry.op.op, ok: false, message: error.message }))
     }
   }
-  // 解析 batch 结果「批处理完成：N/M 成功」——部分失败不得当作「已全面完成」。
-  const m = batchOut.match(/批处理完成：(\d+)\/(\d+) 成功/)
-  const okCount = m ? Number(m[1]) : ops.length // 无该行时保守：视作未知 → 全成功才记录
-  const allOk = okCount === ops.length
-  if (!allOk) {
-    console.error(`❌ 批处理部分失败（成功 ${okCount}/${ops.length}），本次不标记为已 apply，分析游标不会推进。请修复失败项后重跑。`)
-    process.exit(1)
+  const operationResults = mergeOperationResults(ops, previousChangeset, executionPlan, attemptResults)
+  const failures = operationResults.filter((result) => result.ok !== true)
+  const allOk = failures.length === 0
+  const finishedAt = new Date().toISOString()
+  attempts[attempts.length - 1] = {
+    ...attempts[attempts.length - 1],
+    finished_at: finishedAt,
+    status: allOk ? 'succeeded' : 'failed',
   }
-  try {
-    fs.writeFileSync(CHANGESET_FILE, JSON.stringify({
-      changeset_id, snapshot_id: snapshot.snapshot_id || null, all_ok: true,
-      started_at: applyStartedAt, applied_at: new Date().toISOString(), ops_count: ops.length, reviewed_no_change: noChange,
-      notification_intent: notificationIntent,
-      ops: ops.map((o) => ({ op: o.op, id: o.id || o.title || null, notify_mode: notificationIntentFor(o) })),
-      reconciliation: reconciliation || [],
-    }, null, 2))
-    markPreviewApplied(spec, changeset_id)
-    console.log(`✅ changeset 已记录: ${changeset_id}`)
-  } catch { /* 记录失败不阻断 */ }
+  const changeset = {
+    ...baseChangeset,
+    all_ok: allOk,
+    state: allOk ? 'applied' : 'awaiting_retry',
+    ...(allOk ? { applied_at: finishedAt } : { last_failed_at: finishedAt }),
+    operation_results: operationResults,
+    attempts,
+  }
+  writeJsonAtomic(CHANGESET_FILE, changeset)
+
+  for (const result of operationResults) {
+    const symbol = result.ok === true ? '✅' : result.ok === false ? '❌' : '⏭️'
+    console.log(`${symbol} ${result.index + 1}. ${result.op}${result.result_id ? ` (${result.result_id})` : ''}${result.message ? ` — ${result.message}` : ''}`)
+  }
+  if (!allOk) {
+    const message = `批处理部分失败（成功 ${operationResults.filter((result) => result.ok === true).length}/${ops.length}）；完整 changeset 已保留，同一预览授权仍有效。修复外部故障后运行 npm run dashboard:update -- retry，只会重试失败项。`
+    markPreviewRetryable(spec, message)
+    fail(message)
+  }
+
+  consumeApproval(spec)
+  markPreviewApplied(spec, changeset_id)
+  console.log(`✅ changeset 已记录: ${changeset_id}${previousChangeset ? '（失败项续跑完成）' : ''}`)
 }
 
 export { main, notificationIntentFor, summarizeNotificationIntents }

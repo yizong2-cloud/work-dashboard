@@ -9,7 +9,7 @@
 ## 0. 一句话定位
 
 > 一个向 Leader 持续透明展示个人任务/进度/排期/阻塞/变化原因的轻量个人工作看板。
-> 维护方式：本人说「开始更新」后，Agent 自动采集、分析并生成更新预览；**只有本人明确回复「确认推送」后**，才更新看板并触发飞书通知。
+> 维护方式：本人说「开始更新」后，Agent 自动采集、分析并把完整更新预览直接发在对话里；**只有本人明确同意当前完整预览后**，才更新看板并触发飞书通知，无需固定口令。
 > 核心难点：把散落在飞书/Codex/DSH/本地文件里的真实工作，**可靠、无遗漏**地提炼成看板上的任务进展。
 
 > **治理方式**：除“开始更新”外，Agent 还可运行只读 `dashboard:steward` 主动发现处理箱、过期现状、排期缺口与数据不一致。它只产生整理队列；任何事实改写仍必须有证据与用户确认，不能让 Agent 自行编造工作状态。
@@ -30,7 +30,7 @@
    Agent(LLM) 分析：结合 docs/KNOWLEDGE_BASE.md 识别/合并任务 → 产出变更建议
         │ 遵守「第四条铁律：全量对账」；逐项对账写入 ops.json，回复只报摘要
         │ 遇 needs_confirmation → pending-plan.json 保存问题 → 用户确认后原快照续办（不重采集）
-        │ 无歧义 → publish-preview.json 冻结拟写入/飞书意图 → 用户「确认推送」后才 apply
+        │ 无歧义 → publish-preview.json 冻结拟写入/飞书意图 → 用户明确同意后才 apply
         ▼
    Agent CLI scripts/agent.js（唯一写入口，原子 RPC）
         ▼
@@ -111,7 +111,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 ④ 有 needs_confirmation → dashboard:pending hold 输出人类可读的 Q1/Q2 确认单并停止
 ⑤ 用户用自然语言确认 → dashboard:pending resolve 只修正对应证据（不重新 prepare）
 ⑥ 无待确认 → dashboard:publish preview 输出拟写入内容与飞书意图，发给用户后停止
-⑦ 用户明确「确认推送」→ dashboard:publish confirm → dashboard:apply 执行
+⑦ 用户明确同意当前完整预览（无需固定口令）→ dashboard:publish confirm → dashboard:apply 执行
 ⑧ dashboard:verify    校验不变量并推进本次已结案快照游标
 ⑨ 更新 KNOWLEDGE_BASE（新事实入待确认区）+ commit
 ⑩ 汇报（含机器校验后的对账计数、通知意图与实际队列状态）
@@ -136,16 +136,16 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 一条证据不再被强迫只归属一个任务：`mapped` 支持 `task_ids`；与任务有关但没有新事实可写时用 `reviewed_no_change`，不要把它误报成“无关”。这样飞书群或长会话跨多个任务时，Agent 能完整对账而不制造假二选一。
 
 ### 发布审批闸门（2026-08-23）
-“开始更新”只授权采集、分析和生成预览，不授权写库或飞书投递。`dashboard:publish preview` 按任务聚合为 T1/T2，把拟写入内容、每项飞书意图、快照 ID 与内容指纹冻结到本地审批记录；同一任务的进度百分比和当前情况必须在同一组、一次原子写入中展示。Agent 必须将完整预览发给用户并停止。用户可以直接说“去掉 T2”或“T3 静默写入”，Agent 修改 ops 后重新生成预览。仅当用户明确回复「确认推送」后，Agent 才能运行 confirm，再执行 apply。apply 会校验审批记录与当前快照、reconciliation、ops 的指纹完全一致，因此任何改动都会自动作废旧确认；`--force` 也不能绕过这条闸门。
+“开始更新”只授权采集、分析和生成预览，不授权写库或飞书投递。`dashboard:publish preview` 按任务聚合为 T1/T2，把拟写入内容、每项飞书意图、快照 ID 与内容指纹冻结到本地审批记录；同一任务的进度百分比和当前情况必须在同一组、一次原子写入中展示。Agent 必须把完整预览逐项直接发在对话里并停止，数量摘要和文件链接不能代替正文。用户可以直接说“去掉 T2”或“T3 静默写入”，Agent 修改 ops 后重新生成完整预览。用户明确回复“确认”“可以更新”“按这版推送”等清晰授权后，Agent 把原话传给 confirm；无需固定口令。apply 仍校验审批记录与当前快照、reconciliation、ops 的指纹完全一致，因此任何未获授权的内容改动都会自动作废旧确认；`--force` 也不能绕过这条闸门。
 
-百分比进度必须声明来源口径 `progress_basis`：用户明确给出的 `user_explicit`、按清晰里程碑计算的 `milestone_ratio`，或会在预览中醒目标注的 `agent_estimate`。看板写入与通知由 `notify_mode` 解耦：通用操作可选 `immediate|silent`，批量 progress 还可选 `merge`；“不要推送”只代表静默写入，不得删除正确的看板事实。
+百分比进度必须声明来源口径 `progress_basis`：用户明确给出的 `user_explicit`、按清晰里程碑计算的 `milestone_ratio`，或会在预览中醒目标注的 `agent_estimate`。`user_explicit` 必须附带包含同一百分比的 `evidence_quote` 用户原话；“Bug 已修完、等待验收”不能伪装成用户明确给了 96%。看板写入与通知由 `notify_mode` 解耦：通用操作可选 `immediate|silent`，批量 progress 还可选 `merge`；“不要推送”只代表静默写入，不得删除正确的看板事实。
 
 ### Agent 托管与日常整理（2026-08-24）
 
 看板的日常维护者是 Agent，而不是人手表格维护者。为避免“主动维护”退化为擅自改写，职责分为两层：
 
 1. **治理层（随时可运行，只读）**：`npm run dashboard:steward -- --json` 产生统一待办：Agent 处理箱、逾期需核实、长期未更新、缺一句话现状、未排期、近期到期未拆日计划、完成不一致、精确重复候选与孤儿时间线。它不写库、不推送。
-2. **事实层（受控写入）**：Agent 先从用户指令或数据源证据确认事实，再使用结构化 CLI；涉及来源驱动的一批变更时，仍必须走 `dashboard-update` 的全量对账、预览和「确认推送」。标题/描述/现状的“润色”属于事实表达改写，必须先展示前后对比；合并或删除永远需要单独明确授权。
+2. **事实层（受控写入）**：Agent 先从用户指令或数据源证据确认事实，再使用结构化 CLI；涉及来源驱动的一批变更时，仍必须走 `dashboard-update` 的全量对账、完整预览和用户明确授权。标题/描述/现状的“润色”属于事实表达改写，必须先展示前后对比；合并或删除永远需要单独明确授权。
 
 `dashboard-steward` Skill 由 `workflow/dashboard-steward.skill.md` 为唯一契约，运行 `npm run dashboard:steward-skill:install` 安装到 `~/.agents/skills/dashboard-steward/`。它与 `dashboard-update` 并列：前者负责发现、整理、接手；后者负责采集与受控落库。
 
@@ -216,7 +216,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
    - 用户职责边界：华容道项目里负责**后端+CMS**、不负责客户端（Jigslide 按钮动效需求不该记给他）
    → 缓解：KNOWLEDGE_BASE 持续纠正 + 待确认区 + 「有疑问拍板」。但**本质不可消除**，审查者请评估是否可引入半自动校验。
 2. **数据源覆盖仍有边界**：飞书 Cookies 会过期；Codex/DSH 仅覆盖本机可见会话；本地文件目前只扫描 Downloads/Desktop/Documents 的一级白名单目录并只采元数据，嵌套目录、外部盘和文件正文仍需按需展开。
-3. **采集与语义判断有意分层**：cron 只拉不分析，不能替代用户发起的「开始更新」。任务归属、进度与排期仍需 Agent 进行语义判断；但这已不是单纯软约束：健康快照、每个 source_id 的完整 reconciliation、待确认暂停态、冻结预览 + 用户「确认推送」、apply 前置条件及 verify 共同拦截写库、投递和游标推进。剩余风险是“结构合法但语义错误”的映射，应通过候选线索、知识库纠正和用户确认降低，不能假装已被机械校验消除。
+3. **采集与语义判断有意分层**：cron 只拉不分析，不能替代用户发起的「开始更新」。任务归属、进度与排期仍需 Agent 进行语义判断；但这已不是单纯软约束：健康快照、每个 source_id 的完整 reconciliation、待确认暂停态、冻结的完整预览 + 用户明确授权、apply 前置条件及 verify 共同拦截写库、投递和游标推进。剩余风险是“结构合法但语义错误”的映射，应通过候选线索、知识库纠正和用户确认降低，不能假装已被机械校验消除。
 4. **通知模式仍有语义判断风险**：workflow apply 已拒绝漏传/非法 `notify_mode`，预览也逐项显示通知效果；但 Agent 仍可能在 `immediate` 与 `silent` 之间选错，最终以用户确认的任务级预览兜底。
 5. **测试覆盖仍不均衡**：已有 CLI、工作流、纯函数与关键页面契约测试，默认测试输出已压缩以降低日常上下文成本（完整明细可用 `npm run test:verbose` 查看）；但 DB 触发器、真实通知投递和 React 交互仍缺浏览器级自动化回归，继续以最小线上冒烟验收兜底。
 6. **schema 部署仍需显式执行**：增量迁移已纳入 `supabase/migrations/` 并由 `dashboard:release-status` 对账，但 GitHub Pages 部署不会自动执行 `supabase db push`；涉及数据契约的发布必须单独验证远端迁移状态。
@@ -236,7 +236,7 @@ npm run agent -- delete <id> / batch --file ops.json / plan-* / seed   # 慎用/
 外部审查提出 P0/P1 后已完成：
 1. **游标语义分离**：`captured_at`（采集快照时间）与 `.analysis-state.reviewed_at`（分析游标）分离；**仅 apply+verify 均成功、verify 通过时才推进分析游标**——分析中断不会再丢增量（此前手动 prepare 就会把游标前移）。
 2. **verify 真正校验**：新增引用完整性检查（孤儿时间线/孤儿计划块，线上模式经 Supabase REST 查询）；发现问题 `exit(1)`，不再把违规当正常快照；通过后推进分析游标。
-3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——一律拒绝）；② 当前审查包所有 source_id 必须有且仅有一个 reconciliation（机器全量对账证据）；③ 当前预览必须有用户「确认推送」的同指纹审批；④ 预条件校验（任务必须存在、状态迁移合法、日期/字段）；⑤ 执行后写 `workflow/last-changeset.json` 可追溯，支持无变更结案。
+3. **apply 加固**：① source-health 闸门（快照 degraded——有数据源拉取失败——一律拒绝）；② 当前审查包所有 source_id 必须有且仅有一个 reconciliation（机器全量对账证据）；③ 当前预览必须有用户明确同意的同指纹审批；④ 调用真实执行器整批预检（任务必须存在、状态迁移合法、日期/字段）；⑤ 部分失败时 `workflow/last-changeset.json` 保留整批逐项状态与原授权，续跑只执行失败项；⑥ 全部成功后才结案并消费授权。
 4. **第四数据源纳入 prepare**：白名单目录（Downloads/Desktop/Documents）扫描自分析游标以来的新文件，仅收集元数据（path/mtime/size/ext），输出到 `snapshot.sources.local_files`，不再靠人工记忆。
 5. **manifest/snapshot**：`update-context.json` 现含 `captured_at`、`snapshot_health`、`sources`（各源 ok/失败 + 计数 + 本地文件）。
 6. **通知**：真实进展与关键事件即时、纯 note 备注和普通字段编辑静默、批量显式 merge——由 CLI 命令类型内置默认 notify_mode 实现。

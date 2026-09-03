@@ -31,6 +31,16 @@
     "op": {
       "type": "object",
       "required": ["op"],
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "create" } }, "required": ["op"] },
+          "then": { "required": ["title", "creation_basis", "source_ids"] }
+        },
+        {
+          "if": { "properties": { "progress_basis": { "const": "user_explicit" } }, "required": ["progress_basis"] },
+          "then": { "required": ["evidence_quote"] }
+        }
+      ],
       "properties": {
         "op": {
           "type": "string",
@@ -38,6 +48,8 @@
         },
         "id": { "type": "string", "description": "任务 id（除 create 外必填）" },
         "title": { "type": "string", "description": "create: 任务名称（必填）" },
+        "creation_basis": { "type": "string", "enum": ["source_explicit", "user_explicit", "owner_confirmed"], "description": "create 必填：明确安排、用户直接提出或用户确认归属；Agent 推测不得直接创建" },
+        "source_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true, "description": "create 必填：支撑新建任务的当前快照 source_id" },
         "description": { "type": "string" },
         "to": { "type": ["integer", "string"], "description": "progress/status/reopen: 目标值（progress 0-100；reopen 0-99；status 仅普通状态）" },
         "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "schedule: 新的预计完成日期" },
@@ -47,6 +59,7 @@
         "priority": { "type": "string", "enum": ["urgent", "high", "normal", "low"] },
         "current_status": { "type": "string" },
         "progress_basis": { "type": "string", "enum": ["user_explicit", "milestone_ratio", "agent_estimate"], "description": "progress 必填：百分比的来源口径" },
+        "evidence_quote": { "type": "string", "description": "progress_basis=user_explicit 时必填：包含同一百分比数字的用户原话，供预览核对" },
         "notify_mode": { "type": "string", "enum": ["immediate", "merge", "silent"], "description": "除 create 外必填：写入与通知解耦；merge 仅用于 progress" },
         "start_date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
         "interrupt": { "type": ["boolean", "string"] },

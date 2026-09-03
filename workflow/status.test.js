@@ -190,8 +190,24 @@ test('status 将当前快照的推送预览作为下一步，等待用户确认'
     now: new Date('2026-08-20T12:00:00Z'),
   })
   assert.equal(status.publish.awaiting_confirmation, true)
-  assert.match(status.next_action, /确认推送/)
+  assert.match(status.next_action, /无需固定口令/)
   assert.match(formatStatus(status), /待推送审核：⏸️ 1 项/)
+})
+
+test('status 识别可复用授权的失败续跑状态', () => {
+  const status = buildStatus({
+    packet: {
+      snapshot_id: 'snap-retry', captured_at: '2026-08-20T10:00:00Z', snapshot_health: 'ok',
+      source_health: { feishu: { ok: true, count: 1 } }, counts: { total: 1 },
+    },
+    publishPreview: {
+      state: 'awaiting_retry', snapshot_id: 'snap-retry', operations: [{ index: 1 }, { index: 2 }],
+    },
+    now: new Date('2026-08-20T12:00:00Z'),
+  })
+  assert.equal(status.publish.awaiting_retry, true)
+  assert.match(status.next_action, /不.*确认|原授权仍有效/)
+  assert.match(formatStatus(status), /执行待续跑/)
 })
 
 test('status 将需人工判断拆成可行动的审查原因', () => {
@@ -282,4 +298,5 @@ test('prepare guard 只阻止覆盖待确认计划或待推送预览', () => {
   assert.equal(statusAllowsPrepare({ pending: { active: false }, publish: { awaiting_confirmation: false } }), true)
   assert.equal(statusAllowsPrepare({ pending: { active: true }, publish: { awaiting_confirmation: false } }), false)
   assert.equal(statusAllowsPrepare({ pending: { active: false }, publish: { awaiting_confirmation: true } }), false)
+  assert.equal(statusAllowsPrepare({ pending: { active: false }, publish: { awaiting_confirmation: false, awaiting_retry: true } }), false)
 })

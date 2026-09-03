@@ -733,7 +733,7 @@ async function main() {
   lines.push('1. Agent 优先读取 `workflow/review-packet.json`，结合知识库做全量对账；不确定时按 source_id 展开原始证据')
   lines.push('2. 生成变更建议 `workflow/ops.json`（即使无变更也写完整 reconciliation + 空 ops）')
   lines.push('3. 执行 `npm run dashboard:apply -- --dry-run`，再运行 `npm run dashboard:publish -- preview` 并发给用户审核')
-  lines.push('4. 仅用户明确回复“确认推送”后，运行 publish confirm → dashboard:apply')
+  lines.push('4. 把完整预览逐项发在对话里；仅用户明确同意当前预览后，把其原话传给 publish confirm → dashboard:apply（无需固定口令）')
   lines.push('5. 推送完成后执行 `npm run dashboard:verify` 校验', '')
   fs.writeFileSync(REPORT_FILE, lines.join('\n'))
 

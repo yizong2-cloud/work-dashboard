@@ -16,14 +16,15 @@ prepare → review-packet 全量对账 → evidence 按需展开
    - `workflow/review-packet.json`：日常唯一审查输入，包含每项 `source_id`、短摘录、任务线索与当前任务简表。
    - `workflow/update-context.json`：原始证据库，不可整包读取。
    - 最近一次健康快照另存为 `last-healthy-*.json`，只供采集故障时按 ID 对照，不参与当前对账或 apply。
-2. Agent 阅读知识库与审查包，对每个 `source_id` 给出 `mapped` / `irrelevant` / `needs_confirmation`。
+2. Agent 先完整阅读知识库，再读审查包，对每个 `source_id` 给出 `mapped` / `irrelevant` / `needs_confirmation`。
 3. 不确定时才运行 `npm run dashboard:evidence -- --id <source_id>`；一次只展开一个来源项。只有排障时才可追加 `--last-healthy`，且不得据此生成当前快照的 ops。
 4. 输出 `ops.json` 必须带当前 `snapshot_id` 和全量 `reconciliation`。`ops: []` 合法，代表“已审查、无数据变更”。回复只引用 apply 生成的对账摘要，不重复逐条表格。
 5. 若 reconciliation 有 `needs_confirmation`，运行 `npm run dashboard:pending -- hold`。它会保存当前快照的 pending plan，并输出可直接发给用户的逐项确认单；此时 apply/verify 都会拒绝继续。
 6. 用户确认后，用 `npm run dashboard:pending -- resolve ...` 只更新对应 source_id 的结论；同一快照未过期时不得重新 prepare 或重做四源分析。全部解决后才继续 apply。
-7. `dashboard:apply --dry-run` 通过后运行 `dashboard:publish -- preview`，把完整预览发给用户并停止。预览不会写库或触发飞书。
-8. 只有用户明确回复「确认推送」后，运行 `dashboard:publish -- confirm --phrase "确认推送"`，再执行 `dashboard:apply`。机器同时校验快照健康、source_id 覆盖/唯一性、未解决确认项、任务引用、操作预条件和预览确认指纹。
-9. `dashboard:verify` 通过后才推进分析游标。
+7. `dashboard:apply --dry-run` 通过后运行 `dashboard:publish -- preview`，把命令生成的完整预览逐项直接发在对话里并停止；数量摘要或文件链接不能代替正文。预览不会写库或触发飞书。
+8. 用户对当前完整预览明确回复「确认」「可以更新」「按这版推送」等清晰授权后，把用户原话传给 `dashboard:publish -- confirm --phrase "<用户原话>"`，再执行 `dashboard:apply`。无需固定口令；机器仍校验快照健康、source_id 覆盖/唯一性、未解决确认项、任务引用、操作预条件和预览确认指纹。
+9. apply 会先调用真实执行器对整批操作做无写入预检。若预检通过后仍因临时外部故障出现部分失败，changeset 保留整批逐项状态和原授权；运行 `dashboard:update -- retry` 只重试失败项，不重新确认、不手工删 ops。
+10. `dashboard:verify` 通过后才推进分析游标。
 
 对账回复建议格式：`对账共 N 项：已映射 A、无关 B、待确认 C；本次补录 X 项`。逐项结论仍保存在 `ops.json`，并由 apply 闸门逐项校验。
 

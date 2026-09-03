@@ -149,7 +149,7 @@ npm run dashboard:steward -- --json
 | 用户说 | 你执行 |
 | --- | --- |
 | 「我新建了一个任务：XXX，预计下周五完成」 | `create --title "XXX" --end <下周五日期> [--priority normal]` |
-| 「XXX 做了一半了，大概 50%」 | `progress <id> --to 50`（更新工作流中标 `progress_basis=user_explicit`） |
+| 「XXX 做了一半了，大概 50%」 | `progress <id> --to 50`（更新工作流中标 `progress_basis=user_explicit`，并保存 `evidence_quote` 原话） |
 | 「XXX 做完了」 | `complete <id> --note <用户提到的补充>` |
 | 「XXX 被堵住了，因为等 XX」 | `block <id> --reason "等 XX"` |
 | 「XXX 排期要延后两天」 | `schedule <id> --end <新日期> --note "原因"` |

@@ -19,6 +19,7 @@ function snapshotHealth(status) {
   if (status.coverage?.complete === false) return { state: 'attention', detail: '审查索引存在缺口' }
   if (status.snapshot_stale || !status.source_health_recorded) return { state: 'attention', detail: status.snapshot_stale ? '快照已过期' : '来源健康未记录' }
   if (status.pending?.active) return { state: 'review', detail: `${status.pending.count} 项待确认` }
+  if (status.publish?.awaiting_retry) return { state: 'attention', detail: '上次写入部分失败，等待安全续跑' }
   if (status.publish?.awaiting_confirmation) return { state: 'review', detail: `${status.publish.operations} 项等待确认推送` }
   if (!status.apply?.matched_snapshot || !status.review?.fully_reconciled) return { state: 'review', detail: '快照待完成审查/验证' }
   return { state: 'ok', detail: `已结案 ${status.review.reconciled_count}/${status.review.expected_count}` }
